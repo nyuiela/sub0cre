@@ -1,3 +1,25 @@
 {
-  "schedule": "*/30 * * * * *"
+  "schedule": "*/30 * * * * *",
+  "contracts": {
+    "chainId": 84532,
+    "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+    "contracts": {
+      "sub0": "0x78bE5078c6614D43a730eeC5323fa45d7bd829b7",
+      "predictionVault": "0x8f7baaEf7f15acc36eeBEA97370414eeC2F0FD79",
+      "conditionalTokens": "0x732754D455DB204990A8a1EC07552dF0d1fCB349",
+      "vault": "0x6049dE7e1ecceBcF7b39EF9A2fd639e3E6925f32",
+      "usdc": "0x8D2F94cd1831c1b41a784f3E1c29BD3f047b7E49",
+      "hub": "0xb18f47F9F0dd0FC0fC2d09C8bf0BecBf16368371"
+    },
+    "eip712": {
+      "domainName": "Sub0PredictionVault",
+      "domainVersion": "1",
+      "quoteTypeName": "LMSRQuote(bytes32 questionId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,uint256 nonce,uint256 deadline)"
+    },
+    "conventions": {
+      "usdcDecimals": 6,
+      "outcomeTokenDecimals": 18,
+      "parentCollectionId": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  }
 }
