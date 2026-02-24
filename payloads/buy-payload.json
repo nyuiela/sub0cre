@@ -1,0 +1,11 @@
+{
+  "action": "order",
+  "apiKey": "your-api-key-if-configured",
+  "questionId": "0x41a0ad3b898d7e183b7c8e686af7f0919db15db0e503f29ccb0f7b336bdc9381",
+  "outcomeIndex": 0,
+  "buy": true,
+  "quantity": "1000000000000000000",
+  "tradeCostUsdc": "500000",
+  "nonce": "1",
+  "deadline": "9999999999"
+}

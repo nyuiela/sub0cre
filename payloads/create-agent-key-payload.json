@@ -1,0 +1,5 @@
+{
+  "action": "createAgentKey",
+  "apiKey": "your-api-key-if-configured",
+  "agentId": "my-agent-1"
+}

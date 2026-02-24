@@ -1,0 +1,24112 @@
+// .cre_build_tmp.js
+var __defProp = Object.defineProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, {
+      get: all[name],
+      enumerable: true,
+      configurable: true,
+      set: (newValue) => all[name] = () => newValue
+    });
+};
+var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
+function execTyped(regex, string) {
+  const match = regex.exec(string);
+  return match?.groups;
+}
+var init_regex = () => {};
+function formatAbiParameter(abiParameter) {
+  let type = abiParameter.type;
+  if (tupleRegex.test(abiParameter.type) && "components" in abiParameter) {
+    type = "(";
+    const length = abiParameter.components.length;
+    for (let i2 = 0;i2 < length; i2++) {
+      const component = abiParameter.components[i2];
+      type += formatAbiParameter(component);
+      if (i2 < length - 1)
+        type += ", ";
+    }
+    const result = execTyped(tupleRegex, abiParameter.type);
+    type += `)${result?.array ?? ""}`;
+    return formatAbiParameter({
+      ...abiParameter,
+      type
+    });
+  }
+  if ("indexed" in abiParameter && abiParameter.indexed)
+    type = `${type} indexed`;
+  if (abiParameter.name)
+    return `${type} ${abiParameter.name}`;
+  return type;
+}
+var tupleRegex;
+var init_formatAbiParameter = __esm(() => {
+  init_regex();
+  tupleRegex = /^tuple(?<array>(\[(\d*)\])*)$/;
+});
+function formatAbiParameters(abiParameters) {
+  let params = "";
+  const length = abiParameters.length;
+  for (let i2 = 0;i2 < length; i2++) {
+    const abiParameter = abiParameters[i2];
+    params += formatAbiParameter(abiParameter);
+    if (i2 !== length - 1)
+      params += ", ";
+  }
+  return params;
+}
+var init_formatAbiParameters = __esm(() => {
+  init_formatAbiParameter();
+});
+function formatAbiItem(abiItem) {
+  if (abiItem.type === "function")
+    return `function ${abiItem.name}(${formatAbiParameters(abiItem.inputs)})${abiItem.stateMutability && abiItem.stateMutability !== "nonpayable" ? ` ${abiItem.stateMutability}` : ""}${abiItem.outputs?.length ? ` returns (${formatAbiParameters(abiItem.outputs)})` : ""}`;
+  if (abiItem.type === "event")
+    return `event ${abiItem.name}(${formatAbiParameters(abiItem.inputs)})`;
+  if (abiItem.type === "error")
+    return `error ${abiItem.name}(${formatAbiParameters(abiItem.inputs)})`;
+  if (abiItem.type === "constructor")
+    return `constructor(${formatAbiParameters(abiItem.inputs)})${abiItem.stateMutability === "payable" ? " payable" : ""}`;
+  if (abiItem.type === "fallback")
+    return `fallback() external${abiItem.stateMutability === "payable" ? " payable" : ""}`;
+  return "receive() external payable";
+}
+var init_formatAbiItem = __esm(() => {
+  init_formatAbiParameters();
+});
+var init_exports = __esm(() => {
+  init_formatAbiItem();
+});
+function formatAbiItem2(abiItem, { includeName = false } = {}) {
+  if (abiItem.type !== "function" && abiItem.type !== "event" && abiItem.type !== "error")
+    throw new InvalidDefinitionTypeError(abiItem.type);
+  return `${abiItem.name}(${formatAbiParams(abiItem.inputs, { includeName })})`;
+}
+function formatAbiParams(params, { includeName = false } = {}) {
+  if (!params)
+    return "";
+  return params.map((param) => formatAbiParam(param, { includeName })).join(includeName ? ", " : ",");
+}
+function formatAbiParam(param, { includeName }) {
+  if (param.type.startsWith("tuple")) {
+    return `(${formatAbiParams(param.components, { includeName })})${param.type.slice("tuple".length)}`;
+  }
+  return param.type + (includeName && param.name ? ` ${param.name}` : "");
+}
+var init_formatAbiItem2 = __esm(() => {
+  init_abi();
+});
+function isHex(value2, { strict = true } = {}) {
+  if (!value2)
+    return false;
+  if (typeof value2 !== "string")
+    return false;
+  return strict ? /^0x[0-9a-fA-F]*$/.test(value2) : value2.startsWith("0x");
+}
+function size(value2) {
+  if (isHex(value2, { strict: false }))
+    return Math.ceil((value2.length - 2) / 2);
+  return value2.length;
+}
+var init_size = () => {};
+var version = "2.34.0";
+function walk(err, fn) {
+  if (fn?.(err))
+    return err;
+  if (err && typeof err === "object" && "cause" in err && err.cause !== undefined)
+    return walk(err.cause, fn);
+  return fn ? null : err;
+}
+var errorConfig;
+var BaseError;
+var init_base = __esm(() => {
+  errorConfig = {
+    getDocsUrl: ({ docsBaseUrl, docsPath = "", docsSlug }) => docsPath ? `${docsBaseUrl ?? "https://viem.sh"}${docsPath}${docsSlug ? `#${docsSlug}` : ""}` : undefined,
+    version: `viem@${version}`
+  };
+  BaseError = class BaseError2 extends Error {
+    constructor(shortMessage, args = {}) {
+      const details = (() => {
+        if (args.cause instanceof BaseError2)
+          return args.cause.details;
+        if (args.cause?.message)
+          return args.cause.message;
+        return args.details;
+      })();
+      const docsPath = (() => {
+        if (args.cause instanceof BaseError2)
+          return args.cause.docsPath || args.docsPath;
+        return args.docsPath;
+      })();
+      const docsUrl = errorConfig.getDocsUrl?.({ ...args, docsPath });
+      const message = [
+        shortMessage || "An error occurred.",
+        "",
+        ...args.metaMessages ? [...args.metaMessages, ""] : [],
+        ...docsUrl ? [`Docs: ${docsUrl}`] : [],
+        ...details ? [`Details: ${details}`] : [],
+        ...errorConfig.version ? [`Version: ${errorConfig.version}`] : []
+      ].join(`
+`);
+      super(message, args.cause ? { cause: args.cause } : undefined);
+      Object.defineProperty(this, "details", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "docsPath", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "metaMessages", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "shortMessage", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "version", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "BaseError"
+      });
+      this.details = details;
+      this.docsPath = docsPath;
+      this.metaMessages = args.metaMessages;
+      this.name = args.name ?? this.name;
+      this.shortMessage = shortMessage;
+      this.version = version;
+    }
+    walk(fn) {
+      return walk(this, fn);
+    }
+  };
+});
+var AbiDecodingDataSizeTooSmallError;
+var AbiDecodingZeroDataError;
+var AbiEncodingArrayLengthMismatchError;
+var AbiEncodingBytesSizeMismatchError;
+var AbiEncodingLengthMismatchError;
+var AbiFunctionNotFoundError;
+var AbiFunctionOutputsNotFoundError;
+var AbiItemAmbiguityError;
+var BytesSizeMismatchError;
+var InvalidAbiEncodingTypeError;
+var InvalidAbiDecodingTypeError;
+var InvalidArrayError;
+var InvalidDefinitionTypeError;
+var UnsupportedPackedAbiType;
+var init_abi = __esm(() => {
+  init_formatAbiItem2();
+  init_size();
+  init_base();
+  AbiDecodingDataSizeTooSmallError = class AbiDecodingDataSizeTooSmallError2 extends BaseError {
+    constructor({ data, params, size: size2 }) {
+      super([`Data size of ${size2} bytes is too small for given parameters.`].join(`
+`), {
+        metaMessages: [
+          `Params: (${formatAbiParams(params, { includeName: true })})`,
+          `Data:   ${data} (${size2} bytes)`
+        ],
+        name: "AbiDecodingDataSizeTooSmallError"
+      });
+      Object.defineProperty(this, "data", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "params", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "size", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      this.data = data;
+      this.params = params;
+      this.size = size2;
+    }
+  };
+  AbiDecodingZeroDataError = class AbiDecodingZeroDataError2 extends BaseError {
+    constructor() {
+      super('Cannot decode zero data ("0x") with ABI parameters.', {
+        name: "AbiDecodingZeroDataError"
+      });
+    }
+  };
+  AbiEncodingArrayLengthMismatchError = class AbiEncodingArrayLengthMismatchError2 extends BaseError {
+    constructor({ expectedLength, givenLength, type }) {
+      super([
+        `ABI encoding array length mismatch for type ${type}.`,
+        `Expected length: ${expectedLength}`,
+        `Given length: ${givenLength}`
+      ].join(`
+`), { name: "AbiEncodingArrayLengthMismatchError" });
+    }
+  };
+  AbiEncodingBytesSizeMismatchError = class AbiEncodingBytesSizeMismatchError2 extends BaseError {
+    constructor({ expectedSize, value: value2 }) {
+      super(`Size of bytes "${value2}" (bytes${size(value2)}) does not match expected size (bytes${expectedSize}).`, { name: "AbiEncodingBytesSizeMismatchError" });
+    }
+  };
+  AbiEncodingLengthMismatchError = class AbiEncodingLengthMismatchError2 extends BaseError {
+    constructor({ expectedLength, givenLength }) {
+      super([
+        "ABI encoding params/values length mismatch.",
+        `Expected length (params): ${expectedLength}`,
+        `Given length (values): ${givenLength}`
+      ].join(`
+`), { name: "AbiEncodingLengthMismatchError" });
+    }
+  };
+  AbiFunctionNotFoundError = class AbiFunctionNotFoundError2 extends BaseError {
+    constructor(functionName, { docsPath } = {}) {
+      super([
+        `Function ${functionName ? `"${functionName}" ` : ""}not found on ABI.`,
+        "Make sure you are using the correct ABI and that the function exists on it."
+      ].join(`
+`), {
+        docsPath,
+        name: "AbiFunctionNotFoundError"
+      });
+    }
+  };
+  AbiFunctionOutputsNotFoundError = class AbiFunctionOutputsNotFoundError2 extends BaseError {
+    constructor(functionName, { docsPath }) {
+      super([
+        `Function "${functionName}" does not contain any \`outputs\` on ABI.`,
+        "Cannot decode function result without knowing what the parameter types are.",
+        "Make sure you are using the correct ABI and that the function exists on it."
+      ].join(`
+`), {
+        docsPath,
+        name: "AbiFunctionOutputsNotFoundError"
+      });
+    }
+  };
+  AbiItemAmbiguityError = class AbiItemAmbiguityError2 extends BaseError {
+    constructor(x, y) {
+      super("Found ambiguous types in overloaded ABI items.", {
+        metaMessages: [
+          `\`${x.type}\` in \`${formatAbiItem2(x.abiItem)}\`, and`,
+          `\`${y.type}\` in \`${formatAbiItem2(y.abiItem)}\``,
+          "",
+          "These types encode differently and cannot be distinguished at runtime.",
+          "Remove one of the ambiguous items in the ABI."
+        ],
+        name: "AbiItemAmbiguityError"
+      });
+    }
+  };
+  BytesSizeMismatchError = class BytesSizeMismatchError2 extends BaseError {
+    constructor({ expectedSize, givenSize }) {
+      super(`Expected bytes${expectedSize}, got bytes${givenSize}.`, {
+        name: "BytesSizeMismatchError"
+      });
+    }
+  };
+  InvalidAbiEncodingTypeError = class InvalidAbiEncodingTypeError2 extends BaseError {
+    constructor(type, { docsPath }) {
+      super([
+        `Type "${type}" is not a valid encoding type.`,
+        "Please provide a valid ABI type."
+      ].join(`
+`), { docsPath, name: "InvalidAbiEncodingType" });
+    }
+  };
+  InvalidAbiDecodingTypeError = class InvalidAbiDecodingTypeError2 extends BaseError {
+    constructor(type, { docsPath }) {
+      super([
+        `Type "${type}" is not a valid decoding type.`,
+        "Please provide a valid ABI type."
+      ].join(`
+`), { docsPath, name: "InvalidAbiDecodingType" });
+    }
+  };
+  InvalidArrayError = class InvalidArrayError2 extends BaseError {
+    constructor(value2) {
+      super([`Value "${value2}" is not a valid array.`].join(`
+`), {
+        name: "InvalidArrayError"
+      });
+    }
+  };
+  InvalidDefinitionTypeError = class InvalidDefinitionTypeError2 extends BaseError {
+    constructor(type) {
+      super([
+        `"${type}" is not a valid definition type.`,
+        'Valid types: "function", "event", "error"'
+      ].join(`
+`), { name: "InvalidDefinitionTypeError" });
+    }
+  };
+  UnsupportedPackedAbiType = class UnsupportedPackedAbiType2 extends BaseError {
+    constructor(type) {
+      super(`Type "${type}" is not supported for packed encoding.`, {
+        name: "UnsupportedPackedAbiType"
+      });
+    }
+  };
+});
+var SliceOffsetOutOfBoundsError;
+var SizeExceedsPaddingSizeError;
+var init_data = __esm(() => {
+  init_base();
+  SliceOffsetOutOfBoundsError = class SliceOffsetOutOfBoundsError2 extends BaseError {
+    constructor({ offset, position, size: size2 }) {
+      super(`Slice ${position === "start" ? "starting" : "ending"} at offset "${offset}" is out-of-bounds (size: ${size2}).`, { name: "SliceOffsetOutOfBoundsError" });
+    }
+  };
+  SizeExceedsPaddingSizeError = class SizeExceedsPaddingSizeError2 extends BaseError {
+    constructor({ size: size2, targetSize, type }) {
+      super(`${type.charAt(0).toUpperCase()}${type.slice(1).toLowerCase()} size (${size2}) exceeds padding size (${targetSize}).`, { name: "SizeExceedsPaddingSizeError" });
+    }
+  };
+});
+function pad(hexOrBytes, { dir, size: size2 = 32 } = {}) {
+  if (typeof hexOrBytes === "string")
+    return padHex(hexOrBytes, { dir, size: size2 });
+  return padBytes(hexOrBytes, { dir, size: size2 });
+}
+function padHex(hex_, { dir, size: size2 = 32 } = {}) {
+  if (size2 === null)
+    return hex_;
+  const hex = hex_.replace("0x", "");
+  if (hex.length > size2 * 2)
+    throw new SizeExceedsPaddingSizeError({
+      size: Math.ceil(hex.length / 2),
+      targetSize: size2,
+      type: "hex"
+    });
+  return `0x${hex[dir === "right" ? "padEnd" : "padStart"](size2 * 2, "0")}`;
+}
+function padBytes(bytes, { dir, size: size2 = 32 } = {}) {
+  if (size2 === null)
+    return bytes;
+  if (bytes.length > size2)
+    throw new SizeExceedsPaddingSizeError({
+      size: bytes.length,
+      targetSize: size2,
+      type: "bytes"
+    });
+  const paddedBytes = new Uint8Array(size2);
+  for (let i2 = 0;i2 < size2; i2++) {
+    const padEnd = dir === "right";
+    paddedBytes[padEnd ? i2 : size2 - i2 - 1] = bytes[padEnd ? i2 : bytes.length - i2 - 1];
+  }
+  return paddedBytes;
+}
+var init_pad = __esm(() => {
+  init_data();
+});
+var IntegerOutOfRangeError;
+var InvalidBytesBooleanError;
+var SizeOverflowError;
+var init_encoding = __esm(() => {
+  init_base();
+  IntegerOutOfRangeError = class IntegerOutOfRangeError2 extends BaseError {
+    constructor({ max, min, signed, size: size2, value: value2 }) {
+      super(`Number "${value2}" is not in safe ${size2 ? `${size2 * 8}-bit ${signed ? "signed" : "unsigned"} ` : ""}integer range ${max ? `(${min} to ${max})` : `(above ${min})`}`, { name: "IntegerOutOfRangeError" });
+    }
+  };
+  InvalidBytesBooleanError = class InvalidBytesBooleanError2 extends BaseError {
+    constructor(bytes) {
+      super(`Bytes value "${bytes}" is not a valid boolean. The bytes array must contain a single byte of either a 0 or 1 value.`, {
+        name: "InvalidBytesBooleanError"
+      });
+    }
+  };
+  SizeOverflowError = class SizeOverflowError2 extends BaseError {
+    constructor({ givenSize, maxSize }) {
+      super(`Size cannot exceed ${maxSize} bytes. Given size: ${givenSize} bytes.`, { name: "SizeOverflowError" });
+    }
+  };
+});
+function trim(hexOrBytes, { dir = "left" } = {}) {
+  let data = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
+  let sliceLength = 0;
+  for (let i2 = 0;i2 < data.length - 1; i2++) {
+    if (data[dir === "left" ? i2 : data.length - i2 - 1].toString() === "0")
+      sliceLength++;
+    else
+      break;
+  }
+  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
+  if (typeof hexOrBytes === "string") {
+    if (data.length === 1 && dir === "right")
+      data = `${data}0`;
+    return `0x${data.length % 2 === 1 ? `0${data}` : data}`;
+  }
+  return data;
+}
+function assertSize2(hexOrBytes, { size: size2 }) {
+  if (size(hexOrBytes) > size2)
+    throw new SizeOverflowError({
+      givenSize: size(hexOrBytes),
+      maxSize: size2
+    });
+}
+function hexToBigInt(hex, opts = {}) {
+  const { signed } = opts;
+  if (opts.size)
+    assertSize2(hex, { size: opts.size });
+  const value2 = BigInt(hex);
+  if (!signed)
+    return value2;
+  const size2 = (hex.length - 2) / 2;
+  const max = (1n << BigInt(size2) * 8n - 1n) - 1n;
+  if (value2 <= max)
+    return value2;
+  return value2 - BigInt(`0x${"f".padStart(size2 * 2, "f")}`) - 1n;
+}
+function hexToNumber(hex, opts = {}) {
+  return Number(hexToBigInt(hex, opts));
+}
+var init_fromHex = __esm(() => {
+  init_encoding();
+  init_size();
+});
+function toHex(value2, opts = {}) {
+  if (typeof value2 === "number" || typeof value2 === "bigint")
+    return numberToHex(value2, opts);
+  if (typeof value2 === "string") {
+    return stringToHex(value2, opts);
+  }
+  if (typeof value2 === "boolean")
+    return boolToHex(value2, opts);
+  return bytesToHex2(value2, opts);
+}
+function boolToHex(value2, opts = {}) {
+  const hex = `0x${Number(value2)}`;
+  if (typeof opts.size === "number") {
+    assertSize2(hex, { size: opts.size });
+    return pad(hex, { size: opts.size });
+  }
+  return hex;
+}
+function bytesToHex2(value2, opts = {}) {
+  let string = "";
+  for (let i2 = 0;i2 < value2.length; i2++) {
+    string += hexes[value2[i2]];
+  }
+  const hex = `0x${string}`;
+  if (typeof opts.size === "number") {
+    assertSize2(hex, { size: opts.size });
+    return pad(hex, { dir: "right", size: opts.size });
+  }
+  return hex;
+}
+function numberToHex(value_, opts = {}) {
+  const { signed, size: size2 } = opts;
+  const value2 = BigInt(value_);
+  let maxValue;
+  if (size2) {
+    if (signed)
+      maxValue = (1n << BigInt(size2) * 8n - 1n) - 1n;
+    else
+      maxValue = 2n ** (BigInt(size2) * 8n) - 1n;
+  } else if (typeof value_ === "number") {
+    maxValue = BigInt(Number.MAX_SAFE_INTEGER);
+  }
+  const minValue = typeof maxValue === "bigint" && signed ? -maxValue - 1n : 0;
+  if (maxValue && value2 > maxValue || value2 < minValue) {
+    const suffix = typeof value_ === "bigint" ? "n" : "";
+    throw new IntegerOutOfRangeError({
+      max: maxValue ? `${maxValue}${suffix}` : undefined,
+      min: `${minValue}${suffix}`,
+      signed,
+      size: size2,
+      value: `${value_}${suffix}`
+    });
+  }
+  const hex = `0x${(signed && value2 < 0 ? (1n << BigInt(size2 * 8)) + BigInt(value2) : value2).toString(16)}`;
+  if (size2)
+    return pad(hex, { size: size2 });
+  return hex;
+}
+function stringToHex(value_, opts = {}) {
+  const value2 = encoder.encode(value_);
+  return bytesToHex2(value2, opts);
+}
+var hexes;
+var encoder;
+var init_toHex = __esm(() => {
+  init_encoding();
+  init_pad();
+  init_fromHex();
+  hexes = /* @__PURE__ */ Array.from({ length: 256 }, (_v, i2) => i2.toString(16).padStart(2, "0"));
+  encoder = /* @__PURE__ */ new TextEncoder;
+});
+function toBytes(value2, opts = {}) {
+  if (typeof value2 === "number" || typeof value2 === "bigint")
+    return numberToBytes(value2, opts);
+  if (typeof value2 === "boolean")
+    return boolToBytes(value2, opts);
+  if (isHex(value2))
+    return hexToBytes2(value2, opts);
+  return stringToBytes(value2, opts);
+}
+function boolToBytes(value2, opts = {}) {
+  const bytes = new Uint8Array(1);
+  bytes[0] = Number(value2);
+  if (typeof opts.size === "number") {
+    assertSize2(bytes, { size: opts.size });
+    return pad(bytes, { size: opts.size });
+  }
+  return bytes;
+}
+function charCodeToBase16(char) {
+  if (char >= charCodeMap.zero && char <= charCodeMap.nine)
+    return char - charCodeMap.zero;
+  if (char >= charCodeMap.A && char <= charCodeMap.F)
+    return char - (charCodeMap.A - 10);
+  if (char >= charCodeMap.a && char <= charCodeMap.f)
+    return char - (charCodeMap.a - 10);
+  return;
+}
+function hexToBytes2(hex_, opts = {}) {
+  let hex = hex_;
+  if (opts.size) {
+    assertSize2(hex, { size: opts.size });
+    hex = pad(hex, { dir: "right", size: opts.size });
+  }
+  let hexString = hex.slice(2);
+  if (hexString.length % 2)
+    hexString = `0${hexString}`;
+  const length = hexString.length / 2;
+  const bytes = new Uint8Array(length);
+  for (let index = 0, j = 0;index < length; index++) {
+    const nibbleLeft = charCodeToBase16(hexString.charCodeAt(j++));
+    const nibbleRight = charCodeToBase16(hexString.charCodeAt(j++));
+    if (nibbleLeft === undefined || nibbleRight === undefined) {
+      throw new BaseError(`Invalid byte sequence ("${hexString[j - 2]}${hexString[j - 1]}" in "${hexString}").`);
+    }
+    bytes[index] = nibbleLeft * 16 + nibbleRight;
+  }
+  return bytes;
+}
+function numberToBytes(value2, opts) {
+  const hex = numberToHex(value2, opts);
+  return hexToBytes2(hex);
+}
+function stringToBytes(value2, opts = {}) {
+  const bytes = encoder2.encode(value2);
+  if (typeof opts.size === "number") {
+    assertSize2(bytes, { size: opts.size });
+    return pad(bytes, { dir: "right", size: opts.size });
+  }
+  return bytes;
+}
+var encoder2;
+var charCodeMap;
+var init_toBytes = __esm(() => {
+  init_base();
+  init_pad();
+  init_fromHex();
+  init_toHex();
+  encoder2 = /* @__PURE__ */ new TextEncoder;
+  charCodeMap = {
+    zero: 48,
+    nine: 57,
+    A: 65,
+    F: 70,
+    a: 97,
+    f: 102
+  };
+});
+function fromBig(n, le = false) {
+  if (le)
+    return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
+  return { h: Number(n >> _32n & U32_MASK64) | 0, l: Number(n & U32_MASK64) | 0 };
+}
+function split(lst, le = false) {
+  const len2 = lst.length;
+  let Ah = new Uint32Array(len2);
+  let Al = new Uint32Array(len2);
+  for (let i2 = 0;i2 < len2; i2++) {
+    const { h, l } = fromBig(lst[i2], le);
+    [Ah[i2], Al[i2]] = [h, l];
+  }
+  return [Ah, Al];
+}
+var U32_MASK64;
+var _32n;
+var rotlSH = (h, l, s) => h << s | l >>> 32 - s;
+var rotlSL = (h, l, s) => l << s | h >>> 32 - s;
+var rotlBH = (h, l, s) => l << s - 32 | h >>> 64 - s;
+var rotlBL = (h, l, s) => h << s - 32 | l >>> 64 - s;
+var init__u64 = __esm(() => {
+  U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
+  _32n = /* @__PURE__ */ BigInt(32);
+});
+var crypto2;
+var init_crypto = __esm(() => {
+  crypto2 = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : undefined;
+});
+function isBytes(a) {
+  return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
+}
+function anumber(n) {
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new Error("positive integer expected, got " + n);
+}
+function abytes(b, ...lengths) {
+  if (!isBytes(b))
+    throw new Error("Uint8Array expected");
+  if (lengths.length > 0 && !lengths.includes(b.length))
+    throw new Error("Uint8Array expected of length " + lengths + ", got length=" + b.length);
+}
+function ahash(h) {
+  if (typeof h !== "function" || typeof h.create !== "function")
+    throw new Error("Hash should be wrapped by utils.createHasher");
+  anumber(h.outputLen);
+  anumber(h.blockLen);
+}
+function aexists(instance, checkFinished = true) {
+  if (instance.destroyed)
+    throw new Error("Hash instance has been destroyed");
+  if (checkFinished && instance.finished)
+    throw new Error("Hash#digest() has already been called");
+}
+function aoutput(out, instance) {
+  abytes(out);
+  const min = instance.outputLen;
+  if (out.length < min) {
+    throw new Error("digestInto() expects output buffer of length at least " + min);
+  }
+}
+function u32(arr) {
+  return new Uint32Array(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / 4));
+}
+function clean(...arrays) {
+  for (let i2 = 0;i2 < arrays.length; i2++) {
+    arrays[i2].fill(0);
+  }
+}
+function createView(arr) {
+  return new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+function rotr(word, shift) {
+  return word << 32 - shift | word >>> shift;
+}
+function byteSwap(word) {
+  return word << 24 & 4278190080 | word << 8 & 16711680 | word >>> 8 & 65280 | word >>> 24 & 255;
+}
+function byteSwap32(arr) {
+  for (let i2 = 0;i2 < arr.length; i2++) {
+    arr[i2] = byteSwap(arr[i2]);
+  }
+  return arr;
+}
+function bytesToHex3(bytes) {
+  abytes(bytes);
+  if (hasHexBuiltin)
+    return bytes.toHex();
+  let hex = "";
+  for (let i2 = 0;i2 < bytes.length; i2++) {
+    hex += hexes2[bytes[i2]];
+  }
+  return hex;
+}
+function asciiToBase16(ch) {
+  if (ch >= asciis._0 && ch <= asciis._9)
+    return ch - asciis._0;
+  if (ch >= asciis.A && ch <= asciis.F)
+    return ch - (asciis.A - 10);
+  if (ch >= asciis.a && ch <= asciis.f)
+    return ch - (asciis.a - 10);
+  return;
+}
+function hexToBytes3(hex) {
+  if (typeof hex !== "string")
+    throw new Error("hex string expected, got " + typeof hex);
+  if (hasHexBuiltin)
+    return Uint8Array.fromHex(hex);
+  const hl = hex.length;
+  const al = hl / 2;
+  if (hl % 2)
+    throw new Error("hex string expected, got unpadded hex of length " + hl);
+  const array = new Uint8Array(al);
+  for (let ai = 0, hi = 0;ai < al; ai++, hi += 2) {
+    const n1 = asciiToBase16(hex.charCodeAt(hi));
+    const n2 = asciiToBase16(hex.charCodeAt(hi + 1));
+    if (n1 === undefined || n2 === undefined) {
+      const char = hex[hi] + hex[hi + 1];
+      throw new Error('hex string expected, got non-hex character "' + char + '" at index ' + hi);
+    }
+    array[ai] = n1 * 16 + n2;
+  }
+  return array;
+}
+function utf8ToBytes2(str) {
+  if (typeof str !== "string")
+    throw new Error("string expected");
+  return new Uint8Array(new TextEncoder().encode(str));
+}
+function toBytes2(data) {
+  if (typeof data === "string")
+    data = utf8ToBytes2(data);
+  abytes(data);
+  return data;
+}
+function concatBytes(...arrays) {
+  let sum = 0;
+  for (let i2 = 0;i2 < arrays.length; i2++) {
+    const a = arrays[i2];
+    abytes(a);
+    sum += a.length;
+  }
+  const res = new Uint8Array(sum);
+  for (let i2 = 0, pad2 = 0;i2 < arrays.length; i2++) {
+    const a = arrays[i2];
+    res.set(a, pad2);
+    pad2 += a.length;
+  }
+  return res;
+}
+
+class Hash {
+}
+function createHasher(hashCons) {
+  const hashC = (msg) => hashCons().update(toBytes2(msg)).digest();
+  const tmp = hashCons();
+  hashC.outputLen = tmp.outputLen;
+  hashC.blockLen = tmp.blockLen;
+  hashC.create = () => hashCons();
+  return hashC;
+}
+function randomBytes(bytesLength = 32) {
+  if (crypto2 && typeof crypto2.getRandomValues === "function") {
+    return crypto2.getRandomValues(new Uint8Array(bytesLength));
+  }
+  if (crypto2 && typeof crypto2.randomBytes === "function") {
+    return Uint8Array.from(crypto2.randomBytes(bytesLength));
+  }
+  throw new Error("crypto.getRandomValues must be defined");
+}
+var isLE;
+var swap32IfBE;
+var hasHexBuiltin;
+var hexes2;
+var asciis;
+var init_utils = __esm(() => {
+  init_crypto();
+  /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  isLE = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
+  swap32IfBE = isLE ? (u) => u : byteSwap32;
+  hasHexBuiltin = /* @__PURE__ */ (() => typeof Uint8Array.from([]).toHex === "function" && typeof Uint8Array.fromHex === "function")();
+  hexes2 = /* @__PURE__ */ Array.from({ length: 256 }, (_, i2) => i2.toString(16).padStart(2, "0"));
+  asciis = { _0: 48, _9: 57, A: 65, F: 70, a: 97, f: 102 };
+});
+function keccakP(s, rounds = 24) {
+  const B = new Uint32Array(5 * 2);
+  for (let round = 24 - rounds;round < 24; round++) {
+    for (let x = 0;x < 10; x++)
+      B[x] = s[x] ^ s[x + 10] ^ s[x + 20] ^ s[x + 30] ^ s[x + 40];
+    for (let x = 0;x < 10; x += 2) {
+      const idx1 = (x + 8) % 10;
+      const idx0 = (x + 2) % 10;
+      const B0 = B[idx0];
+      const B1 = B[idx0 + 1];
+      const Th = rotlH(B0, B1, 1) ^ B[idx1];
+      const Tl = rotlL(B0, B1, 1) ^ B[idx1 + 1];
+      for (let y = 0;y < 50; y += 10) {
+        s[x + y] ^= Th;
+        s[x + y + 1] ^= Tl;
+      }
+    }
+    let curH = s[2];
+    let curL = s[3];
+    for (let t = 0;t < 24; t++) {
+      const shift = SHA3_ROTL[t];
+      const Th = rotlH(curH, curL, shift);
+      const Tl = rotlL(curH, curL, shift);
+      const PI = SHA3_PI[t];
+      curH = s[PI];
+      curL = s[PI + 1];
+      s[PI] = Th;
+      s[PI + 1] = Tl;
+    }
+    for (let y = 0;y < 50; y += 10) {
+      for (let x = 0;x < 10; x++)
+        B[x] = s[y + x];
+      for (let x = 0;x < 10; x++)
+        s[y + x] ^= ~B[(x + 2) % 10] & B[(x + 4) % 10];
+    }
+    s[0] ^= SHA3_IOTA_H[round];
+    s[1] ^= SHA3_IOTA_L[round];
+  }
+  clean(B);
+}
+var _0n;
+var _1n;
+var _2n;
+var _7n;
+var _256n;
+var _0x71n;
+var SHA3_PI;
+var SHA3_ROTL;
+var _SHA3_IOTA;
+var IOTAS;
+var SHA3_IOTA_H;
+var SHA3_IOTA_L;
+var rotlH = (h, l, s) => s > 32 ? rotlBH(h, l, s) : rotlSH(h, l, s);
+var rotlL = (h, l, s) => s > 32 ? rotlBL(h, l, s) : rotlSL(h, l, s);
+var Keccak;
+var gen = (suffix, blockLen, outputLen) => createHasher(() => new Keccak(blockLen, suffix, outputLen));
+var keccak_256;
+var init_sha3 = __esm(() => {
+  init__u64();
+  init_utils();
+  _0n = BigInt(0);
+  _1n = BigInt(1);
+  _2n = BigInt(2);
+  _7n = BigInt(7);
+  _256n = BigInt(256);
+  _0x71n = BigInt(113);
+  SHA3_PI = [];
+  SHA3_ROTL = [];
+  _SHA3_IOTA = [];
+  for (let round = 0, R = _1n, x = 1, y = 0;round < 24; round++) {
+    [x, y] = [y, (2 * x + 3 * y) % 5];
+    SHA3_PI.push(2 * (5 * y + x));
+    SHA3_ROTL.push((round + 1) * (round + 2) / 2 % 64);
+    let t = _0n;
+    for (let j = 0;j < 7; j++) {
+      R = (R << _1n ^ (R >> _7n) * _0x71n) % _256n;
+      if (R & _2n)
+        t ^= _1n << (_1n << /* @__PURE__ */ BigInt(j)) - _1n;
+    }
+    _SHA3_IOTA.push(t);
+  }
+  IOTAS = split(_SHA3_IOTA, true);
+  SHA3_IOTA_H = IOTAS[0];
+  SHA3_IOTA_L = IOTAS[1];
+  Keccak = class Keccak2 extends Hash {
+    constructor(blockLen, suffix, outputLen, enableXOF = false, rounds = 24) {
+      super();
+      this.pos = 0;
+      this.posOut = 0;
+      this.finished = false;
+      this.destroyed = false;
+      this.enableXOF = false;
+      this.blockLen = blockLen;
+      this.suffix = suffix;
+      this.outputLen = outputLen;
+      this.enableXOF = enableXOF;
+      this.rounds = rounds;
+      anumber(outputLen);
+      if (!(0 < blockLen && blockLen < 200))
+        throw new Error("only keccak-f1600 function is supported");
+      this.state = new Uint8Array(200);
+      this.state32 = u32(this.state);
+    }
+    clone() {
+      return this._cloneInto();
+    }
+    keccak() {
+      swap32IfBE(this.state32);
+      keccakP(this.state32, this.rounds);
+      swap32IfBE(this.state32);
+      this.posOut = 0;
+      this.pos = 0;
+    }
+    update(data) {
+      aexists(this);
+      data = toBytes2(data);
+      abytes(data);
+      const { blockLen, state } = this;
+      const len2 = data.length;
+      for (let pos = 0;pos < len2; ) {
+        const take = Math.min(blockLen - this.pos, len2 - pos);
+        for (let i2 = 0;i2 < take; i2++)
+          state[this.pos++] ^= data[pos++];
+        if (this.pos === blockLen)
+          this.keccak();
+      }
+      return this;
+    }
+    finish() {
+      if (this.finished)
+        return;
+      this.finished = true;
+      const { state, suffix, pos, blockLen } = this;
+      state[pos] ^= suffix;
+      if ((suffix & 128) !== 0 && pos === blockLen - 1)
+        this.keccak();
+      state[blockLen - 1] ^= 128;
+      this.keccak();
+    }
+    writeInto(out) {
+      aexists(this, false);
+      abytes(out);
+      this.finish();
+      const bufferOut = this.state;
+      const { blockLen } = this;
+      for (let pos = 0, len2 = out.length;pos < len2; ) {
+        if (this.posOut >= blockLen)
+          this.keccak();
+        const take = Math.min(blockLen - this.posOut, len2 - pos);
+        out.set(bufferOut.subarray(this.posOut, this.posOut + take), pos);
+        this.posOut += take;
+        pos += take;
+      }
+      return out;
+    }
+    xofInto(out) {
+      if (!this.enableXOF)
+        throw new Error("XOF is not possible for this instance");
+      return this.writeInto(out);
+    }
+    xof(bytes) {
+      anumber(bytes);
+      return this.xofInto(new Uint8Array(bytes));
+    }
+    digestInto(out) {
+      aoutput(out, this);
+      if (this.finished)
+        throw new Error("digest() was already called");
+      this.writeInto(out);
+      this.destroy();
+      return out;
+    }
+    digest() {
+      return this.digestInto(new Uint8Array(this.outputLen));
+    }
+    destroy() {
+      this.destroyed = true;
+      clean(this.state);
+    }
+    _cloneInto(to) {
+      const { blockLen, suffix, outputLen, rounds, enableXOF } = this;
+      to || (to = new Keccak2(blockLen, suffix, outputLen, enableXOF, rounds));
+      to.state32.set(this.state32);
+      to.pos = this.pos;
+      to.posOut = this.posOut;
+      to.finished = this.finished;
+      to.rounds = rounds;
+      to.suffix = suffix;
+      to.outputLen = outputLen;
+      to.enableXOF = enableXOF;
+      to.destroyed = this.destroyed;
+      return to;
+    }
+  };
+  keccak_256 = /* @__PURE__ */ (() => gen(1, 136, 256 / 8))();
+});
+function keccak256(value2, to_) {
+  const to = to_ || "hex";
+  const bytes = keccak_256(isHex(value2, { strict: false }) ? toBytes(value2) : value2);
+  if (to === "bytes")
+    return bytes;
+  return toHex(bytes);
+}
+var init_keccak256 = __esm(() => {
+  init_sha3();
+  init_toBytes();
+  init_toHex();
+});
+function hashSignature(sig) {
+  return hash(sig);
+}
+var hash = (value2) => keccak256(toBytes(value2));
+var init_hashSignature = __esm(() => {
+  init_toBytes();
+  init_keccak256();
+});
+function normalizeSignature(signature) {
+  let active = true;
+  let current = "";
+  let level = 0;
+  let result = "";
+  let valid = false;
+  for (let i2 = 0;i2 < signature.length; i2++) {
+    const char = signature[i2];
+    if (["(", ")", ","].includes(char))
+      active = true;
+    if (char === "(")
+      level++;
+    if (char === ")")
+      level--;
+    if (!active)
+      continue;
+    if (level === 0) {
+      if (char === " " && ["event", "function", ""].includes(result))
+        result = "";
+      else {
+        result += char;
+        if (char === ")") {
+          valid = true;
+          break;
+        }
+      }
+      continue;
+    }
+    if (char === " ") {
+      if (signature[i2 - 1] !== "," && current !== "," && current !== ",(") {
+        current = "";
+        active = false;
+      }
+      continue;
+    }
+    result += char;
+    current += char;
+  }
+  if (!valid)
+    throw new BaseError("Unable to normalize signature.");
+  return result;
+}
+var init_normalizeSignature = __esm(() => {
+  init_base();
+});
+var toSignature = (def) => {
+  const def_ = (() => {
+    if (typeof def === "string")
+      return def;
+    return formatAbiItem(def);
+  })();
+  return normalizeSignature(def_);
+};
+var init_toSignature = __esm(() => {
+  init_exports();
+  init_normalizeSignature();
+});
+function toSignatureHash(fn) {
+  return hashSignature(toSignature(fn));
+}
+var init_toSignatureHash = __esm(() => {
+  init_hashSignature();
+  init_toSignature();
+});
+var toEventSelector;
+var init_toEventSelector = __esm(() => {
+  init_toSignatureHash();
+  toEventSelector = toSignatureHash;
+});
+var InvalidAddressError;
+var init_address = __esm(() => {
+  init_base();
+  InvalidAddressError = class InvalidAddressError2 extends BaseError {
+    constructor({ address }) {
+      super(`Address "${address}" is invalid.`, {
+        metaMessages: [
+          "- Address must be a hex value of 20 bytes (40 hex characters).",
+          "- Address must match its checksum counterpart."
+        ],
+        name: "InvalidAddressError"
+      });
+    }
+  };
+});
+var LruMap;
+var init_lru = __esm(() => {
+  LruMap = class LruMap2 extends Map {
+    constructor(size2) {
+      super();
+      Object.defineProperty(this, "maxSize", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      this.maxSize = size2;
+    }
+    get(key) {
+      const value2 = super.get(key);
+      if (super.has(key) && value2 !== undefined) {
+        this.delete(key);
+        super.set(key, value2);
+      }
+      return value2;
+    }
+    set(key, value2) {
+      super.set(key, value2);
+      if (this.maxSize && this.size > this.maxSize) {
+        const firstKey = this.keys().next().value;
+        if (firstKey)
+          this.delete(firstKey);
+      }
+      return this;
+    }
+  };
+});
+function checksumAddress(address_, chainId) {
+  if (checksumAddressCache.has(`${address_}.${chainId}`))
+    return checksumAddressCache.get(`${address_}.${chainId}`);
+  const hexAddress = chainId ? `${chainId}${address_.toLowerCase()}` : address_.substring(2).toLowerCase();
+  const hash2 = keccak256(stringToBytes(hexAddress), "bytes");
+  const address = (chainId ? hexAddress.substring(`${chainId}0x`.length) : hexAddress).split("");
+  for (let i2 = 0;i2 < 40; i2 += 2) {
+    if (hash2[i2 >> 1] >> 4 >= 8 && address[i2]) {
+      address[i2] = address[i2].toUpperCase();
+    }
+    if ((hash2[i2 >> 1] & 15) >= 8 && address[i2 + 1]) {
+      address[i2 + 1] = address[i2 + 1].toUpperCase();
+    }
+  }
+  const result = `0x${address.join("")}`;
+  checksumAddressCache.set(`${address_}.${chainId}`, result);
+  return result;
+}
+function getAddress(address, chainId) {
+  if (!isAddress(address, { strict: false }))
+    throw new InvalidAddressError({ address });
+  return checksumAddress(address, chainId);
+}
+var checksumAddressCache;
+var init_getAddress = __esm(() => {
+  init_address();
+  init_toBytes();
+  init_keccak256();
+  init_lru();
+  init_isAddress();
+  checksumAddressCache = /* @__PURE__ */ new LruMap(8192);
+});
+function isAddress(address, options) {
+  const { strict = true } = options ?? {};
+  const cacheKey = `${address}.${strict}`;
+  if (isAddressCache.has(cacheKey))
+    return isAddressCache.get(cacheKey);
+  const result = (() => {
+    if (!addressRegex.test(address))
+      return false;
+    if (address.toLowerCase() === address)
+      return true;
+    if (strict)
+      return checksumAddress(address) === address;
+    return true;
+  })();
+  isAddressCache.set(cacheKey, result);
+  return result;
+}
+var addressRegex;
+var isAddressCache;
+var init_isAddress = __esm(() => {
+  init_lru();
+  init_getAddress();
+  addressRegex = /^0x[a-fA-F0-9]{40}$/;
+  isAddressCache = /* @__PURE__ */ new LruMap(8192);
+});
+function concat(values) {
+  if (typeof values[0] === "string")
+    return concatHex(values);
+  return concatBytes2(values);
+}
+function concatBytes2(values) {
+  let length = 0;
+  for (const arr of values) {
+    length += arr.length;
+  }
+  const result = new Uint8Array(length);
+  let offset = 0;
+  for (const arr of values) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  return result;
+}
+function concatHex(values) {
+  return `0x${values.reduce((acc, x) => acc + x.replace("0x", ""), "")}`;
+}
+function slice(value2, start, end, { strict } = {}) {
+  if (isHex(value2, { strict: false }))
+    return sliceHex(value2, start, end, {
+      strict
+    });
+  return sliceBytes(value2, start, end, {
+    strict
+  });
+}
+function assertStartOffset(value2, start) {
+  if (typeof start === "number" && start > 0 && start > size(value2) - 1)
+    throw new SliceOffsetOutOfBoundsError({
+      offset: start,
+      position: "start",
+      size: size(value2)
+    });
+}
+function assertEndOffset(value2, start, end) {
+  if (typeof start === "number" && typeof end === "number" && size(value2) !== end - start) {
+    throw new SliceOffsetOutOfBoundsError({
+      offset: end,
+      position: "end",
+      size: size(value2)
+    });
+  }
+}
+function sliceBytes(value_, start, end, { strict } = {}) {
+  assertStartOffset(value_, start);
+  const value2 = value_.slice(start, end);
+  if (strict)
+    assertEndOffset(value2, start, end);
+  return value2;
+}
+function sliceHex(value_, start, end, { strict } = {}) {
+  assertStartOffset(value_, start);
+  const value2 = `0x${value_.replace("0x", "").slice((start ?? 0) * 2, (end ?? value_.length) * 2)}`;
+  if (strict)
+    assertEndOffset(value2, start, end);
+  return value2;
+}
+var init_slice = __esm(() => {
+  init_data();
+  init_size();
+});
+var arrayRegex;
+var bytesRegex;
+var integerRegex;
+var init_regex2 = __esm(() => {
+  arrayRegex = /^(.*)\[([0-9]*)\]$/;
+  bytesRegex = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
+  integerRegex = /^(u?int)(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
+});
+function encodeAbiParameters(params, values) {
+  if (params.length !== values.length)
+    throw new AbiEncodingLengthMismatchError({
+      expectedLength: params.length,
+      givenLength: values.length
+    });
+  const preparedParams = prepareParams({
+    params,
+    values
+  });
+  const data = encodeParams(preparedParams);
+  if (data.length === 0)
+    return "0x";
+  return data;
+}
+function prepareParams({ params, values }) {
+  const preparedParams = [];
+  for (let i2 = 0;i2 < params.length; i2++) {
+    preparedParams.push(prepareParam({ param: params[i2], value: values[i2] }));
+  }
+  return preparedParams;
+}
+function prepareParam({ param, value: value2 }) {
+  const arrayComponents = getArrayComponents(param.type);
+  if (arrayComponents) {
+    const [length, type] = arrayComponents;
+    return encodeArray(value2, { length, param: { ...param, type } });
+  }
+  if (param.type === "tuple") {
+    return encodeTuple(value2, {
+      param
+    });
+  }
+  if (param.type === "address") {
+    return encodeAddress(value2);
+  }
+  if (param.type === "bool") {
+    return encodeBool(value2);
+  }
+  if (param.type.startsWith("uint") || param.type.startsWith("int")) {
+    const signed = param.type.startsWith("int");
+    const [, , size2 = "256"] = integerRegex.exec(param.type) ?? [];
+    return encodeNumber(value2, {
+      signed,
+      size: Number(size2)
+    });
+  }
+  if (param.type.startsWith("bytes")) {
+    return encodeBytes(value2, { param });
+  }
+  if (param.type === "string") {
+    return encodeString(value2);
+  }
+  throw new InvalidAbiEncodingTypeError(param.type, {
+    docsPath: "/docs/contract/encodeAbiParameters"
+  });
+}
+function encodeParams(preparedParams) {
+  let staticSize = 0;
+  for (let i2 = 0;i2 < preparedParams.length; i2++) {
+    const { dynamic, encoded } = preparedParams[i2];
+    if (dynamic)
+      staticSize += 32;
+    else
+      staticSize += size(encoded);
+  }
+  const staticParams = [];
+  const dynamicParams = [];
+  let dynamicSize = 0;
+  for (let i2 = 0;i2 < preparedParams.length; i2++) {
+    const { dynamic, encoded } = preparedParams[i2];
+    if (dynamic) {
+      staticParams.push(numberToHex(staticSize + dynamicSize, { size: 32 }));
+      dynamicParams.push(encoded);
+      dynamicSize += size(encoded);
+    } else {
+      staticParams.push(encoded);
+    }
+  }
+  return concat([...staticParams, ...dynamicParams]);
+}
+function encodeAddress(value2) {
+  if (!isAddress(value2))
+    throw new InvalidAddressError({ address: value2 });
+  return { dynamic: false, encoded: padHex(value2.toLowerCase()) };
+}
+function encodeArray(value2, { length, param }) {
+  const dynamic = length === null;
+  if (!Array.isArray(value2))
+    throw new InvalidArrayError(value2);
+  if (!dynamic && value2.length !== length)
+    throw new AbiEncodingArrayLengthMismatchError({
+      expectedLength: length,
+      givenLength: value2.length,
+      type: `${param.type}[${length}]`
+    });
+  let dynamicChild = false;
+  const preparedParams = [];
+  for (let i2 = 0;i2 < value2.length; i2++) {
+    const preparedParam = prepareParam({ param, value: value2[i2] });
+    if (preparedParam.dynamic)
+      dynamicChild = true;
+    preparedParams.push(preparedParam);
+  }
+  if (dynamic || dynamicChild) {
+    const data = encodeParams(preparedParams);
+    if (dynamic) {
+      const length2 = numberToHex(preparedParams.length, { size: 32 });
+      return {
+        dynamic: true,
+        encoded: preparedParams.length > 0 ? concat([length2, data]) : length2
+      };
+    }
+    if (dynamicChild)
+      return { dynamic: true, encoded: data };
+  }
+  return {
+    dynamic: false,
+    encoded: concat(preparedParams.map(({ encoded }) => encoded))
+  };
+}
+function encodeBytes(value2, { param }) {
+  const [, paramSize] = param.type.split("bytes");
+  const bytesSize = size(value2);
+  if (!paramSize) {
+    let value_ = value2;
+    if (bytesSize % 32 !== 0)
+      value_ = padHex(value_, {
+        dir: "right",
+        size: Math.ceil((value2.length - 2) / 2 / 32) * 32
+      });
+    return {
+      dynamic: true,
+      encoded: concat([padHex(numberToHex(bytesSize, { size: 32 })), value_])
+    };
+  }
+  if (bytesSize !== Number.parseInt(paramSize))
+    throw new AbiEncodingBytesSizeMismatchError({
+      expectedSize: Number.parseInt(paramSize),
+      value: value2
+    });
+  return { dynamic: false, encoded: padHex(value2, { dir: "right" }) };
+}
+function encodeBool(value2) {
+  if (typeof value2 !== "boolean")
+    throw new BaseError(`Invalid boolean value: "${value2}" (type: ${typeof value2}). Expected: \`true\` or \`false\`.`);
+  return { dynamic: false, encoded: padHex(boolToHex(value2)) };
+}
+function encodeNumber(value2, { signed, size: size2 = 256 }) {
+  if (typeof size2 === "number") {
+    const max = 2n ** (BigInt(size2) - (signed ? 1n : 0n)) - 1n;
+    const min = signed ? -max - 1n : 0n;
+    if (value2 > max || value2 < min)
+      throw new IntegerOutOfRangeError({
+        max: max.toString(),
+        min: min.toString(),
+        signed,
+        size: size2 / 8,
+        value: value2.toString()
+      });
+  }
+  return {
+    dynamic: false,
+    encoded: numberToHex(value2, {
+      size: 32,
+      signed
+    })
+  };
+}
+function encodeString(value2) {
+  const hexValue = stringToHex(value2);
+  const partsLength = Math.ceil(size(hexValue) / 32);
+  const parts = [];
+  for (let i2 = 0;i2 < partsLength; i2++) {
+    parts.push(padHex(slice(hexValue, i2 * 32, (i2 + 1) * 32), {
+      dir: "right"
+    }));
+  }
+  return {
+    dynamic: true,
+    encoded: concat([
+      padHex(numberToHex(size(hexValue), { size: 32 })),
+      ...parts
+    ])
+  };
+}
+function encodeTuple(value2, { param }) {
+  let dynamic = false;
+  const preparedParams = [];
+  for (let i2 = 0;i2 < param.components.length; i2++) {
+    const param_ = param.components[i2];
+    const index = Array.isArray(value2) ? i2 : param_.name;
+    const preparedParam = prepareParam({
+      param: param_,
+      value: value2[index]
+    });
+    preparedParams.push(preparedParam);
+    if (preparedParam.dynamic)
+      dynamic = true;
+  }
+  return {
+    dynamic,
+    encoded: dynamic ? encodeParams(preparedParams) : concat(preparedParams.map(({ encoded }) => encoded))
+  };
+}
+function getArrayComponents(type) {
+  const matches = type.match(/^(.*)\[(\d+)?\]$/);
+  return matches ? [matches[2] ? Number(matches[2]) : null, matches[1]] : undefined;
+}
+var init_encodeAbiParameters = __esm(() => {
+  init_abi();
+  init_address();
+  init_base();
+  init_encoding();
+  init_isAddress();
+  init_pad();
+  init_size();
+  init_slice();
+  init_toHex();
+  init_regex2();
+});
+var toFunctionSelector = (fn) => slice(toSignatureHash(fn), 0, 4);
+var init_toFunctionSelector = __esm(() => {
+  init_slice();
+  init_toSignatureHash();
+});
+function getAbiItem(parameters) {
+  const { abi, args = [], name } = parameters;
+  const isSelector = isHex(name, { strict: false });
+  const abiItems = abi.filter((abiItem) => {
+    if (isSelector) {
+      if (abiItem.type === "function")
+        return toFunctionSelector(abiItem) === name;
+      if (abiItem.type === "event")
+        return toEventSelector(abiItem) === name;
+      return false;
+    }
+    return "name" in abiItem && abiItem.name === name;
+  });
+  if (abiItems.length === 0)
+    return;
+  if (abiItems.length === 1)
+    return abiItems[0];
+  let matchedAbiItem = undefined;
+  for (const abiItem of abiItems) {
+    if (!("inputs" in abiItem))
+      continue;
+    if (!args || args.length === 0) {
+      if (!abiItem.inputs || abiItem.inputs.length === 0)
+        return abiItem;
+      continue;
+    }
+    if (!abiItem.inputs)
+      continue;
+    if (abiItem.inputs.length === 0)
+      continue;
+    if (abiItem.inputs.length !== args.length)
+      continue;
+    const matched = args.every((arg, index) => {
+      const abiParameter = "inputs" in abiItem && abiItem.inputs[index];
+      if (!abiParameter)
+        return false;
+      return isArgOfType(arg, abiParameter);
+    });
+    if (matched) {
+      if (matchedAbiItem && "inputs" in matchedAbiItem && matchedAbiItem.inputs) {
+        const ambiguousTypes = getAmbiguousTypes(abiItem.inputs, matchedAbiItem.inputs, args);
+        if (ambiguousTypes)
+          throw new AbiItemAmbiguityError({
+            abiItem,
+            type: ambiguousTypes[0]
+          }, {
+            abiItem: matchedAbiItem,
+            type: ambiguousTypes[1]
+          });
+      }
+      matchedAbiItem = abiItem;
+    }
+  }
+  if (matchedAbiItem)
+    return matchedAbiItem;
+  return abiItems[0];
+}
+function isArgOfType(arg, abiParameter) {
+  const argType = typeof arg;
+  const abiParameterType = abiParameter.type;
+  switch (abiParameterType) {
+    case "address":
+      return isAddress(arg, { strict: false });
+    case "bool":
+      return argType === "boolean";
+    case "function":
+      return argType === "string";
+    case "string":
+      return argType === "string";
+    default: {
+      if (abiParameterType === "tuple" && "components" in abiParameter)
+        return Object.values(abiParameter.components).every((component, index) => {
+          return isArgOfType(Object.values(arg)[index], component);
+        });
+      if (/^u?int(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/.test(abiParameterType))
+        return argType === "number" || argType === "bigint";
+      if (/^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/.test(abiParameterType))
+        return argType === "string" || arg instanceof Uint8Array;
+      if (/[a-z]+[1-9]{0,3}(\[[0-9]{0,}\])+$/.test(abiParameterType)) {
+        return Array.isArray(arg) && arg.every((x) => isArgOfType(x, {
+          ...abiParameter,
+          type: abiParameterType.replace(/(\[[0-9]{0,}\])$/, "")
+        }));
+      }
+      return false;
+    }
+  }
+}
+function getAmbiguousTypes(sourceParameters, targetParameters, args) {
+  for (const parameterIndex in sourceParameters) {
+    const sourceParameter = sourceParameters[parameterIndex];
+    const targetParameter = targetParameters[parameterIndex];
+    if (sourceParameter.type === "tuple" && targetParameter.type === "tuple" && "components" in sourceParameter && "components" in targetParameter)
+      return getAmbiguousTypes(sourceParameter.components, targetParameter.components, args[parameterIndex]);
+    const types4 = [sourceParameter.type, targetParameter.type];
+    const ambiguous = (() => {
+      if (types4.includes("address") && types4.includes("bytes20"))
+        return true;
+      if (types4.includes("address") && types4.includes("string"))
+        return isAddress(args[parameterIndex], { strict: false });
+      if (types4.includes("address") && types4.includes("bytes"))
+        return isAddress(args[parameterIndex], { strict: false });
+      return false;
+    })();
+    if (ambiguous)
+      return types4;
+  }
+  return;
+}
+var init_getAbiItem = __esm(() => {
+  init_abi();
+  init_isAddress();
+  init_toEventSelector();
+  init_toFunctionSelector();
+});
+function prepareEncodeFunctionData(parameters) {
+  const { abi, args, functionName } = parameters;
+  let abiItem = abi[0];
+  if (functionName) {
+    const item = getAbiItem({
+      abi,
+      args,
+      name: functionName
+    });
+    if (!item)
+      throw new AbiFunctionNotFoundError(functionName, { docsPath });
+    abiItem = item;
+  }
+  if (abiItem.type !== "function")
+    throw new AbiFunctionNotFoundError(undefined, { docsPath });
+  return {
+    abi: [abiItem],
+    functionName: toFunctionSelector(formatAbiItem2(abiItem))
+  };
+}
+var docsPath = "/docs/contract/encodeFunctionData";
+var init_prepareEncodeFunctionData = __esm(() => {
+  init_abi();
+  init_toFunctionSelector();
+  init_formatAbiItem2();
+  init_getAbiItem();
+});
+function encodeFunctionData(parameters) {
+  const { args } = parameters;
+  const { abi, functionName } = (() => {
+    if (parameters.abi.length === 1 && parameters.functionName?.startsWith("0x"))
+      return parameters;
+    return prepareEncodeFunctionData(parameters);
+  })();
+  const abiItem = abi[0];
+  const signature = functionName;
+  const data = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters(abiItem.inputs, args ?? []) : undefined;
+  return concatHex([signature, data ?? "0x"]);
+}
+var init_encodeFunctionData = __esm(() => {
+  init_encodeAbiParameters();
+  init_prepareEncodeFunctionData();
+});
+var NegativeOffsetError;
+var PositionOutOfBoundsError;
+var RecursiveReadLimitExceededError;
+var init_cursor = __esm(() => {
+  init_base();
+  NegativeOffsetError = class NegativeOffsetError2 extends BaseError {
+    constructor({ offset }) {
+      super(`Offset \`${offset}\` cannot be negative.`, {
+        name: "NegativeOffsetError"
+      });
+    }
+  };
+  PositionOutOfBoundsError = class PositionOutOfBoundsError2 extends BaseError {
+    constructor({ length, position }) {
+      super(`Position \`${position}\` is out of bounds (\`0 < position < ${length}\`).`, { name: "PositionOutOfBoundsError" });
+    }
+  };
+  RecursiveReadLimitExceededError = class RecursiveReadLimitExceededError2 extends BaseError {
+    constructor({ count, limit }) {
+      super(`Recursive read limit of \`${limit}\` exceeded (recursive read count: \`${count}\`).`, { name: "RecursiveReadLimitExceededError" });
+    }
+  };
+});
+function createCursor(bytes, { recursiveReadLimit = 8192 } = {}) {
+  const cursor = Object.create(staticCursor);
+  cursor.bytes = bytes;
+  cursor.dataView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  cursor.positionReadCount = new Map;
+  cursor.recursiveReadLimit = recursiveReadLimit;
+  return cursor;
+}
+var staticCursor;
+var init_cursor2 = __esm(() => {
+  init_cursor();
+  staticCursor = {
+    bytes: new Uint8Array,
+    dataView: new DataView(new ArrayBuffer(0)),
+    position: 0,
+    positionReadCount: new Map,
+    recursiveReadCount: 0,
+    recursiveReadLimit: Number.POSITIVE_INFINITY,
+    assertReadLimit() {
+      if (this.recursiveReadCount >= this.recursiveReadLimit)
+        throw new RecursiveReadLimitExceededError({
+          count: this.recursiveReadCount + 1,
+          limit: this.recursiveReadLimit
+        });
+    },
+    assertPosition(position) {
+      if (position < 0 || position > this.bytes.length - 1)
+        throw new PositionOutOfBoundsError({
+          length: this.bytes.length,
+          position
+        });
+    },
+    decrementPosition(offset) {
+      if (offset < 0)
+        throw new NegativeOffsetError({ offset });
+      const position = this.position - offset;
+      this.assertPosition(position);
+      this.position = position;
+    },
+    getReadCount(position) {
+      return this.positionReadCount.get(position || this.position) || 0;
+    },
+    incrementPosition(offset) {
+      if (offset < 0)
+        throw new NegativeOffsetError({ offset });
+      const position = this.position + offset;
+      this.assertPosition(position);
+      this.position = position;
+    },
+    inspectByte(position_) {
+      const position = position_ ?? this.position;
+      this.assertPosition(position);
+      return this.bytes[position];
+    },
+    inspectBytes(length, position_) {
+      const position = position_ ?? this.position;
+      this.assertPosition(position + length - 1);
+      return this.bytes.subarray(position, position + length);
+    },
+    inspectUint8(position_) {
+      const position = position_ ?? this.position;
+      this.assertPosition(position);
+      return this.bytes[position];
+    },
+    inspectUint16(position_) {
+      const position = position_ ?? this.position;
+      this.assertPosition(position + 1);
+      return this.dataView.getUint16(position);
+    },
+    inspectUint24(position_) {
+      const position = position_ ?? this.position;
+      this.assertPosition(position + 2);
+      return (this.dataView.getUint16(position) << 8) + this.dataView.getUint8(position + 2);
+    },
+    inspectUint32(position_) {
+      const position = position_ ?? this.position;
+      this.assertPosition(position + 3);
+      return this.dataView.getUint32(position);
+    },
+    pushByte(byte) {
+      this.assertPosition(this.position);
+      this.bytes[this.position] = byte;
+      this.position++;
+    },
+    pushBytes(bytes) {
+      this.assertPosition(this.position + bytes.length - 1);
+      this.bytes.set(bytes, this.position);
+      this.position += bytes.length;
+    },
+    pushUint8(value2) {
+      this.assertPosition(this.position);
+      this.bytes[this.position] = value2;
+      this.position++;
+    },
+    pushUint16(value2) {
+      this.assertPosition(this.position + 1);
+      this.dataView.setUint16(this.position, value2);
+      this.position += 2;
+    },
+    pushUint24(value2) {
+      this.assertPosition(this.position + 2);
+      this.dataView.setUint16(this.position, value2 >> 8);
+      this.dataView.setUint8(this.position + 2, value2 & ~4294967040);
+      this.position += 3;
+    },
+    pushUint32(value2) {
+      this.assertPosition(this.position + 3);
+      this.dataView.setUint32(this.position, value2);
+      this.position += 4;
+    },
+    readByte() {
+      this.assertReadLimit();
+      this._touch();
+      const value2 = this.inspectByte();
+      this.position++;
+      return value2;
+    },
+    readBytes(length, size2) {
+      this.assertReadLimit();
+      this._touch();
+      const value2 = this.inspectBytes(length);
+      this.position += size2 ?? length;
+      return value2;
+    },
+    readUint8() {
+      this.assertReadLimit();
+      this._touch();
+      const value2 = this.inspectUint8();
+      this.position += 1;
+      return value2;
+    },
+    readUint16() {
+      this.assertReadLimit();
+      this._touch();
+      const value2 = this.inspectUint16();
+      this.position += 2;
+      return value2;
+    },
+    readUint24() {
+      this.assertReadLimit();
+      this._touch();
+      const value2 = this.inspectUint24();
+      this.position += 3;
+      return value2;
+    },
+    readUint32() {
+      this.assertReadLimit();
+      this._touch();
+      const value2 = this.inspectUint32();
+      this.position += 4;
+      return value2;
+    },
+    get remaining() {
+      return this.bytes.length - this.position;
+    },
+    setPosition(position) {
+      const oldPosition = this.position;
+      this.assertPosition(position);
+      this.position = position;
+      return () => this.position = oldPosition;
+    },
+    _touch() {
+      if (this.recursiveReadLimit === Number.POSITIVE_INFINITY)
+        return;
+      const count = this.getReadCount();
+      this.positionReadCount.set(this.position, count + 1);
+      if (count > 0)
+        this.recursiveReadCount++;
+    }
+  };
+});
+function bytesToBigInt(bytes, opts = {}) {
+  if (typeof opts.size !== "undefined")
+    assertSize2(bytes, { size: opts.size });
+  const hex = bytesToHex2(bytes, opts);
+  return hexToBigInt(hex, opts);
+}
+function bytesToBool(bytes_, opts = {}) {
+  let bytes = bytes_;
+  if (typeof opts.size !== "undefined") {
+    assertSize2(bytes, { size: opts.size });
+    bytes = trim(bytes);
+  }
+  if (bytes.length > 1 || bytes[0] > 1)
+    throw new InvalidBytesBooleanError(bytes);
+  return Boolean(bytes[0]);
+}
+function bytesToNumber(bytes, opts = {}) {
+  if (typeof opts.size !== "undefined")
+    assertSize2(bytes, { size: opts.size });
+  const hex = bytesToHex2(bytes, opts);
+  return hexToNumber(hex, opts);
+}
+function bytesToString(bytes_, opts = {}) {
+  let bytes = bytes_;
+  if (typeof opts.size !== "undefined") {
+    assertSize2(bytes, { size: opts.size });
+    bytes = trim(bytes, { dir: "right" });
+  }
+  return new TextDecoder().decode(bytes);
+}
+var init_fromBytes = __esm(() => {
+  init_encoding();
+  init_fromHex();
+  init_toHex();
+});
+function decodeAbiParameters(params, data) {
+  const bytes = typeof data === "string" ? hexToBytes2(data) : data;
+  const cursor = createCursor(bytes);
+  if (size(bytes) === 0 && params.length > 0)
+    throw new AbiDecodingZeroDataError;
+  if (size(data) && size(data) < 32)
+    throw new AbiDecodingDataSizeTooSmallError({
+      data: typeof data === "string" ? data : bytesToHex2(data),
+      params,
+      size: size(data)
+    });
+  let consumed = 0;
+  const values = [];
+  for (let i2 = 0;i2 < params.length; ++i2) {
+    const param = params[i2];
+    cursor.setPosition(consumed);
+    const [data2, consumed_] = decodeParameter(cursor, param, {
+      staticPosition: 0
+    });
+    consumed += consumed_;
+    values.push(data2);
+  }
+  return values;
+}
+function decodeParameter(cursor, param, { staticPosition }) {
+  const arrayComponents = getArrayComponents(param.type);
+  if (arrayComponents) {
+    const [length, type] = arrayComponents;
+    return decodeArray(cursor, { ...param, type }, { length, staticPosition });
+  }
+  if (param.type === "tuple")
+    return decodeTuple(cursor, param, { staticPosition });
+  if (param.type === "address")
+    return decodeAddress(cursor);
+  if (param.type === "bool")
+    return decodeBool(cursor);
+  if (param.type.startsWith("bytes"))
+    return decodeBytes(cursor, param, { staticPosition });
+  if (param.type.startsWith("uint") || param.type.startsWith("int"))
+    return decodeNumber(cursor, param);
+  if (param.type === "string")
+    return decodeString(cursor, { staticPosition });
+  throw new InvalidAbiDecodingTypeError(param.type, {
+    docsPath: "/docs/contract/decodeAbiParameters"
+  });
+}
+function decodeAddress(cursor) {
+  const value2 = cursor.readBytes(32);
+  return [checksumAddress(bytesToHex2(sliceBytes(value2, -20))), 32];
+}
+function decodeArray(cursor, param, { length, staticPosition }) {
+  if (!length) {
+    const offset = bytesToNumber(cursor.readBytes(sizeOfOffset));
+    const start = staticPosition + offset;
+    const startOfData = start + sizeOfLength;
+    cursor.setPosition(start);
+    const length2 = bytesToNumber(cursor.readBytes(sizeOfLength));
+    const dynamicChild = hasDynamicChild(param);
+    let consumed2 = 0;
+    const value3 = [];
+    for (let i2 = 0;i2 < length2; ++i2) {
+      cursor.setPosition(startOfData + (dynamicChild ? i2 * 32 : consumed2));
+      const [data, consumed_] = decodeParameter(cursor, param, {
+        staticPosition: startOfData
+      });
+      consumed2 += consumed_;
+      value3.push(data);
+    }
+    cursor.setPosition(staticPosition + 32);
+    return [value3, 32];
+  }
+  if (hasDynamicChild(param)) {
+    const offset = bytesToNumber(cursor.readBytes(sizeOfOffset));
+    const start = staticPosition + offset;
+    const value3 = [];
+    for (let i2 = 0;i2 < length; ++i2) {
+      cursor.setPosition(start + i2 * 32);
+      const [data] = decodeParameter(cursor, param, {
+        staticPosition: start
+      });
+      value3.push(data);
+    }
+    cursor.setPosition(staticPosition + 32);
+    return [value3, 32];
+  }
+  let consumed = 0;
+  const value2 = [];
+  for (let i2 = 0;i2 < length; ++i2) {
+    const [data, consumed_] = decodeParameter(cursor, param, {
+      staticPosition: staticPosition + consumed
+    });
+    consumed += consumed_;
+    value2.push(data);
+  }
+  return [value2, consumed];
+}
+function decodeBool(cursor) {
+  return [bytesToBool(cursor.readBytes(32), { size: 32 }), 32];
+}
+function decodeBytes(cursor, param, { staticPosition }) {
+  const [_, size2] = param.type.split("bytes");
+  if (!size2) {
+    const offset = bytesToNumber(cursor.readBytes(32));
+    cursor.setPosition(staticPosition + offset);
+    const length = bytesToNumber(cursor.readBytes(32));
+    if (length === 0) {
+      cursor.setPosition(staticPosition + 32);
+      return ["0x", 32];
+    }
+    const data = cursor.readBytes(length);
+    cursor.setPosition(staticPosition + 32);
+    return [bytesToHex2(data), 32];
+  }
+  const value2 = bytesToHex2(cursor.readBytes(Number.parseInt(size2), 32));
+  return [value2, 32];
+}
+function decodeNumber(cursor, param) {
+  const signed = param.type.startsWith("int");
+  const size2 = Number.parseInt(param.type.split("int")[1] || "256");
+  const value2 = cursor.readBytes(32);
+  return [
+    size2 > 48 ? bytesToBigInt(value2, { signed }) : bytesToNumber(value2, { signed }),
+    32
+  ];
+}
+function decodeTuple(cursor, param, { staticPosition }) {
+  const hasUnnamedChild = param.components.length === 0 || param.components.some(({ name }) => !name);
+  const value2 = hasUnnamedChild ? [] : {};
+  let consumed = 0;
+  if (hasDynamicChild(param)) {
+    const offset = bytesToNumber(cursor.readBytes(sizeOfOffset));
+    const start = staticPosition + offset;
+    for (let i2 = 0;i2 < param.components.length; ++i2) {
+      const component = param.components[i2];
+      cursor.setPosition(start + consumed);
+      const [data, consumed_] = decodeParameter(cursor, component, {
+        staticPosition: start
+      });
+      consumed += consumed_;
+      value2[hasUnnamedChild ? i2 : component?.name] = data;
+    }
+    cursor.setPosition(staticPosition + 32);
+    return [value2, 32];
+  }
+  for (let i2 = 0;i2 < param.components.length; ++i2) {
+    const component = param.components[i2];
+    const [data, consumed_] = decodeParameter(cursor, component, {
+      staticPosition
+    });
+    value2[hasUnnamedChild ? i2 : component?.name] = data;
+    consumed += consumed_;
+  }
+  return [value2, consumed];
+}
+function decodeString(cursor, { staticPosition }) {
+  const offset = bytesToNumber(cursor.readBytes(32));
+  const start = staticPosition + offset;
+  cursor.setPosition(start);
+  const length = bytesToNumber(cursor.readBytes(32));
+  if (length === 0) {
+    cursor.setPosition(staticPosition + 32);
+    return ["", 32];
+  }
+  const data = cursor.readBytes(length, 32);
+  const value2 = bytesToString(trim(data));
+  cursor.setPosition(staticPosition + 32);
+  return [value2, 32];
+}
+function hasDynamicChild(param) {
+  const { type } = param;
+  if (type === "string")
+    return true;
+  if (type === "bytes")
+    return true;
+  if (type.endsWith("[]"))
+    return true;
+  if (type === "tuple")
+    return param.components?.some(hasDynamicChild);
+  const arrayComponents = getArrayComponents(param.type);
+  if (arrayComponents && hasDynamicChild({ ...param, type: arrayComponents[1] }))
+    return true;
+  return false;
+}
+var sizeOfLength = 32;
+var sizeOfOffset = 32;
+var init_decodeAbiParameters = __esm(() => {
+  init_abi();
+  init_getAddress();
+  init_cursor2();
+  init_size();
+  init_slice();
+  init_fromBytes();
+  init_toBytes();
+  init_toHex();
+  init_encodeAbiParameters();
+});
+var stringify = (value2, replacer, space) => JSON.stringify(value2, (key, value_) => {
+  const value3 = typeof value_ === "bigint" ? value_.toString() : value_;
+  return typeof replacer === "function" ? replacer(key, value3) : value3;
+}, space);
+function setBigUint64(view, byteOffset, value2, isLE2) {
+  if (typeof view.setBigUint64 === "function")
+    return view.setBigUint64(byteOffset, value2, isLE2);
+  const _32n2 = BigInt(32);
+  const _u32_max = BigInt(4294967295);
+  const wh = Number(value2 >> _32n2 & _u32_max);
+  const wl = Number(value2 & _u32_max);
+  const h = isLE2 ? 4 : 0;
+  const l = isLE2 ? 0 : 4;
+  view.setUint32(byteOffset + h, wh, isLE2);
+  view.setUint32(byteOffset + l, wl, isLE2);
+}
+function Chi(a, b, c) {
+  return a & b ^ ~a & c;
+}
+function Maj(a, b, c) {
+  return a & b ^ a & c ^ b & c;
+}
+var HashMD;
+var SHA256_IV;
+var init__md = __esm(() => {
+  init_utils();
+  HashMD = class HashMD2 extends Hash {
+    constructor(blockLen, outputLen, padOffset, isLE2) {
+      super();
+      this.finished = false;
+      this.length = 0;
+      this.pos = 0;
+      this.destroyed = false;
+      this.blockLen = blockLen;
+      this.outputLen = outputLen;
+      this.padOffset = padOffset;
+      this.isLE = isLE2;
+      this.buffer = new Uint8Array(blockLen);
+      this.view = createView(this.buffer);
+    }
+    update(data) {
+      aexists(this);
+      data = toBytes2(data);
+      abytes(data);
+      const { view, buffer, blockLen } = this;
+      const len2 = data.length;
+      for (let pos = 0;pos < len2; ) {
+        const take = Math.min(blockLen - this.pos, len2 - pos);
+        if (take === blockLen) {
+          const dataView = createView(data);
+          for (;blockLen <= len2 - pos; pos += blockLen)
+            this.process(dataView, pos);
+          continue;
+        }
+        buffer.set(data.subarray(pos, pos + take), this.pos);
+        this.pos += take;
+        pos += take;
+        if (this.pos === blockLen) {
+          this.process(view, 0);
+          this.pos = 0;
+        }
+      }
+      this.length += data.length;
+      this.roundClean();
+      return this;
+    }
+    digestInto(out) {
+      aexists(this);
+      aoutput(out, this);
+      this.finished = true;
+      const { buffer, view, blockLen, isLE: isLE2 } = this;
+      let { pos } = this;
+      buffer[pos++] = 128;
+      clean(this.buffer.subarray(pos));
+      if (this.padOffset > blockLen - pos) {
+        this.process(view, 0);
+        pos = 0;
+      }
+      for (let i2 = pos;i2 < blockLen; i2++)
+        buffer[i2] = 0;
+      setBigUint64(view, blockLen - 8, BigInt(this.length * 8), isLE2);
+      this.process(view, 0);
+      const oview = createView(out);
+      const len2 = this.outputLen;
+      if (len2 % 4)
+        throw new Error("_sha2: outputLen should be aligned to 32bit");
+      const outLen = len2 / 4;
+      const state = this.get();
+      if (outLen > state.length)
+        throw new Error("_sha2: outputLen bigger than state");
+      for (let i2 = 0;i2 < outLen; i2++)
+        oview.setUint32(4 * i2, state[i2], isLE2);
+    }
+    digest() {
+      const { buffer, outputLen } = this;
+      this.digestInto(buffer);
+      const res = buffer.slice(0, outputLen);
+      this.destroy();
+      return res;
+    }
+    _cloneInto(to) {
+      to || (to = new this.constructor);
+      to.set(...this.get());
+      const { blockLen, buffer, length, finished, destroyed, pos } = this;
+      to.destroyed = destroyed;
+      to.finished = finished;
+      to.length = length;
+      to.pos = pos;
+      if (length % blockLen)
+        to.buffer.set(buffer);
+      return to;
+    }
+    clone() {
+      return this._cloneInto();
+    }
+  };
+  SHA256_IV = /* @__PURE__ */ Uint32Array.from([
+    1779033703,
+    3144134277,
+    1013904242,
+    2773480762,
+    1359893119,
+    2600822924,
+    528734635,
+    1541459225
+  ]);
+});
+var SHA256_K;
+var SHA256_W;
+var SHA256;
+var sha256;
+var init_sha2 = __esm(() => {
+  init__md();
+  init_utils();
+  SHA256_K = /* @__PURE__ */ Uint32Array.from([
+    1116352408,
+    1899447441,
+    3049323471,
+    3921009573,
+    961987163,
+    1508970993,
+    2453635748,
+    2870763221,
+    3624381080,
+    310598401,
+    607225278,
+    1426881987,
+    1925078388,
+    2162078206,
+    2614888103,
+    3248222580,
+    3835390401,
+    4022224774,
+    264347078,
+    604807628,
+    770255983,
+    1249150122,
+    1555081692,
+    1996064986,
+    2554220882,
+    2821834349,
+    2952996808,
+    3210313671,
+    3336571891,
+    3584528711,
+    113926993,
+    338241895,
+    666307205,
+    773529912,
+    1294757372,
+    1396182291,
+    1695183700,
+    1986661051,
+    2177026350,
+    2456956037,
+    2730485921,
+    2820302411,
+    3259730800,
+    3345764771,
+    3516065817,
+    3600352804,
+    4094571909,
+    275423344,
+    430227734,
+    506948616,
+    659060556,
+    883997877,
+    958139571,
+    1322822218,
+    1537002063,
+    1747873779,
+    1955562222,
+    2024104815,
+    2227730452,
+    2361852424,
+    2428436474,
+    2756734187,
+    3204031479,
+    3329325298
+  ]);
+  SHA256_W = /* @__PURE__ */ new Uint32Array(64);
+  SHA256 = class SHA2562 extends HashMD {
+    constructor(outputLen = 32) {
+      super(64, outputLen, 8, false);
+      this.A = SHA256_IV[0] | 0;
+      this.B = SHA256_IV[1] | 0;
+      this.C = SHA256_IV[2] | 0;
+      this.D = SHA256_IV[3] | 0;
+      this.E = SHA256_IV[4] | 0;
+      this.F = SHA256_IV[5] | 0;
+      this.G = SHA256_IV[6] | 0;
+      this.H = SHA256_IV[7] | 0;
+    }
+    get() {
+      const { A, B, C, D, E: E2, F, G, H } = this;
+      return [A, B, C, D, E2, F, G, H];
+    }
+    set(A, B, C, D, E2, F, G, H) {
+      this.A = A | 0;
+      this.B = B | 0;
+      this.C = C | 0;
+      this.D = D | 0;
+      this.E = E2 | 0;
+      this.F = F | 0;
+      this.G = G | 0;
+      this.H = H | 0;
+    }
+    process(view, offset) {
+      for (let i2 = 0;i2 < 16; i2++, offset += 4)
+        SHA256_W[i2] = view.getUint32(offset, false);
+      for (let i2 = 16;i2 < 64; i2++) {
+        const W15 = SHA256_W[i2 - 15];
+        const W2 = SHA256_W[i2 - 2];
+        const s0 = rotr(W15, 7) ^ rotr(W15, 18) ^ W15 >>> 3;
+        const s1 = rotr(W2, 17) ^ rotr(W2, 19) ^ W2 >>> 10;
+        SHA256_W[i2] = s1 + SHA256_W[i2 - 7] + s0 + SHA256_W[i2 - 16] | 0;
+      }
+      let { A, B, C, D, E: E2, F, G, H } = this;
+      for (let i2 = 0;i2 < 64; i2++) {
+        const sigma1 = rotr(E2, 6) ^ rotr(E2, 11) ^ rotr(E2, 25);
+        const T1 = H + sigma1 + Chi(E2, F, G) + SHA256_K[i2] + SHA256_W[i2] | 0;
+        const sigma0 = rotr(A, 2) ^ rotr(A, 13) ^ rotr(A, 22);
+        const T2 = sigma0 + Maj(A, B, C) | 0;
+        H = G;
+        G = F;
+        F = E2;
+        E2 = D + T1 | 0;
+        D = C;
+        C = B;
+        B = A;
+        A = T1 + T2 | 0;
+      }
+      A = A + this.A | 0;
+      B = B + this.B | 0;
+      C = C + this.C | 0;
+      D = D + this.D | 0;
+      E2 = E2 + this.E | 0;
+      F = F + this.F | 0;
+      G = G + this.G | 0;
+      H = H + this.H | 0;
+      this.set(A, B, C, D, E2, F, G, H);
+    }
+    roundClean() {
+      clean(SHA256_W);
+    }
+    destroy() {
+      this.set(0, 0, 0, 0, 0, 0, 0, 0);
+      clean(this.buffer);
+    }
+  };
+  sha256 = /* @__PURE__ */ createHasher(() => new SHA256);
+});
+function decodeFunctionResult(parameters) {
+  const { abi, args, functionName, data } = parameters;
+  let abiItem = abi[0];
+  if (functionName) {
+    const item = getAbiItem({ abi, args, name: functionName });
+    if (!item)
+      throw new AbiFunctionNotFoundError(functionName, { docsPath: docsPath2 });
+    abiItem = item;
+  }
+  if (abiItem.type !== "function")
+    throw new AbiFunctionNotFoundError(undefined, { docsPath: docsPath2 });
+  if (!abiItem.outputs)
+    throw new AbiFunctionOutputsNotFoundError(abiItem.name, { docsPath: docsPath2 });
+  const values = decodeAbiParameters(abiItem.outputs, data);
+  if (values && values.length > 1)
+    return values;
+  if (values && values.length === 1)
+    return values[0];
+  return;
+}
+var docsPath2 = "/docs/contract/decodeFunctionResult";
+var init_decodeFunctionResult = __esm(() => {
+  init_abi();
+  init_decodeAbiParameters();
+  init_getAbiItem();
+});
+var crypto3;
+var init_crypto2 = __esm(() => {
+  crypto3 = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : undefined;
+});
+function isBytes2(a) {
+  return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
+}
+function anumber2(n) {
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new Error("positive integer expected, got " + n);
+}
+function abytes2(b, ...lengths) {
+  if (!isBytes2(b))
+    throw new Error("Uint8Array expected");
+  if (lengths.length > 0 && !lengths.includes(b.length))
+    throw new Error("Uint8Array expected of length " + lengths + ", got length=" + b.length);
+}
+function ahash2(h) {
+  if (typeof h !== "function" || typeof h.create !== "function")
+    throw new Error("Hash should be wrapped by utils.createHasher");
+  anumber2(h.outputLen);
+  anumber2(h.blockLen);
+}
+function aexists2(instance, checkFinished = true) {
+  if (instance.destroyed)
+    throw new Error("Hash instance has been destroyed");
+  if (checkFinished && instance.finished)
+    throw new Error("Hash#digest() has already been called");
+}
+function aoutput2(out, instance) {
+  abytes2(out);
+  const min = instance.outputLen;
+  if (out.length < min) {
+    throw new Error("digestInto() expects output buffer of length at least " + min);
+  }
+}
+function clean2(...arrays) {
+  for (let i2 = 0;i2 < arrays.length; i2++) {
+    arrays[i2].fill(0);
+  }
+}
+function createView2(arr) {
+  return new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+function rotr2(word, shift) {
+  return word << 32 - shift | word >>> shift;
+}
+function bytesToHex4(bytes) {
+  abytes2(bytes);
+  if (hasHexBuiltin2)
+    return bytes.toHex();
+  let hex = "";
+  for (let i2 = 0;i2 < bytes.length; i2++) {
+    hex += hexes3[bytes[i2]];
+  }
+  return hex;
+}
+function asciiToBase162(ch) {
+  if (ch >= asciis2._0 && ch <= asciis2._9)
+    return ch - asciis2._0;
+  if (ch >= asciis2.A && ch <= asciis2.F)
+    return ch - (asciis2.A - 10);
+  if (ch >= asciis2.a && ch <= asciis2.f)
+    return ch - (asciis2.a - 10);
+  return;
+}
+function hexToBytes4(hex) {
+  if (typeof hex !== "string")
+    throw new Error("hex string expected, got " + typeof hex);
+  if (hasHexBuiltin2)
+    return Uint8Array.fromHex(hex);
+  const hl = hex.length;
+  const al = hl / 2;
+  if (hl % 2)
+    throw new Error("hex string expected, got unpadded hex of length " + hl);
+  const array = new Uint8Array(al);
+  for (let ai = 0, hi = 0;ai < al; ai++, hi += 2) {
+    const n1 = asciiToBase162(hex.charCodeAt(hi));
+    const n2 = asciiToBase162(hex.charCodeAt(hi + 1));
+    if (n1 === undefined || n2 === undefined) {
+      const char = hex[hi] + hex[hi + 1];
+      throw new Error('hex string expected, got non-hex character "' + char + '" at index ' + hi);
+    }
+    array[ai] = n1 * 16 + n2;
+  }
+  return array;
+}
+function utf8ToBytes3(str) {
+  if (typeof str !== "string")
+    throw new Error("string expected");
+  return new Uint8Array(new TextEncoder().encode(str));
+}
+function toBytes3(data) {
+  if (typeof data === "string")
+    data = utf8ToBytes3(data);
+  abytes2(data);
+  return data;
+}
+function concatBytes3(...arrays) {
+  let sum = 0;
+  for (let i2 = 0;i2 < arrays.length; i2++) {
+    const a = arrays[i2];
+    abytes2(a);
+    sum += a.length;
+  }
+  const res = new Uint8Array(sum);
+  for (let i2 = 0, pad2 = 0;i2 < arrays.length; i2++) {
+    const a = arrays[i2];
+    res.set(a, pad2);
+    pad2 += a.length;
+  }
+  return res;
+}
+
+class Hash2 {
+}
+function createHasher2(hashCons) {
+  const hashC = (msg) => hashCons().update(toBytes3(msg)).digest();
+  const tmp = hashCons();
+  hashC.outputLen = tmp.outputLen;
+  hashC.blockLen = tmp.blockLen;
+  hashC.create = () => hashCons();
+  return hashC;
+}
+function randomBytes2(bytesLength = 32) {
+  if (crypto3 && typeof crypto3.getRandomValues === "function") {
+    return crypto3.getRandomValues(new Uint8Array(bytesLength));
+  }
+  if (crypto3 && typeof crypto3.randomBytes === "function") {
+    return Uint8Array.from(crypto3.randomBytes(bytesLength));
+  }
+  throw new Error("crypto.getRandomValues must be defined");
+}
+var hasHexBuiltin2;
+var hexes3;
+var asciis2;
+var init_utils2 = __esm(() => {
+  init_crypto2();
+  /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  hasHexBuiltin2 = /* @__PURE__ */ (() => typeof Uint8Array.from([]).toHex === "function" && typeof Uint8Array.fromHex === "function")();
+  hexes3 = /* @__PURE__ */ Array.from({ length: 256 }, (_, i2) => i2.toString(16).padStart(2, "0"));
+  asciis2 = { _0: 48, _9: 57, A: 65, F: 70, a: 97, f: 102 };
+});
+function _abool2(value2, title = "") {
+  if (typeof value2 !== "boolean") {
+    const prefix = title && `"${title}"`;
+    throw new Error(prefix + "expected boolean, got type=" + typeof value2);
+  }
+  return value2;
+}
+function _abytes2(value2, length, title = "") {
+  const bytes = isBytes2(value2);
+  const len2 = value2?.length;
+  const needsLen = length !== undefined;
+  if (!bytes || needsLen && len2 !== length) {
+    const prefix = title && `"${title}" `;
+    const ofLen = needsLen ? ` of length ${length}` : "";
+    const got = bytes ? `length=${len2}` : `type=${typeof value2}`;
+    throw new Error(prefix + "expected Uint8Array" + ofLen + ", got " + got);
+  }
+  return value2;
+}
+function numberToHexUnpadded(num) {
+  const hex = num.toString(16);
+  return hex.length & 1 ? "0" + hex : hex;
+}
+function hexToNumber2(hex) {
+  if (typeof hex !== "string")
+    throw new Error("hex string expected, got " + typeof hex);
+  return hex === "" ? _0n2 : BigInt("0x" + hex);
+}
+function bytesToNumberBE(bytes) {
+  return hexToNumber2(bytesToHex4(bytes));
+}
+function bytesToNumberLE(bytes) {
+  abytes2(bytes);
+  return hexToNumber2(bytesToHex4(Uint8Array.from(bytes).reverse()));
+}
+function numberToBytesBE(n, len2) {
+  return hexToBytes4(n.toString(16).padStart(len2 * 2, "0"));
+}
+function numberToBytesLE(n, len2) {
+  return numberToBytesBE(n, len2).reverse();
+}
+function ensureBytes(title, hex, expectedLength) {
+  let res;
+  if (typeof hex === "string") {
+    try {
+      res = hexToBytes4(hex);
+    } catch (e) {
+      throw new Error(title + " must be hex string or Uint8Array, cause: " + e);
+    }
+  } else if (isBytes2(hex)) {
+    res = Uint8Array.from(hex);
+  } else {
+    throw new Error(title + " must be hex string or Uint8Array");
+  }
+  const len2 = res.length;
+  if (typeof expectedLength === "number" && len2 !== expectedLength)
+    throw new Error(title + " of length " + expectedLength + " expected, got " + len2);
+  return res;
+}
+function inRange(n, min, max) {
+  return isPosBig(n) && isPosBig(min) && isPosBig(max) && min <= n && n < max;
+}
+function aInRange(title, n, min, max) {
+  if (!inRange(n, min, max))
+    throw new Error("expected valid " + title + ": " + min + " <= n < " + max + ", got " + n);
+}
+function bitLen(n) {
+  let len2;
+  for (len2 = 0;n > _0n2; n >>= _1n2, len2 += 1)
+    ;
+  return len2;
+}
+function createHmacDrbg(hashLen, qByteLen, hmacFn) {
+  if (typeof hashLen !== "number" || hashLen < 2)
+    throw new Error("hashLen must be a number");
+  if (typeof qByteLen !== "number" || qByteLen < 2)
+    throw new Error("qByteLen must be a number");
+  if (typeof hmacFn !== "function")
+    throw new Error("hmacFn must be a function");
+  const u8n = (len2) => new Uint8Array(len2);
+  const u8of = (byte) => Uint8Array.of(byte);
+  let v = u8n(hashLen);
+  let k = u8n(hashLen);
+  let i2 = 0;
+  const reset = () => {
+    v.fill(1);
+    k.fill(0);
+    i2 = 0;
+  };
+  const h = (...b) => hmacFn(k, v, ...b);
+  const reseed = (seed = u8n(0)) => {
+    k = h(u8of(0), seed);
+    v = h();
+    if (seed.length === 0)
+      return;
+    k = h(u8of(1), seed);
+    v = h();
+  };
+  const gen2 = () => {
+    if (i2++ >= 1000)
+      throw new Error("drbg: tried 1000 values");
+    let len2 = 0;
+    const out = [];
+    while (len2 < qByteLen) {
+      v = h();
+      const sl = v.slice();
+      out.push(sl);
+      len2 += v.length;
+    }
+    return concatBytes3(...out);
+  };
+  const genUntil = (seed, pred) => {
+    reset();
+    reseed(seed);
+    let res = undefined;
+    while (!(res = pred(gen2())))
+      reseed();
+    reset();
+    return res;
+  };
+  return genUntil;
+}
+function _validateObject(object, fields2, optFields = {}) {
+  if (!object || typeof object !== "object")
+    throw new Error("expected valid options object");
+  function checkField2(fieldName, expectedType, isOpt) {
+    const val = object[fieldName];
+    if (isOpt && val === undefined)
+      return;
+    const current = typeof val;
+    if (current !== expectedType || val === null)
+      throw new Error(`param "${fieldName}" is invalid: expected ${expectedType}, got ${current}`);
+  }
+  Object.entries(fields2).forEach(([k, v]) => checkField2(k, v, false));
+  Object.entries(optFields).forEach(([k, v]) => checkField2(k, v, true));
+}
+function memoized(fn) {
+  const map = new WeakMap;
+  return (arg, ...args) => {
+    const val = map.get(arg);
+    if (val !== undefined)
+      return val;
+    const computed = fn(arg, ...args);
+    map.set(arg, computed);
+    return computed;
+  };
+}
+var _0n2;
+var _1n2;
+var isPosBig = (n) => typeof n === "bigint" && _0n2 <= n;
+var bitMask = (n) => (_1n2 << BigInt(n)) - _1n2;
+var init_utils3 = __esm(() => {
+  init_utils2();
+  init_utils2();
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  _0n2 = /* @__PURE__ */ BigInt(0);
+  _1n2 = /* @__PURE__ */ BigInt(1);
+});
+var HMAC;
+var hmac = (hash2, key, message) => new HMAC(hash2, key).update(message).digest();
+var init_hmac = __esm(() => {
+  init_utils();
+  HMAC = class HMAC2 extends Hash {
+    constructor(hash2, _key) {
+      super();
+      this.finished = false;
+      this.destroyed = false;
+      ahash(hash2);
+      const key = toBytes2(_key);
+      this.iHash = hash2.create();
+      if (typeof this.iHash.update !== "function")
+        throw new Error("Expected instance of class which extends utils.Hash");
+      this.blockLen = this.iHash.blockLen;
+      this.outputLen = this.iHash.outputLen;
+      const blockLen = this.blockLen;
+      const pad2 = new Uint8Array(blockLen);
+      pad2.set(key.length > blockLen ? hash2.create().update(key).digest() : key);
+      for (let i2 = 0;i2 < pad2.length; i2++)
+        pad2[i2] ^= 54;
+      this.iHash.update(pad2);
+      this.oHash = hash2.create();
+      for (let i2 = 0;i2 < pad2.length; i2++)
+        pad2[i2] ^= 54 ^ 92;
+      this.oHash.update(pad2);
+      clean(pad2);
+    }
+    update(buf) {
+      aexists(this);
+      this.iHash.update(buf);
+      return this;
+    }
+    digestInto(out) {
+      aexists(this);
+      abytes(out, this.outputLen);
+      this.finished = true;
+      this.iHash.digestInto(out);
+      this.oHash.update(out);
+      this.oHash.digestInto(out);
+      this.destroy();
+    }
+    digest() {
+      const out = new Uint8Array(this.oHash.outputLen);
+      this.digestInto(out);
+      return out;
+    }
+    _cloneInto(to) {
+      to || (to = Object.create(Object.getPrototypeOf(this), {}));
+      const { oHash, iHash, finished, destroyed, blockLen, outputLen } = this;
+      to = to;
+      to.finished = finished;
+      to.destroyed = destroyed;
+      to.blockLen = blockLen;
+      to.outputLen = outputLen;
+      to.oHash = oHash._cloneInto(to.oHash);
+      to.iHash = iHash._cloneInto(to.iHash);
+      return to;
+    }
+    clone() {
+      return this._cloneInto();
+    }
+    destroy() {
+      this.destroyed = true;
+      this.oHash.destroy();
+      this.iHash.destroy();
+    }
+  };
+  hmac.create = (hash2, key) => new HMAC(hash2, key);
+});
+function _abool22(value2, title = "") {
+  if (typeof value2 !== "boolean") {
+    const prefix = title && `"${title}"`;
+    throw new Error(prefix + "expected boolean, got type=" + typeof value2);
+  }
+  return value2;
+}
+function _abytes22(value2, length, title = "") {
+  const bytes = isBytes(value2);
+  const len2 = value2?.length;
+  const needsLen = length !== undefined;
+  if (!bytes || needsLen && len2 !== length) {
+    const prefix = title && `"${title}" `;
+    const ofLen = needsLen ? ` of length ${length}` : "";
+    const got = bytes ? `length=${len2}` : `type=${typeof value2}`;
+    throw new Error(prefix + "expected Uint8Array" + ofLen + ", got " + got);
+  }
+  return value2;
+}
+function numberToHexUnpadded2(num) {
+  const hex = num.toString(16);
+  return hex.length & 1 ? "0" + hex : hex;
+}
+function hexToNumber3(hex) {
+  if (typeof hex !== "string")
+    throw new Error("hex string expected, got " + typeof hex);
+  return hex === "" ? _0n3 : BigInt("0x" + hex);
+}
+function bytesToNumberBE2(bytes) {
+  return hexToNumber3(bytesToHex3(bytes));
+}
+function bytesToNumberLE2(bytes) {
+  abytes(bytes);
+  return hexToNumber3(bytesToHex3(Uint8Array.from(bytes).reverse()));
+}
+function numberToBytesBE2(n, len2) {
+  return hexToBytes3(n.toString(16).padStart(len2 * 2, "0"));
+}
+function numberToBytesLE2(n, len2) {
+  return numberToBytesBE2(n, len2).reverse();
+}
+function ensureBytes2(title, hex, expectedLength) {
+  let res;
+  if (typeof hex === "string") {
+    try {
+      res = hexToBytes3(hex);
+    } catch (e) {
+      throw new Error(title + " must be hex string or Uint8Array, cause: " + e);
+    }
+  } else if (isBytes(hex)) {
+    res = Uint8Array.from(hex);
+  } else {
+    throw new Error(title + " must be hex string or Uint8Array");
+  }
+  const len2 = res.length;
+  if (typeof expectedLength === "number" && len2 !== expectedLength)
+    throw new Error(title + " of length " + expectedLength + " expected, got " + len2);
+  return res;
+}
+function inRange2(n, min, max) {
+  return isPosBig2(n) && isPosBig2(min) && isPosBig2(max) && min <= n && n < max;
+}
+function aInRange2(title, n, min, max) {
+  if (!inRange2(n, min, max))
+    throw new Error("expected valid " + title + ": " + min + " <= n < " + max + ", got " + n);
+}
+function bitLen2(n) {
+  let len2;
+  for (len2 = 0;n > _0n3; n >>= _1n3, len2 += 1)
+    ;
+  return len2;
+}
+function createHmacDrbg2(hashLen, qByteLen, hmacFn) {
+  if (typeof hashLen !== "number" || hashLen < 2)
+    throw new Error("hashLen must be a number");
+  if (typeof qByteLen !== "number" || qByteLen < 2)
+    throw new Error("qByteLen must be a number");
+  if (typeof hmacFn !== "function")
+    throw new Error("hmacFn must be a function");
+  const u8n = (len2) => new Uint8Array(len2);
+  const u8of = (byte) => Uint8Array.of(byte);
+  let v = u8n(hashLen);
+  let k = u8n(hashLen);
+  let i2 = 0;
+  const reset = () => {
+    v.fill(1);
+    k.fill(0);
+    i2 = 0;
+  };
+  const h = (...b) => hmacFn(k, v, ...b);
+  const reseed = (seed = u8n(0)) => {
+    k = h(u8of(0), seed);
+    v = h();
+    if (seed.length === 0)
+      return;
+    k = h(u8of(1), seed);
+    v = h();
+  };
+  const gen2 = () => {
+    if (i2++ >= 1000)
+      throw new Error("drbg: tried 1000 values");
+    let len2 = 0;
+    const out = [];
+    while (len2 < qByteLen) {
+      v = h();
+      const sl = v.slice();
+      out.push(sl);
+      len2 += v.length;
+    }
+    return concatBytes(...out);
+  };
+  const genUntil = (seed, pred) => {
+    reset();
+    reseed(seed);
+    let res = undefined;
+    while (!(res = pred(gen2())))
+      reseed();
+    reset();
+    return res;
+  };
+  return genUntil;
+}
+function _validateObject2(object, fields2, optFields = {}) {
+  if (!object || typeof object !== "object")
+    throw new Error("expected valid options object");
+  function checkField2(fieldName, expectedType, isOpt) {
+    const val = object[fieldName];
+    if (isOpt && val === undefined)
+      return;
+    const current = typeof val;
+    if (current !== expectedType || val === null)
+      throw new Error(`param "${fieldName}" is invalid: expected ${expectedType}, got ${current}`);
+  }
+  Object.entries(fields2).forEach(([k, v]) => checkField2(k, v, false));
+  Object.entries(optFields).forEach(([k, v]) => checkField2(k, v, true));
+}
+function memoized2(fn) {
+  const map = new WeakMap;
+  return (arg, ...args) => {
+    const val = map.get(arg);
+    if (val !== undefined)
+      return val;
+    const computed = fn(arg, ...args);
+    map.set(arg, computed);
+    return computed;
+  };
+}
+var _0n3;
+var _1n3;
+var isPosBig2 = (n) => typeof n === "bigint" && _0n3 <= n;
+var bitMask2 = (n) => (_1n3 << BigInt(n)) - _1n3;
+var init_utils4 = __esm(() => {
+  init_utils();
+  init_utils();
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  _0n3 = /* @__PURE__ */ BigInt(0);
+  _1n3 = /* @__PURE__ */ BigInt(1);
+});
+function mod(a, b) {
+  const result = a % b;
+  return result >= _0n4 ? result : b + result;
+}
+function pow2(x, power, modulo) {
+  let res = x;
+  while (power-- > _0n4) {
+    res *= res;
+    res %= modulo;
+  }
+  return res;
+}
+function invert(number, modulo) {
+  if (number === _0n4)
+    throw new Error("invert: expected non-zero number");
+  if (modulo <= _0n4)
+    throw new Error("invert: expected positive modulus, got " + modulo);
+  let a = mod(number, modulo);
+  let b = modulo;
+  let x = _0n4, y = _1n4, u = _1n4, v = _0n4;
+  while (a !== _0n4) {
+    const q = b / a;
+    const r = b % a;
+    const m = x - u * q;
+    const n = y - v * q;
+    b = a, a = r, x = u, y = v, u = m, v = n;
+  }
+  const gcd = b;
+  if (gcd !== _1n4)
+    throw new Error("invert: does not exist");
+  return mod(x, modulo);
+}
+function assertIsSquare(Fp, root, n) {
+  if (!Fp.eql(Fp.sqr(root), n))
+    throw new Error("Cannot find square root");
+}
+function sqrt3mod4(Fp, n) {
+  const p1div4 = (Fp.ORDER + _1n4) / _4n;
+  const root = Fp.pow(n, p1div4);
+  assertIsSquare(Fp, root, n);
+  return root;
+}
+function sqrt5mod8(Fp, n) {
+  const p5div8 = (Fp.ORDER - _5n) / _8n;
+  const n2 = Fp.mul(n, _2n2);
+  const v = Fp.pow(n2, p5div8);
+  const nv = Fp.mul(n, v);
+  const i2 = Fp.mul(Fp.mul(nv, _2n2), v);
+  const root = Fp.mul(nv, Fp.sub(i2, Fp.ONE));
+  assertIsSquare(Fp, root, n);
+  return root;
+}
+function sqrt9mod16(P) {
+  const Fp_ = Field(P);
+  const tn = tonelliShanks(P);
+  const c1 = tn(Fp_, Fp_.neg(Fp_.ONE));
+  const c2 = tn(Fp_, c1);
+  const c3 = tn(Fp_, Fp_.neg(c1));
+  const c4 = (P + _7n2) / _16n;
+  return (Fp, n) => {
+    let tv1 = Fp.pow(n, c4);
+    let tv2 = Fp.mul(tv1, c1);
+    const tv3 = Fp.mul(tv1, c2);
+    const tv4 = Fp.mul(tv1, c3);
+    const e1 = Fp.eql(Fp.sqr(tv2), n);
+    const e2 = Fp.eql(Fp.sqr(tv3), n);
+    tv1 = Fp.cmov(tv1, tv2, e1);
+    tv2 = Fp.cmov(tv4, tv3, e2);
+    const e3 = Fp.eql(Fp.sqr(tv2), n);
+    const root = Fp.cmov(tv1, tv2, e3);
+    assertIsSquare(Fp, root, n);
+    return root;
+  };
+}
+function tonelliShanks(P) {
+  if (P < _3n)
+    throw new Error("sqrt is not defined for small field");
+  let Q = P - _1n4;
+  let S = 0;
+  while (Q % _2n2 === _0n4) {
+    Q /= _2n2;
+    S++;
+  }
+  let Z = _2n2;
+  const _Fp = Field(P);
+  while (FpLegendre(_Fp, Z) === 1) {
+    if (Z++ > 1000)
+      throw new Error("Cannot find square root: probably non-prime P");
+  }
+  if (S === 1)
+    return sqrt3mod4;
+  let cc = _Fp.pow(Z, Q);
+  const Q1div2 = (Q + _1n4) / _2n2;
+  return function tonelliSlow(Fp, n) {
+    if (Fp.is0(n))
+      return n;
+    if (FpLegendre(Fp, n) !== 1)
+      throw new Error("Cannot find square root");
+    let M = S;
+    let c = Fp.mul(Fp.ONE, cc);
+    let t = Fp.pow(n, Q);
+    let R = Fp.pow(n, Q1div2);
+    while (!Fp.eql(t, Fp.ONE)) {
+      if (Fp.is0(t))
+        return Fp.ZERO;
+      let i2 = 1;
+      let t_tmp = Fp.sqr(t);
+      while (!Fp.eql(t_tmp, Fp.ONE)) {
+        i2++;
+        t_tmp = Fp.sqr(t_tmp);
+        if (i2 === M)
+          throw new Error("Cannot find square root");
+      }
+      const exponent = _1n4 << BigInt(M - i2 - 1);
+      const b = Fp.pow(c, exponent);
+      M = i2;
+      c = Fp.sqr(b);
+      t = Fp.mul(t, c);
+      R = Fp.mul(R, b);
+    }
+    return R;
+  };
+}
+function FpSqrt(P) {
+  if (P % _4n === _3n)
+    return sqrt3mod4;
+  if (P % _8n === _5n)
+    return sqrt5mod8;
+  if (P % _16n === _9n)
+    return sqrt9mod16(P);
+  return tonelliShanks(P);
+}
+function validateField(field) {
+  const initial = {
+    ORDER: "bigint",
+    MASK: "bigint",
+    BYTES: "number",
+    BITS: "number"
+  };
+  const opts = FIELD_FIELDS.reduce((map, val) => {
+    map[val] = "function";
+    return map;
+  }, initial);
+  _validateObject2(field, opts);
+  return field;
+}
+function FpPow(Fp, num, power) {
+  if (power < _0n4)
+    throw new Error("invalid exponent, negatives unsupported");
+  if (power === _0n4)
+    return Fp.ONE;
+  if (power === _1n4)
+    return num;
+  let p = Fp.ONE;
+  let d = num;
+  while (power > _0n4) {
+    if (power & _1n4)
+      p = Fp.mul(p, d);
+    d = Fp.sqr(d);
+    power >>= _1n4;
+  }
+  return p;
+}
+function FpInvertBatch(Fp, nums, passZero = false) {
+  const inverted = new Array(nums.length).fill(passZero ? Fp.ZERO : undefined);
+  const multipliedAcc = nums.reduce((acc, num, i2) => {
+    if (Fp.is0(num))
+      return acc;
+    inverted[i2] = acc;
+    return Fp.mul(acc, num);
+  }, Fp.ONE);
+  const invertedAcc = Fp.inv(multipliedAcc);
+  nums.reduceRight((acc, num, i2) => {
+    if (Fp.is0(num))
+      return acc;
+    inverted[i2] = Fp.mul(acc, inverted[i2]);
+    return Fp.mul(acc, num);
+  }, invertedAcc);
+  return inverted;
+}
+function FpLegendre(Fp, n) {
+  const p1mod2 = (Fp.ORDER - _1n4) / _2n2;
+  const powered = Fp.pow(n, p1mod2);
+  const yes = Fp.eql(powered, Fp.ONE);
+  const zero = Fp.eql(powered, Fp.ZERO);
+  const no = Fp.eql(powered, Fp.neg(Fp.ONE));
+  if (!yes && !zero && !no)
+    throw new Error("invalid Legendre symbol result");
+  return yes ? 1 : zero ? 0 : -1;
+}
+function nLength(n, nBitLength) {
+  if (nBitLength !== undefined)
+    anumber(nBitLength);
+  const _nBitLength = nBitLength !== undefined ? nBitLength : n.toString(2).length;
+  const nByteLength = Math.ceil(_nBitLength / 8);
+  return { nBitLength: _nBitLength, nByteLength };
+}
+function Field(ORDER, bitLenOrOpts, isLE2 = false, opts = {}) {
+  if (ORDER <= _0n4)
+    throw new Error("invalid field: expected ORDER > 0, got " + ORDER);
+  let _nbitLength = undefined;
+  let _sqrt = undefined;
+  let modFromBytes = false;
+  let allowedLengths = undefined;
+  if (typeof bitLenOrOpts === "object" && bitLenOrOpts != null) {
+    if (opts.sqrt || isLE2)
+      throw new Error("cannot specify opts in two arguments");
+    const _opts = bitLenOrOpts;
+    if (_opts.BITS)
+      _nbitLength = _opts.BITS;
+    if (_opts.sqrt)
+      _sqrt = _opts.sqrt;
+    if (typeof _opts.isLE === "boolean")
+      isLE2 = _opts.isLE;
+    if (typeof _opts.modFromBytes === "boolean")
+      modFromBytes = _opts.modFromBytes;
+    allowedLengths = _opts.allowedLengths;
+  } else {
+    if (typeof bitLenOrOpts === "number")
+      _nbitLength = bitLenOrOpts;
+    if (opts.sqrt)
+      _sqrt = opts.sqrt;
+  }
+  const { nBitLength: BITS, nByteLength: BYTES } = nLength(ORDER, _nbitLength);
+  if (BYTES > 2048)
+    throw new Error("invalid field: expected ORDER of <= 2048 bytes");
+  let sqrtP;
+  const f = Object.freeze({
+    ORDER,
+    isLE: isLE2,
+    BITS,
+    BYTES,
+    MASK: bitMask2(BITS),
+    ZERO: _0n4,
+    ONE: _1n4,
+    allowedLengths,
+    create: (num) => mod(num, ORDER),
+    isValid: (num) => {
+      if (typeof num !== "bigint")
+        throw new Error("invalid field element: expected bigint, got " + typeof num);
+      return _0n4 <= num && num < ORDER;
+    },
+    is0: (num) => num === _0n4,
+    isValidNot0: (num) => !f.is0(num) && f.isValid(num),
+    isOdd: (num) => (num & _1n4) === _1n4,
+    neg: (num) => mod(-num, ORDER),
+    eql: (lhs, rhs) => lhs === rhs,
+    sqr: (num) => mod(num * num, ORDER),
+    add: (lhs, rhs) => mod(lhs + rhs, ORDER),
+    sub: (lhs, rhs) => mod(lhs - rhs, ORDER),
+    mul: (lhs, rhs) => mod(lhs * rhs, ORDER),
+    pow: (num, power) => FpPow(f, num, power),
+    div: (lhs, rhs) => mod(lhs * invert(rhs, ORDER), ORDER),
+    sqrN: (num) => num * num,
+    addN: (lhs, rhs) => lhs + rhs,
+    subN: (lhs, rhs) => lhs - rhs,
+    mulN: (lhs, rhs) => lhs * rhs,
+    inv: (num) => invert(num, ORDER),
+    sqrt: _sqrt || ((n) => {
+      if (!sqrtP)
+        sqrtP = FpSqrt(ORDER);
+      return sqrtP(f, n);
+    }),
+    toBytes: (num) => isLE2 ? numberToBytesLE2(num, BYTES) : numberToBytesBE2(num, BYTES),
+    fromBytes: (bytes, skipValidation = true) => {
+      if (allowedLengths) {
+        if (!allowedLengths.includes(bytes.length) || bytes.length > BYTES) {
+          throw new Error("Field.fromBytes: expected " + allowedLengths + " bytes, got " + bytes.length);
+        }
+        const padded = new Uint8Array(BYTES);
+        padded.set(bytes, isLE2 ? 0 : padded.length - bytes.length);
+        bytes = padded;
+      }
+      if (bytes.length !== BYTES)
+        throw new Error("Field.fromBytes: expected " + BYTES + " bytes, got " + bytes.length);
+      let scalar = isLE2 ? bytesToNumberLE2(bytes) : bytesToNumberBE2(bytes);
+      if (modFromBytes)
+        scalar = mod(scalar, ORDER);
+      if (!skipValidation) {
+        if (!f.isValid(scalar))
+          throw new Error("invalid field element: outside of range 0..ORDER");
+      }
+      return scalar;
+    },
+    invertBatch: (lst) => FpInvertBatch(f, lst),
+    cmov: (a, b, c) => c ? b : a
+  });
+  return Object.freeze(f);
+}
+function getFieldBytesLength(fieldOrder) {
+  if (typeof fieldOrder !== "bigint")
+    throw new Error("field order must be bigint");
+  const bitLength = fieldOrder.toString(2).length;
+  return Math.ceil(bitLength / 8);
+}
+function getMinHashLength(fieldOrder) {
+  const length = getFieldBytesLength(fieldOrder);
+  return length + Math.ceil(length / 2);
+}
+function mapHashToField(key, fieldOrder, isLE2 = false) {
+  const len2 = key.length;
+  const fieldLen = getFieldBytesLength(fieldOrder);
+  const minLen = getMinHashLength(fieldOrder);
+  if (len2 < 16 || len2 < minLen || len2 > 1024)
+    throw new Error("expected " + minLen + "-1024 bytes of input, got " + len2);
+  const num = isLE2 ? bytesToNumberLE2(key) : bytesToNumberBE2(key);
+  const reduced = mod(num, fieldOrder - _1n4) + _1n4;
+  return isLE2 ? numberToBytesLE2(reduced, fieldLen) : numberToBytesBE2(reduced, fieldLen);
+}
+var _0n4;
+var _1n4;
+var _2n2;
+var _3n;
+var _4n;
+var _5n;
+var _7n2;
+var _8n;
+var _9n;
+var _16n;
+var FIELD_FIELDS;
+var init_modular = __esm(() => {
+  init_utils4();
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  _0n4 = BigInt(0);
+  _1n4 = BigInt(1);
+  _2n2 = /* @__PURE__ */ BigInt(2);
+  _3n = /* @__PURE__ */ BigInt(3);
+  _4n = /* @__PURE__ */ BigInt(4);
+  _5n = /* @__PURE__ */ BigInt(5);
+  _7n2 = /* @__PURE__ */ BigInt(7);
+  _8n = /* @__PURE__ */ BigInt(8);
+  _9n = /* @__PURE__ */ BigInt(9);
+  _16n = /* @__PURE__ */ BigInt(16);
+  FIELD_FIELDS = [
+    "create",
+    "isValid",
+    "is0",
+    "neg",
+    "inv",
+    "sqrt",
+    "sqr",
+    "eql",
+    "add",
+    "sub",
+    "mul",
+    "pow",
+    "div",
+    "addN",
+    "subN",
+    "mulN",
+    "sqrN"
+  ];
+});
+function negateCt(condition, item) {
+  const neg = item.negate();
+  return condition ? neg : item;
+}
+function normalizeZ(c, points) {
+  const invertedZs = FpInvertBatch(c.Fp, points.map((p) => p.Z));
+  return points.map((p, i2) => c.fromAffine(p.toAffine(invertedZs[i2])));
+}
+function validateW(W, bits) {
+  if (!Number.isSafeInteger(W) || W <= 0 || W > bits)
+    throw new Error("invalid window size, expected [1.." + bits + "], got W=" + W);
+}
+function calcWOpts(W, scalarBits) {
+  validateW(W, scalarBits);
+  const windows = Math.ceil(scalarBits / W) + 1;
+  const windowSize = 2 ** (W - 1);
+  const maxNumber = 2 ** W;
+  const mask = bitMask2(W);
+  const shiftBy = BigInt(W);
+  return { windows, windowSize, mask, maxNumber, shiftBy };
+}
+function calcOffsets(n, window, wOpts) {
+  const { windowSize, mask, maxNumber, shiftBy } = wOpts;
+  let wbits = Number(n & mask);
+  let nextN = n >> shiftBy;
+  if (wbits > windowSize) {
+    wbits -= maxNumber;
+    nextN += _1n5;
+  }
+  const offsetStart = window * windowSize;
+  const offset = offsetStart + Math.abs(wbits) - 1;
+  const isZero = wbits === 0;
+  const isNeg = wbits < 0;
+  const isNegF = window % 2 !== 0;
+  const offsetF = offsetStart;
+  return { nextN, offset, isZero, isNeg, isNegF, offsetF };
+}
+function validateMSMPoints(points, c) {
+  if (!Array.isArray(points))
+    throw new Error("array expected");
+  points.forEach((p, i2) => {
+    if (!(p instanceof c))
+      throw new Error("invalid point at index " + i2);
+  });
+}
+function validateMSMScalars(scalars, field) {
+  if (!Array.isArray(scalars))
+    throw new Error("array of scalars expected");
+  scalars.forEach((s, i2) => {
+    if (!field.isValid(s))
+      throw new Error("invalid scalar at index " + i2);
+  });
+}
+function getW(P) {
+  return pointWindowSizes.get(P) || 1;
+}
+function assert0(n) {
+  if (n !== _0n5)
+    throw new Error("invalid wNAF");
+}
+
+class wNAF {
+  constructor(Point, bits) {
+    this.BASE = Point.BASE;
+    this.ZERO = Point.ZERO;
+    this.Fn = Point.Fn;
+    this.bits = bits;
+  }
+  _unsafeLadder(elm, n, p = this.ZERO) {
+    let d = elm;
+    while (n > _0n5) {
+      if (n & _1n5)
+        p = p.add(d);
+      d = d.double();
+      n >>= _1n5;
+    }
+    return p;
+  }
+  precomputeWindow(point, W) {
+    const { windows, windowSize } = calcWOpts(W, this.bits);
+    const points = [];
+    let p = point;
+    let base = p;
+    for (let window = 0;window < windows; window++) {
+      base = p;
+      points.push(base);
+      for (let i2 = 1;i2 < windowSize; i2++) {
+        base = base.add(p);
+        points.push(base);
+      }
+      p = base.double();
+    }
+    return points;
+  }
+  wNAF(W, precomputes, n) {
+    if (!this.Fn.isValid(n))
+      throw new Error("invalid scalar");
+    let p = this.ZERO;
+    let f = this.BASE;
+    const wo = calcWOpts(W, this.bits);
+    for (let window = 0;window < wo.windows; window++) {
+      const { nextN, offset, isZero, isNeg, isNegF, offsetF } = calcOffsets(n, window, wo);
+      n = nextN;
+      if (isZero) {
+        f = f.add(negateCt(isNegF, precomputes[offsetF]));
+      } else {
+        p = p.add(negateCt(isNeg, precomputes[offset]));
+      }
+    }
+    assert0(n);
+    return { p, f };
+  }
+  wNAFUnsafe(W, precomputes, n, acc = this.ZERO) {
+    const wo = calcWOpts(W, this.bits);
+    for (let window = 0;window < wo.windows; window++) {
+      if (n === _0n5)
+        break;
+      const { nextN, offset, isZero, isNeg } = calcOffsets(n, window, wo);
+      n = nextN;
+      if (isZero) {
+        continue;
+      } else {
+        const item = precomputes[offset];
+        acc = acc.add(isNeg ? item.negate() : item);
+      }
+    }
+    assert0(n);
+    return acc;
+  }
+  getPrecomputes(W, point, transform) {
+    let comp = pointPrecomputes.get(point);
+    if (!comp) {
+      comp = this.precomputeWindow(point, W);
+      if (W !== 1) {
+        if (typeof transform === "function")
+          comp = transform(comp);
+        pointPrecomputes.set(point, comp);
+      }
+    }
+    return comp;
+  }
+  cached(point, scalar, transform) {
+    const W = getW(point);
+    return this.wNAF(W, this.getPrecomputes(W, point, transform), scalar);
+  }
+  unsafe(point, scalar, transform, prev) {
+    const W = getW(point);
+    if (W === 1)
+      return this._unsafeLadder(point, scalar, prev);
+    return this.wNAFUnsafe(W, this.getPrecomputes(W, point, transform), scalar, prev);
+  }
+  createCache(P, W) {
+    validateW(W, this.bits);
+    pointWindowSizes.set(P, W);
+    pointPrecomputes.delete(P);
+  }
+  hasCache(elm) {
+    return getW(elm) !== 1;
+  }
+}
+function mulEndoUnsafe(Point, point, k1, k2) {
+  let acc = point;
+  let p1 = Point.ZERO;
+  let p2 = Point.ZERO;
+  while (k1 > _0n5 || k2 > _0n5) {
+    if (k1 & _1n5)
+      p1 = p1.add(acc);
+    if (k2 & _1n5)
+      p2 = p2.add(acc);
+    acc = acc.double();
+    k1 >>= _1n5;
+    k2 >>= _1n5;
+  }
+  return { p1, p2 };
+}
+function pippenger(c, fieldN, points, scalars) {
+  validateMSMPoints(points, c);
+  validateMSMScalars(scalars, fieldN);
+  const plength = points.length;
+  const slength = scalars.length;
+  if (plength !== slength)
+    throw new Error("arrays of points and scalars must have equal length");
+  const zero = c.ZERO;
+  const wbits = bitLen2(BigInt(plength));
+  let windowSize = 1;
+  if (wbits > 12)
+    windowSize = wbits - 3;
+  else if (wbits > 4)
+    windowSize = wbits - 2;
+  else if (wbits > 0)
+    windowSize = 2;
+  const MASK = bitMask2(windowSize);
+  const buckets = new Array(Number(MASK) + 1).fill(zero);
+  const lastBits = Math.floor((fieldN.BITS - 1) / windowSize) * windowSize;
+  let sum = zero;
+  for (let i2 = lastBits;i2 >= 0; i2 -= windowSize) {
+    buckets.fill(zero);
+    for (let j = 0;j < slength; j++) {
+      const scalar = scalars[j];
+      const wbits2 = Number(scalar >> BigInt(i2) & MASK);
+      buckets[wbits2] = buckets[wbits2].add(points[j]);
+    }
+    let resI = zero;
+    for (let j = buckets.length - 1, sumI = zero;j > 0; j--) {
+      sumI = sumI.add(buckets[j]);
+      resI = resI.add(sumI);
+    }
+    sum = sum.add(resI);
+    if (i2 !== 0)
+      for (let j = 0;j < windowSize; j++)
+        sum = sum.double();
+  }
+  return sum;
+}
+function createField(order, field, isLE2) {
+  if (field) {
+    if (field.ORDER !== order)
+      throw new Error("Field.ORDER must match order: Fp == p, Fn == n");
+    validateField(field);
+    return field;
+  } else {
+    return Field(order, { isLE: isLE2 });
+  }
+}
+function _createCurveFields(type, CURVE, curveOpts = {}, FpFnLE) {
+  if (FpFnLE === undefined)
+    FpFnLE = type === "edwards";
+  if (!CURVE || typeof CURVE !== "object")
+    throw new Error(`expected valid ${type} CURVE object`);
+  for (const p of ["p", "n", "h"]) {
+    const val = CURVE[p];
+    if (!(typeof val === "bigint" && val > _0n5))
+      throw new Error(`CURVE.${p} must be positive bigint`);
+  }
+  const Fp = createField(CURVE.p, curveOpts.Fp, FpFnLE);
+  const Fn = createField(CURVE.n, curveOpts.Fn, FpFnLE);
+  const _b = type === "weierstrass" ? "b" : "d";
+  const params = ["Gx", "Gy", "a", _b];
+  for (const p of params) {
+    if (!Fp.isValid(CURVE[p]))
+      throw new Error(`CURVE.${p} must be valid field element of CURVE.Fp`);
+  }
+  CURVE = Object.freeze(Object.assign({}, CURVE));
+  return { CURVE, Fp, Fn };
+}
+var _0n5;
+var _1n5;
+var pointPrecomputes;
+var pointWindowSizes;
+var init_curve = __esm(() => {
+  init_utils4();
+  init_modular();
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  _0n5 = BigInt(0);
+  _1n5 = BigInt(1);
+  pointPrecomputes = new WeakMap;
+  pointWindowSizes = new WeakMap;
+});
+function _splitEndoScalar(k, basis, n) {
+  const [[a1, b1], [a2, b2]] = basis;
+  const c1 = divNearest(b2 * k, n);
+  const c2 = divNearest(-b1 * k, n);
+  let k1 = k - c1 * a1 - c2 * a2;
+  let k2 = -c1 * b1 - c2 * b2;
+  const k1neg = k1 < _0n6;
+  const k2neg = k2 < _0n6;
+  if (k1neg)
+    k1 = -k1;
+  if (k2neg)
+    k2 = -k2;
+  const MAX_NUM = bitMask2(Math.ceil(bitLen2(n) / 2)) + _1n6;
+  if (k1 < _0n6 || k1 >= MAX_NUM || k2 < _0n6 || k2 >= MAX_NUM) {
+    throw new Error("splitScalar (endomorphism): failed, k=" + k);
+  }
+  return { k1neg, k1, k2neg, k2 };
+}
+function validateSigFormat(format) {
+  if (!["compact", "recovered", "der"].includes(format))
+    throw new Error('Signature format must be "compact", "recovered", or "der"');
+  return format;
+}
+function validateSigOpts(opts, def) {
+  const optsn = {};
+  for (let optName of Object.keys(def)) {
+    optsn[optName] = opts[optName] === undefined ? def[optName] : opts[optName];
+  }
+  _abool22(optsn.lowS, "lowS");
+  _abool22(optsn.prehash, "prehash");
+  if (optsn.format !== undefined)
+    validateSigFormat(optsn.format);
+  return optsn;
+}
+function _normFnElement(Fn, key) {
+  const { BYTES: expected } = Fn;
+  let num;
+  if (typeof key === "bigint") {
+    num = key;
+  } else {
+    let bytes = ensureBytes2("private key", key);
+    try {
+      num = Fn.fromBytes(bytes);
+    } catch (error) {
+      throw new Error(`invalid private key: expected ui8a of size ${expected}, got ${typeof key}`);
+    }
+  }
+  if (!Fn.isValidNot0(num))
+    throw new Error("invalid private key: out of range [1..N-1]");
+  return num;
+}
+function weierstrassN(params, extraOpts = {}) {
+  const validated = _createCurveFields("weierstrass", params, extraOpts);
+  const { Fp, Fn } = validated;
+  let CURVE = validated.CURVE;
+  const { h: cofactor, n: CURVE_ORDER } = CURVE;
+  _validateObject2(extraOpts, {}, {
+    allowInfinityPoint: "boolean",
+    clearCofactor: "function",
+    isTorsionFree: "function",
+    fromBytes: "function",
+    toBytes: "function",
+    endo: "object",
+    wrapPrivateKey: "boolean"
+  });
+  const { endo } = extraOpts;
+  if (endo) {
+    if (!Fp.is0(CURVE.a) || typeof endo.beta !== "bigint" || !Array.isArray(endo.basises)) {
+      throw new Error('invalid endo: expected "beta": bigint and "basises": array');
+    }
+  }
+  const lengths = getWLengths(Fp, Fn);
+  function assertCompressionIsSupported() {
+    if (!Fp.isOdd)
+      throw new Error("compression is not supported: Field does not have .isOdd()");
+  }
+  function pointToBytes(_c, point, isCompressed) {
+    const { x, y } = point.toAffine();
+    const bx = Fp.toBytes(x);
+    _abool22(isCompressed, "isCompressed");
+    if (isCompressed) {
+      assertCompressionIsSupported();
+      const hasEvenY = !Fp.isOdd(y);
+      return concatBytes(pprefix(hasEvenY), bx);
+    } else {
+      return concatBytes(Uint8Array.of(4), bx, Fp.toBytes(y));
+    }
+  }
+  function pointFromBytes(bytes) {
+    _abytes22(bytes, undefined, "Point");
+    const { publicKey: comp, publicKeyUncompressed: uncomp } = lengths;
+    const length = bytes.length;
+    const head = bytes[0];
+    const tail = bytes.subarray(1);
+    if (length === comp && (head === 2 || head === 3)) {
+      const x = Fp.fromBytes(tail);
+      if (!Fp.isValid(x))
+        throw new Error("bad point: is not on curve, wrong x");
+      const y2 = weierstrassEquation(x);
+      let y;
+      try {
+        y = Fp.sqrt(y2);
+      } catch (sqrtError) {
+        const err = sqrtError instanceof Error ? ": " + sqrtError.message : "";
+        throw new Error("bad point: is not on curve, sqrt error" + err);
+      }
+      assertCompressionIsSupported();
+      const isYOdd = Fp.isOdd(y);
+      const isHeadOdd = (head & 1) === 1;
+      if (isHeadOdd !== isYOdd)
+        y = Fp.neg(y);
+      return { x, y };
+    } else if (length === uncomp && head === 4) {
+      const L = Fp.BYTES;
+      const x = Fp.fromBytes(tail.subarray(0, L));
+      const y = Fp.fromBytes(tail.subarray(L, L * 2));
+      if (!isValidXY(x, y))
+        throw new Error("bad point: is not on curve");
+      return { x, y };
+    } else {
+      throw new Error(`bad point: got length ${length}, expected compressed=${comp} or uncompressed=${uncomp}`);
+    }
+  }
+  const encodePoint = extraOpts.toBytes || pointToBytes;
+  const decodePoint = extraOpts.fromBytes || pointFromBytes;
+  function weierstrassEquation(x) {
+    const x2 = Fp.sqr(x);
+    const x3 = Fp.mul(x2, x);
+    return Fp.add(Fp.add(x3, Fp.mul(x, CURVE.a)), CURVE.b);
+  }
+  function isValidXY(x, y) {
+    const left = Fp.sqr(y);
+    const right = weierstrassEquation(x);
+    return Fp.eql(left, right);
+  }
+  if (!isValidXY(CURVE.Gx, CURVE.Gy))
+    throw new Error("bad curve params: generator point");
+  const _4a3 = Fp.mul(Fp.pow(CURVE.a, _3n2), _4n2);
+  const _27b2 = Fp.mul(Fp.sqr(CURVE.b), BigInt(27));
+  if (Fp.is0(Fp.add(_4a3, _27b2)))
+    throw new Error("bad curve params: a or b");
+  function acoord(title, n, banZero = false) {
+    if (!Fp.isValid(n) || banZero && Fp.is0(n))
+      throw new Error(`bad point coordinate ${title}`);
+    return n;
+  }
+  function aprjpoint(other) {
+    if (!(other instanceof Point))
+      throw new Error("ProjectivePoint expected");
+  }
+  function splitEndoScalarN(k) {
+    if (!endo || !endo.basises)
+      throw new Error("no endo");
+    return _splitEndoScalar(k, endo.basises, Fn.ORDER);
+  }
+  const toAffineMemo = memoized2((p, iz) => {
+    const { X, Y, Z } = p;
+    if (Fp.eql(Z, Fp.ONE))
+      return { x: X, y: Y };
+    const is0 = p.is0();
+    if (iz == null)
+      iz = is0 ? Fp.ONE : Fp.inv(Z);
+    const x = Fp.mul(X, iz);
+    const y = Fp.mul(Y, iz);
+    const zz = Fp.mul(Z, iz);
+    if (is0)
+      return { x: Fp.ZERO, y: Fp.ZERO };
+    if (!Fp.eql(zz, Fp.ONE))
+      throw new Error("invZ was invalid");
+    return { x, y };
+  });
+  const assertValidMemo = memoized2((p) => {
+    if (p.is0()) {
+      if (extraOpts.allowInfinityPoint && !Fp.is0(p.Y))
+        return;
+      throw new Error("bad point: ZERO");
+    }
+    const { x, y } = p.toAffine();
+    if (!Fp.isValid(x) || !Fp.isValid(y))
+      throw new Error("bad point: x or y not field elements");
+    if (!isValidXY(x, y))
+      throw new Error("bad point: equation left != right");
+    if (!p.isTorsionFree())
+      throw new Error("bad point: not in prime-order subgroup");
+    return true;
+  });
+  function finishEndo(endoBeta, k1p, k2p, k1neg, k2neg) {
+    k2p = new Point(Fp.mul(k2p.X, endoBeta), k2p.Y, k2p.Z);
+    k1p = negateCt(k1neg, k1p);
+    k2p = negateCt(k2neg, k2p);
+    return k1p.add(k2p);
+  }
+
+  class Point {
+    constructor(X, Y, Z) {
+      this.X = acoord("x", X);
+      this.Y = acoord("y", Y, true);
+      this.Z = acoord("z", Z);
+      Object.freeze(this);
+    }
+    static CURVE() {
+      return CURVE;
+    }
+    static fromAffine(p) {
+      const { x, y } = p || {};
+      if (!p || !Fp.isValid(x) || !Fp.isValid(y))
+        throw new Error("invalid affine point");
+      if (p instanceof Point)
+        throw new Error("projective point not allowed");
+      if (Fp.is0(x) && Fp.is0(y))
+        return Point.ZERO;
+      return new Point(x, y, Fp.ONE);
+    }
+    static fromBytes(bytes) {
+      const P = Point.fromAffine(decodePoint(_abytes22(bytes, undefined, "point")));
+      P.assertValidity();
+      return P;
+    }
+    static fromHex(hex) {
+      return Point.fromBytes(ensureBytes2("pointHex", hex));
+    }
+    get x() {
+      return this.toAffine().x;
+    }
+    get y() {
+      return this.toAffine().y;
+    }
+    precompute(windowSize = 8, isLazy = true) {
+      wnaf.createCache(this, windowSize);
+      if (!isLazy)
+        this.multiply(_3n2);
+      return this;
+    }
+    assertValidity() {
+      assertValidMemo(this);
+    }
+    hasEvenY() {
+      const { y } = this.toAffine();
+      if (!Fp.isOdd)
+        throw new Error("Field doesn't support isOdd");
+      return !Fp.isOdd(y);
+    }
+    equals(other) {
+      aprjpoint(other);
+      const { X: X1, Y: Y1, Z: Z1 } = this;
+      const { X: X2, Y: Y2, Z: Z2 } = other;
+      const U1 = Fp.eql(Fp.mul(X1, Z2), Fp.mul(X2, Z1));
+      const U2 = Fp.eql(Fp.mul(Y1, Z2), Fp.mul(Y2, Z1));
+      return U1 && U2;
+    }
+    negate() {
+      return new Point(this.X, Fp.neg(this.Y), this.Z);
+    }
+    double() {
+      const { a, b } = CURVE;
+      const b3 = Fp.mul(b, _3n2);
+      const { X: X1, Y: Y1, Z: Z1 } = this;
+      let { ZERO: X3, ZERO: Y3, ZERO: Z3 } = Fp;
+      let t0 = Fp.mul(X1, X1);
+      let t1 = Fp.mul(Y1, Y1);
+      let t2 = Fp.mul(Z1, Z1);
+      let t3 = Fp.mul(X1, Y1);
+      t3 = Fp.add(t3, t3);
+      Z3 = Fp.mul(X1, Z1);
+      Z3 = Fp.add(Z3, Z3);
+      X3 = Fp.mul(a, Z3);
+      Y3 = Fp.mul(b3, t2);
+      Y3 = Fp.add(X3, Y3);
+      X3 = Fp.sub(t1, Y3);
+      Y3 = Fp.add(t1, Y3);
+      Y3 = Fp.mul(X3, Y3);
+      X3 = Fp.mul(t3, X3);
+      Z3 = Fp.mul(b3, Z3);
+      t2 = Fp.mul(a, t2);
+      t3 = Fp.sub(t0, t2);
+      t3 = Fp.mul(a, t3);
+      t3 = Fp.add(t3, Z3);
+      Z3 = Fp.add(t0, t0);
+      t0 = Fp.add(Z3, t0);
+      t0 = Fp.add(t0, t2);
+      t0 = Fp.mul(t0, t3);
+      Y3 = Fp.add(Y3, t0);
+      t2 = Fp.mul(Y1, Z1);
+      t2 = Fp.add(t2, t2);
+      t0 = Fp.mul(t2, t3);
+      X3 = Fp.sub(X3, t0);
+      Z3 = Fp.mul(t2, t1);
+      Z3 = Fp.add(Z3, Z3);
+      Z3 = Fp.add(Z3, Z3);
+      return new Point(X3, Y3, Z3);
+    }
+    add(other) {
+      aprjpoint(other);
+      const { X: X1, Y: Y1, Z: Z1 } = this;
+      const { X: X2, Y: Y2, Z: Z2 } = other;
+      let { ZERO: X3, ZERO: Y3, ZERO: Z3 } = Fp;
+      const a = CURVE.a;
+      const b3 = Fp.mul(CURVE.b, _3n2);
+      let t0 = Fp.mul(X1, X2);
+      let t1 = Fp.mul(Y1, Y2);
+      let t2 = Fp.mul(Z1, Z2);
+      let t3 = Fp.add(X1, Y1);
+      let t4 = Fp.add(X2, Y2);
+      t3 = Fp.mul(t3, t4);
+      t4 = Fp.add(t0, t1);
+      t3 = Fp.sub(t3, t4);
+      t4 = Fp.add(X1, Z1);
+      let t5 = Fp.add(X2, Z2);
+      t4 = Fp.mul(t4, t5);
+      t5 = Fp.add(t0, t2);
+      t4 = Fp.sub(t4, t5);
+      t5 = Fp.add(Y1, Z1);
+      X3 = Fp.add(Y2, Z2);
+      t5 = Fp.mul(t5, X3);
+      X3 = Fp.add(t1, t2);
+      t5 = Fp.sub(t5, X3);
+      Z3 = Fp.mul(a, t4);
+      X3 = Fp.mul(b3, t2);
+      Z3 = Fp.add(X3, Z3);
+      X3 = Fp.sub(t1, Z3);
+      Z3 = Fp.add(t1, Z3);
+      Y3 = Fp.mul(X3, Z3);
+      t1 = Fp.add(t0, t0);
+      t1 = Fp.add(t1, t0);
+      t2 = Fp.mul(a, t2);
+      t4 = Fp.mul(b3, t4);
+      t1 = Fp.add(t1, t2);
+      t2 = Fp.sub(t0, t2);
+      t2 = Fp.mul(a, t2);
+      t4 = Fp.add(t4, t2);
+      t0 = Fp.mul(t1, t4);
+      Y3 = Fp.add(Y3, t0);
+      t0 = Fp.mul(t5, t4);
+      X3 = Fp.mul(t3, X3);
+      X3 = Fp.sub(X3, t0);
+      t0 = Fp.mul(t3, t1);
+      Z3 = Fp.mul(t5, Z3);
+      Z3 = Fp.add(Z3, t0);
+      return new Point(X3, Y3, Z3);
+    }
+    subtract(other) {
+      return this.add(other.negate());
+    }
+    is0() {
+      return this.equals(Point.ZERO);
+    }
+    multiply(scalar) {
+      const { endo: endo2 } = extraOpts;
+      if (!Fn.isValidNot0(scalar))
+        throw new Error("invalid scalar: out of range");
+      let point, fake;
+      const mul = (n) => wnaf.cached(this, n, (p) => normalizeZ(Point, p));
+      if (endo2) {
+        const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(scalar);
+        const { p: k1p, f: k1f } = mul(k1);
+        const { p: k2p, f: k2f } = mul(k2);
+        fake = k1f.add(k2f);
+        point = finishEndo(endo2.beta, k1p, k2p, k1neg, k2neg);
+      } else {
+        const { p, f } = mul(scalar);
+        point = p;
+        fake = f;
+      }
+      return normalizeZ(Point, [point, fake])[0];
+    }
+    multiplyUnsafe(sc) {
+      const { endo: endo2 } = extraOpts;
+      const p = this;
+      if (!Fn.isValid(sc))
+        throw new Error("invalid scalar: out of range");
+      if (sc === _0n6 || p.is0())
+        return Point.ZERO;
+      if (sc === _1n6)
+        return p;
+      if (wnaf.hasCache(this))
+        return this.multiply(sc);
+      if (endo2) {
+        const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(sc);
+        const { p1, p2 } = mulEndoUnsafe(Point, p, k1, k2);
+        return finishEndo(endo2.beta, p1, p2, k1neg, k2neg);
+      } else {
+        return wnaf.unsafe(p, sc);
+      }
+    }
+    multiplyAndAddUnsafe(Q, a, b) {
+      const sum = this.multiplyUnsafe(a).add(Q.multiplyUnsafe(b));
+      return sum.is0() ? undefined : sum;
+    }
+    toAffine(invertedZ) {
+      return toAffineMemo(this, invertedZ);
+    }
+    isTorsionFree() {
+      const { isTorsionFree } = extraOpts;
+      if (cofactor === _1n6)
+        return true;
+      if (isTorsionFree)
+        return isTorsionFree(Point, this);
+      return wnaf.unsafe(this, CURVE_ORDER).is0();
+    }
+    clearCofactor() {
+      const { clearCofactor } = extraOpts;
+      if (cofactor === _1n6)
+        return this;
+      if (clearCofactor)
+        return clearCofactor(Point, this);
+      return this.multiplyUnsafe(cofactor);
+    }
+    isSmallOrder() {
+      return this.multiplyUnsafe(cofactor).is0();
+    }
+    toBytes(isCompressed = true) {
+      _abool22(isCompressed, "isCompressed");
+      this.assertValidity();
+      return encodePoint(Point, this, isCompressed);
+    }
+    toHex(isCompressed = true) {
+      return bytesToHex3(this.toBytes(isCompressed));
+    }
+    toString() {
+      return `<Point ${this.is0() ? "ZERO" : this.toHex()}>`;
+    }
+    get px() {
+      return this.X;
+    }
+    get py() {
+      return this.X;
+    }
+    get pz() {
+      return this.Z;
+    }
+    toRawBytes(isCompressed = true) {
+      return this.toBytes(isCompressed);
+    }
+    _setWindowSize(windowSize) {
+      this.precompute(windowSize);
+    }
+    static normalizeZ(points) {
+      return normalizeZ(Point, points);
+    }
+    static msm(points, scalars) {
+      return pippenger(Point, Fn, points, scalars);
+    }
+    static fromPrivateKey(privateKey) {
+      return Point.BASE.multiply(_normFnElement(Fn, privateKey));
+    }
+  }
+  Point.BASE = new Point(CURVE.Gx, CURVE.Gy, Fp.ONE);
+  Point.ZERO = new Point(Fp.ZERO, Fp.ONE, Fp.ZERO);
+  Point.Fp = Fp;
+  Point.Fn = Fn;
+  const bits = Fn.BITS;
+  const wnaf = new wNAF(Point, extraOpts.endo ? Math.ceil(bits / 2) : bits);
+  Point.BASE.precompute(8);
+  return Point;
+}
+function pprefix(hasEvenY) {
+  return Uint8Array.of(hasEvenY ? 2 : 3);
+}
+function getWLengths(Fp, Fn) {
+  return {
+    secretKey: Fn.BYTES,
+    publicKey: 1 + Fp.BYTES,
+    publicKeyUncompressed: 1 + 2 * Fp.BYTES,
+    publicKeyHasPrefix: true,
+    signature: 2 * Fn.BYTES
+  };
+}
+function ecdh(Point, ecdhOpts = {}) {
+  const { Fn } = Point;
+  const randomBytes_ = ecdhOpts.randomBytes || randomBytes;
+  const lengths = Object.assign(getWLengths(Point.Fp, Fn), { seed: getMinHashLength(Fn.ORDER) });
+  function isValidSecretKey(secretKey) {
+    try {
+      return !!_normFnElement(Fn, secretKey);
+    } catch (error) {
+      return false;
+    }
+  }
+  function isValidPublicKey(publicKey, isCompressed) {
+    const { publicKey: comp, publicKeyUncompressed } = lengths;
+    try {
+      const l = publicKey.length;
+      if (isCompressed === true && l !== comp)
+        return false;
+      if (isCompressed === false && l !== publicKeyUncompressed)
+        return false;
+      return !!Point.fromBytes(publicKey);
+    } catch (error) {
+      return false;
+    }
+  }
+  function randomSecretKey(seed = randomBytes_(lengths.seed)) {
+    return mapHashToField(_abytes22(seed, lengths.seed, "seed"), Fn.ORDER);
+  }
+  function getPublicKey(secretKey, isCompressed = true) {
+    return Point.BASE.multiply(_normFnElement(Fn, secretKey)).toBytes(isCompressed);
+  }
+  function keygen(seed) {
+    const secretKey = randomSecretKey(seed);
+    return { secretKey, publicKey: getPublicKey(secretKey) };
+  }
+  function isProbPub(item) {
+    if (typeof item === "bigint")
+      return false;
+    if (item instanceof Point)
+      return true;
+    const { secretKey, publicKey, publicKeyUncompressed } = lengths;
+    if (Fn.allowedLengths || secretKey === publicKey)
+      return;
+    const l = ensureBytes2("key", item).length;
+    return l === publicKey || l === publicKeyUncompressed;
+  }
+  function getSharedSecret(secretKeyA, publicKeyB, isCompressed = true) {
+    if (isProbPub(secretKeyA) === true)
+      throw new Error("first arg must be private key");
+    if (isProbPub(publicKeyB) === false)
+      throw new Error("second arg must be public key");
+    const s = _normFnElement(Fn, secretKeyA);
+    const b = Point.fromHex(publicKeyB);
+    return b.multiply(s).toBytes(isCompressed);
+  }
+  const utils2 = {
+    isValidSecretKey,
+    isValidPublicKey,
+    randomSecretKey,
+    isValidPrivateKey: isValidSecretKey,
+    randomPrivateKey: randomSecretKey,
+    normPrivateKeyToScalar: (key) => _normFnElement(Fn, key),
+    precompute(windowSize = 8, point = Point.BASE) {
+      return point.precompute(windowSize, false);
+    }
+  };
+  return Object.freeze({ getPublicKey, getSharedSecret, keygen, Point, utils: utils2, lengths });
+}
+function ecdsa(Point, hash2, ecdsaOpts = {}) {
+  ahash(hash2);
+  _validateObject2(ecdsaOpts, {}, {
+    hmac: "function",
+    lowS: "boolean",
+    randomBytes: "function",
+    bits2int: "function",
+    bits2int_modN: "function"
+  });
+  const randomBytes3 = ecdsaOpts.randomBytes || randomBytes;
+  const hmac2 = ecdsaOpts.hmac || ((key, ...msgs) => hmac(hash2, key, concatBytes(...msgs)));
+  const { Fp, Fn } = Point;
+  const { ORDER: CURVE_ORDER, BITS: fnBits } = Fn;
+  const { keygen, getPublicKey, getSharedSecret, utils: utils2, lengths } = ecdh(Point, ecdsaOpts);
+  const defaultSigOpts = {
+    prehash: false,
+    lowS: typeof ecdsaOpts.lowS === "boolean" ? ecdsaOpts.lowS : false,
+    format: undefined,
+    extraEntropy: false
+  };
+  const defaultSigOpts_format = "compact";
+  function isBiggerThanHalfOrder(number) {
+    const HALF = CURVE_ORDER >> _1n6;
+    return number > HALF;
+  }
+  function validateRS(title, num) {
+    if (!Fn.isValidNot0(num))
+      throw new Error(`invalid signature ${title}: out of range 1..Point.Fn.ORDER`);
+    return num;
+  }
+  function validateSigLength(bytes, format) {
+    validateSigFormat(format);
+    const size2 = lengths.signature;
+    const sizer = format === "compact" ? size2 : format === "recovered" ? size2 + 1 : undefined;
+    return _abytes22(bytes, sizer, `${format} signature`);
+  }
+
+  class Signature {
+    constructor(r, s, recovery) {
+      this.r = validateRS("r", r);
+      this.s = validateRS("s", s);
+      if (recovery != null)
+        this.recovery = recovery;
+      Object.freeze(this);
+    }
+    static fromBytes(bytes, format = defaultSigOpts_format) {
+      validateSigLength(bytes, format);
+      let recid;
+      if (format === "der") {
+        const { r: r2, s: s2 } = DER.toSig(_abytes22(bytes));
+        return new Signature(r2, s2);
+      }
+      if (format === "recovered") {
+        recid = bytes[0];
+        format = "compact";
+        bytes = bytes.subarray(1);
+      }
+      const L = Fn.BYTES;
+      const r = bytes.subarray(0, L);
+      const s = bytes.subarray(L, L * 2);
+      return new Signature(Fn.fromBytes(r), Fn.fromBytes(s), recid);
+    }
+    static fromHex(hex, format) {
+      return this.fromBytes(hexToBytes3(hex), format);
+    }
+    addRecoveryBit(recovery) {
+      return new Signature(this.r, this.s, recovery);
+    }
+    recoverPublicKey(messageHash) {
+      const FIELD_ORDER = Fp.ORDER;
+      const { r, s, recovery: rec } = this;
+      if (rec == null || ![0, 1, 2, 3].includes(rec))
+        throw new Error("recovery id invalid");
+      const hasCofactor = CURVE_ORDER * _2n3 < FIELD_ORDER;
+      if (hasCofactor && rec > 1)
+        throw new Error("recovery id is ambiguous for h>1 curve");
+      const radj = rec === 2 || rec === 3 ? r + CURVE_ORDER : r;
+      if (!Fp.isValid(radj))
+        throw new Error("recovery id 2 or 3 invalid");
+      const x = Fp.toBytes(radj);
+      const R = Point.fromBytes(concatBytes(pprefix((rec & 1) === 0), x));
+      const ir = Fn.inv(radj);
+      const h = bits2int_modN(ensureBytes2("msgHash", messageHash));
+      const u1 = Fn.create(-h * ir);
+      const u2 = Fn.create(s * ir);
+      const Q = Point.BASE.multiplyUnsafe(u1).add(R.multiplyUnsafe(u2));
+      if (Q.is0())
+        throw new Error("point at infinify");
+      Q.assertValidity();
+      return Q;
+    }
+    hasHighS() {
+      return isBiggerThanHalfOrder(this.s);
+    }
+    toBytes(format = defaultSigOpts_format) {
+      validateSigFormat(format);
+      if (format === "der")
+        return hexToBytes3(DER.hexFromSig(this));
+      const r = Fn.toBytes(this.r);
+      const s = Fn.toBytes(this.s);
+      if (format === "recovered") {
+        if (this.recovery == null)
+          throw new Error("recovery bit must be present");
+        return concatBytes(Uint8Array.of(this.recovery), r, s);
+      }
+      return concatBytes(r, s);
+    }
+    toHex(format) {
+      return bytesToHex3(this.toBytes(format));
+    }
+    assertValidity() {}
+    static fromCompact(hex) {
+      return Signature.fromBytes(ensureBytes2("sig", hex), "compact");
+    }
+    static fromDER(hex) {
+      return Signature.fromBytes(ensureBytes2("sig", hex), "der");
+    }
+    normalizeS() {
+      return this.hasHighS() ? new Signature(this.r, Fn.neg(this.s), this.recovery) : this;
+    }
+    toDERRawBytes() {
+      return this.toBytes("der");
+    }
+    toDERHex() {
+      return bytesToHex3(this.toBytes("der"));
+    }
+    toCompactRawBytes() {
+      return this.toBytes("compact");
+    }
+    toCompactHex() {
+      return bytesToHex3(this.toBytes("compact"));
+    }
+  }
+  const bits2int = ecdsaOpts.bits2int || function bits2int_def(bytes) {
+    if (bytes.length > 8192)
+      throw new Error("input is too large");
+    const num = bytesToNumberBE2(bytes);
+    const delta = bytes.length * 8 - fnBits;
+    return delta > 0 ? num >> BigInt(delta) : num;
+  };
+  const bits2int_modN = ecdsaOpts.bits2int_modN || function bits2int_modN_def(bytes) {
+    return Fn.create(bits2int(bytes));
+  };
+  const ORDER_MASK = bitMask2(fnBits);
+  function int2octets(num) {
+    aInRange2("num < 2^" + fnBits, num, _0n6, ORDER_MASK);
+    return Fn.toBytes(num);
+  }
+  function validateMsgAndHash(message, prehash) {
+    _abytes22(message, undefined, "message");
+    return prehash ? _abytes22(hash2(message), undefined, "prehashed message") : message;
+  }
+  function prepSig(message, privateKey, opts) {
+    if (["recovered", "canonical"].some((k) => (k in opts)))
+      throw new Error("sign() legacy options not supported");
+    const { lowS, prehash, extraEntropy } = validateSigOpts(opts, defaultSigOpts);
+    message = validateMsgAndHash(message, prehash);
+    const h1int = bits2int_modN(message);
+    const d = _normFnElement(Fn, privateKey);
+    const seedArgs = [int2octets(d), int2octets(h1int)];
+    if (extraEntropy != null && extraEntropy !== false) {
+      const e = extraEntropy === true ? randomBytes3(lengths.secretKey) : extraEntropy;
+      seedArgs.push(ensureBytes2("extraEntropy", e));
+    }
+    const seed = concatBytes(...seedArgs);
+    const m = h1int;
+    function k2sig(kBytes) {
+      const k = bits2int(kBytes);
+      if (!Fn.isValidNot0(k))
+        return;
+      const ik = Fn.inv(k);
+      const q = Point.BASE.multiply(k).toAffine();
+      const r = Fn.create(q.x);
+      if (r === _0n6)
+        return;
+      const s = Fn.create(ik * Fn.create(m + r * d));
+      if (s === _0n6)
+        return;
+      let recovery = (q.x === r ? 0 : 2) | Number(q.y & _1n6);
+      let normS = s;
+      if (lowS && isBiggerThanHalfOrder(s)) {
+        normS = Fn.neg(s);
+        recovery ^= 1;
+      }
+      return new Signature(r, normS, recovery);
+    }
+    return { seed, k2sig };
+  }
+  function sign(message, secretKey, opts = {}) {
+    message = ensureBytes2("message", message);
+    const { seed, k2sig } = prepSig(message, secretKey, opts);
+    const drbg = createHmacDrbg2(hash2.outputLen, Fn.BYTES, hmac2);
+    const sig = drbg(seed, k2sig);
+    return sig;
+  }
+  function tryParsingSig(sg) {
+    let sig = undefined;
+    const isHex2 = typeof sg === "string" || isBytes(sg);
+    const isObj = !isHex2 && sg !== null && typeof sg === "object" && typeof sg.r === "bigint" && typeof sg.s === "bigint";
+    if (!isHex2 && !isObj)
+      throw new Error("invalid signature, expected Uint8Array, hex string or Signature instance");
+    if (isObj) {
+      sig = new Signature(sg.r, sg.s);
+    } else if (isHex2) {
+      try {
+        sig = Signature.fromBytes(ensureBytes2("sig", sg), "der");
+      } catch (derError) {
+        if (!(derError instanceof DER.Err))
+          throw derError;
+      }
+      if (!sig) {
+        try {
+          sig = Signature.fromBytes(ensureBytes2("sig", sg), "compact");
+        } catch (error) {
+          return false;
+        }
+      }
+    }
+    if (!sig)
+      return false;
+    return sig;
+  }
+  function verify(signature, message, publicKey, opts = {}) {
+    const { lowS, prehash, format } = validateSigOpts(opts, defaultSigOpts);
+    publicKey = ensureBytes2("publicKey", publicKey);
+    message = validateMsgAndHash(ensureBytes2("message", message), prehash);
+    if ("strict" in opts)
+      throw new Error("options.strict was renamed to lowS");
+    const sig = format === undefined ? tryParsingSig(signature) : Signature.fromBytes(ensureBytes2("sig", signature), format);
+    if (sig === false)
+      return false;
+    try {
+      const P = Point.fromBytes(publicKey);
+      if (lowS && sig.hasHighS())
+        return false;
+      const { r, s } = sig;
+      const h = bits2int_modN(message);
+      const is = Fn.inv(s);
+      const u1 = Fn.create(h * is);
+      const u2 = Fn.create(r * is);
+      const R = Point.BASE.multiplyUnsafe(u1).add(P.multiplyUnsafe(u2));
+      if (R.is0())
+        return false;
+      const v = Fn.create(R.x);
+      return v === r;
+    } catch (e) {
+      return false;
+    }
+  }
+  function recoverPublicKey(signature, message, opts = {}) {
+    const { prehash } = validateSigOpts(opts, defaultSigOpts);
+    message = validateMsgAndHash(message, prehash);
+    return Signature.fromBytes(signature, "recovered").recoverPublicKey(message).toBytes();
+  }
+  return Object.freeze({
+    keygen,
+    getPublicKey,
+    getSharedSecret,
+    utils: utils2,
+    lengths,
+    Point,
+    sign,
+    verify,
+    recoverPublicKey,
+    Signature,
+    hash: hash2
+  });
+}
+function _weierstrass_legacy_opts_to_new(c) {
+  const CURVE = {
+    a: c.a,
+    b: c.b,
+    p: c.Fp.ORDER,
+    n: c.n,
+    h: c.h,
+    Gx: c.Gx,
+    Gy: c.Gy
+  };
+  const Fp = c.Fp;
+  let allowedLengths = c.allowedPrivateKeyLengths ? Array.from(new Set(c.allowedPrivateKeyLengths.map((l) => Math.ceil(l / 2)))) : undefined;
+  const Fn = Field(CURVE.n, {
+    BITS: c.nBitLength,
+    allowedLengths,
+    modFromBytes: c.wrapPrivateKey
+  });
+  const curveOpts = {
+    Fp,
+    Fn,
+    allowInfinityPoint: c.allowInfinityPoint,
+    endo: c.endo,
+    isTorsionFree: c.isTorsionFree,
+    clearCofactor: c.clearCofactor,
+    fromBytes: c.fromBytes,
+    toBytes: c.toBytes
+  };
+  return { CURVE, curveOpts };
+}
+function _ecdsa_legacy_opts_to_new(c) {
+  const { CURVE, curveOpts } = _weierstrass_legacy_opts_to_new(c);
+  const ecdsaOpts = {
+    hmac: c.hmac,
+    randomBytes: c.randomBytes,
+    lowS: c.lowS,
+    bits2int: c.bits2int,
+    bits2int_modN: c.bits2int_modN
+  };
+  return { CURVE, curveOpts, hash: c.hash, ecdsaOpts };
+}
+function _ecdsa_new_output_to_legacy(c, _ecdsa) {
+  const Point = _ecdsa.Point;
+  return Object.assign({}, _ecdsa, {
+    ProjectivePoint: Point,
+    CURVE: Object.assign({}, c, nLength(Point.Fn.ORDER, Point.Fn.BITS))
+  });
+}
+function weierstrass(c) {
+  const { CURVE, curveOpts, hash: hash2, ecdsaOpts } = _ecdsa_legacy_opts_to_new(c);
+  const Point = weierstrassN(CURVE, curveOpts);
+  const signs = ecdsa(Point, hash2, ecdsaOpts);
+  return _ecdsa_new_output_to_legacy(c, signs);
+}
+var divNearest = (num, den) => (num + (num >= 0 ? den : -den) / _2n3) / den;
+var DERErr;
+var DER;
+var _0n6;
+var _1n6;
+var _2n3;
+var _3n2;
+var _4n2;
+var init_weierstrass = __esm(() => {
+  init_hmac();
+  init_utils();
+  init_utils4();
+  init_curve();
+  init_modular();
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  DERErr = class DERErr2 extends Error {
+    constructor(m = "") {
+      super(m);
+    }
+  };
+  DER = {
+    Err: DERErr,
+    _tlv: {
+      encode: (tag, data) => {
+        const { Err: E2 } = DER;
+        if (tag < 0 || tag > 256)
+          throw new E2("tlv.encode: wrong tag");
+        if (data.length & 1)
+          throw new E2("tlv.encode: unpadded data");
+        const dataLen = data.length / 2;
+        const len2 = numberToHexUnpadded2(dataLen);
+        if (len2.length / 2 & 128)
+          throw new E2("tlv.encode: long form length too big");
+        const lenLen = dataLen > 127 ? numberToHexUnpadded2(len2.length / 2 | 128) : "";
+        const t = numberToHexUnpadded2(tag);
+        return t + lenLen + len2 + data;
+      },
+      decode(tag, data) {
+        const { Err: E2 } = DER;
+        let pos = 0;
+        if (tag < 0 || tag > 256)
+          throw new E2("tlv.encode: wrong tag");
+        if (data.length < 2 || data[pos++] !== tag)
+          throw new E2("tlv.decode: wrong tlv");
+        const first = data[pos++];
+        const isLong = !!(first & 128);
+        let length = 0;
+        if (!isLong)
+          length = first;
+        else {
+          const lenLen = first & 127;
+          if (!lenLen)
+            throw new E2("tlv.decode(long): indefinite length not supported");
+          if (lenLen > 4)
+            throw new E2("tlv.decode(long): byte length is too big");
+          const lengthBytes = data.subarray(pos, pos + lenLen);
+          if (lengthBytes.length !== lenLen)
+            throw new E2("tlv.decode: length bytes not complete");
+          if (lengthBytes[0] === 0)
+            throw new E2("tlv.decode(long): zero leftmost byte");
+          for (const b of lengthBytes)
+            length = length << 8 | b;
+          pos += lenLen;
+          if (length < 128)
+            throw new E2("tlv.decode(long): not minimal encoding");
+        }
+        const v = data.subarray(pos, pos + length);
+        if (v.length !== length)
+          throw new E2("tlv.decode: wrong value length");
+        return { v, l: data.subarray(pos + length) };
+      }
+    },
+    _int: {
+      encode(num) {
+        const { Err: E2 } = DER;
+        if (num < _0n6)
+          throw new E2("integer: negative integers are not allowed");
+        let hex = numberToHexUnpadded2(num);
+        if (Number.parseInt(hex[0], 16) & 8)
+          hex = "00" + hex;
+        if (hex.length & 1)
+          throw new E2("unexpected DER parsing assertion: unpadded hex");
+        return hex;
+      },
+      decode(data) {
+        const { Err: E2 } = DER;
+        if (data[0] & 128)
+          throw new E2("invalid signature integer: negative");
+        if (data[0] === 0 && !(data[1] & 128))
+          throw new E2("invalid signature integer: unnecessary leading zero");
+        return bytesToNumberBE2(data);
+      }
+    },
+    toSig(hex) {
+      const { Err: E2, _int: int, _tlv: tlv } = DER;
+      const data = ensureBytes2("signature", hex);
+      const { v: seqBytes, l: seqLeftBytes } = tlv.decode(48, data);
+      if (seqLeftBytes.length)
+        throw new E2("invalid signature: left bytes after parsing");
+      const { v: rBytes, l: rLeftBytes } = tlv.decode(2, seqBytes);
+      const { v: sBytes, l: sLeftBytes } = tlv.decode(2, rLeftBytes);
+      if (sLeftBytes.length)
+        throw new E2("invalid signature: left bytes after parsing");
+      return { r: int.decode(rBytes), s: int.decode(sBytes) };
+    },
+    hexFromSig(sig) {
+      const { _tlv: tlv, _int: int } = DER;
+      const rs = tlv.encode(2, int.encode(sig.r));
+      const ss = tlv.encode(2, int.encode(sig.s));
+      const seq = rs + ss;
+      return tlv.encode(48, seq);
+    }
+  };
+  _0n6 = BigInt(0);
+  _1n6 = BigInt(1);
+  _2n3 = BigInt(2);
+  _3n2 = BigInt(3);
+  _4n2 = BigInt(4);
+});
+function createCurve(curveDef, defHash) {
+  const create3 = (hash2) => weierstrass({ ...curveDef, hash: hash2 });
+  return { ...create3(defHash), create: create3 };
+}
+var init__shortw_utils = __esm(() => {
+  init_weierstrass();
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+});
+function sqrtMod(y) {
+  const P = secp256k1_CURVE.p;
+  const _3n3 = BigInt(3), _6n = BigInt(6), _11n = BigInt(11), _22n = BigInt(22);
+  const _23n = BigInt(23), _44n = BigInt(44), _88n = BigInt(88);
+  const b2 = y * y * y % P;
+  const b3 = b2 * b2 * y % P;
+  const b6 = pow2(b3, _3n3, P) * b3 % P;
+  const b9 = pow2(b6, _3n3, P) * b3 % P;
+  const b11 = pow2(b9, _2n4, P) * b2 % P;
+  const b22 = pow2(b11, _11n, P) * b11 % P;
+  const b44 = pow2(b22, _22n, P) * b22 % P;
+  const b88 = pow2(b44, _44n, P) * b44 % P;
+  const b176 = pow2(b88, _88n, P) * b88 % P;
+  const b220 = pow2(b176, _44n, P) * b44 % P;
+  const b223 = pow2(b220, _3n3, P) * b3 % P;
+  const t1 = pow2(b223, _23n, P) * b22 % P;
+  const t2 = pow2(t1, _6n, P) * b2 % P;
+  const root = pow2(t2, _2n4, P);
+  if (!Fpk1.eql(Fpk1.sqr(root), y))
+    throw new Error("Cannot find square root");
+  return root;
+}
+var secp256k1_CURVE;
+var secp256k1_ENDO;
+var _2n4;
+var Fpk1;
+var secp256k1;
+var init_secp256k1 = __esm(() => {
+  init_sha2();
+  init__shortw_utils();
+  init_modular();
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  secp256k1_CURVE = {
+    p: BigInt("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),
+    n: BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"),
+    h: BigInt(1),
+    a: BigInt(0),
+    b: BigInt(7),
+    Gx: BigInt("0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"),
+    Gy: BigInt("0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8")
+  };
+  secp256k1_ENDO = {
+    beta: BigInt("0x7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"),
+    basises: [
+      [BigInt("0x3086d221a7d46bcde86c90e49284eb15"), -BigInt("0xe4437ed6010e88286f547fa90abfe4c3")],
+      [BigInt("0x114ca50f7a8e2f3f657c1108d9d44cfd8"), BigInt("0x3086d221a7d46bcde86c90e49284eb15")]
+    ]
+  };
+  _2n4 = /* @__PURE__ */ BigInt(2);
+  Fpk1 = Field(secp256k1_CURVE.p, { sqrt: sqrtMod });
+  secp256k1 = createCurve({ ...secp256k1_CURVE, Fp: Fpk1, lowS: true, endo: secp256k1_ENDO }, sha256);
+});
+function isMessage(arg, schema) {
+  const isMessage2 = arg !== null && typeof arg == "object" && "$typeName" in arg && typeof arg.$typeName == "string";
+  if (!isMessage2) {
+    return false;
+  }
+  if (schema === undefined) {
+    return true;
+  }
+  return schema.typeName === arg.$typeName;
+}
+var ScalarType;
+(function(ScalarType2) {
+  ScalarType2[ScalarType2["DOUBLE"] = 1] = "DOUBLE";
+  ScalarType2[ScalarType2["FLOAT"] = 2] = "FLOAT";
+  ScalarType2[ScalarType2["INT64"] = 3] = "INT64";
+  ScalarType2[ScalarType2["UINT64"] = 4] = "UINT64";
+  ScalarType2[ScalarType2["INT32"] = 5] = "INT32";
+  ScalarType2[ScalarType2["FIXED64"] = 6] = "FIXED64";
+  ScalarType2[ScalarType2["FIXED32"] = 7] = "FIXED32";
+  ScalarType2[ScalarType2["BOOL"] = 8] = "BOOL";
+  ScalarType2[ScalarType2["STRING"] = 9] = "STRING";
+  ScalarType2[ScalarType2["BYTES"] = 12] = "BYTES";
+  ScalarType2[ScalarType2["UINT32"] = 13] = "UINT32";
+  ScalarType2[ScalarType2["SFIXED32"] = 15] = "SFIXED32";
+  ScalarType2[ScalarType2["SFIXED64"] = 16] = "SFIXED64";
+  ScalarType2[ScalarType2["SINT32"] = 17] = "SINT32";
+  ScalarType2[ScalarType2["SINT64"] = 18] = "SINT64";
+})(ScalarType || (ScalarType = {}));
+function varint64read() {
+  let lowBits = 0;
+  let highBits = 0;
+  for (let shift = 0;shift < 28; shift += 7) {
+    let b = this.buf[this.pos++];
+    lowBits |= (b & 127) << shift;
+    if ((b & 128) == 0) {
+      this.assertBounds();
+      return [lowBits, highBits];
+    }
+  }
+  let middleByte = this.buf[this.pos++];
+  lowBits |= (middleByte & 15) << 28;
+  highBits = (middleByte & 112) >> 4;
+  if ((middleByte & 128) == 0) {
+    this.assertBounds();
+    return [lowBits, highBits];
+  }
+  for (let shift = 3;shift <= 31; shift += 7) {
+    let b = this.buf[this.pos++];
+    highBits |= (b & 127) << shift;
+    if ((b & 128) == 0) {
+      this.assertBounds();
+      return [lowBits, highBits];
+    }
+  }
+  throw new Error("invalid varint");
+}
+function varint64write(lo, hi, bytes) {
+  for (let i = 0;i < 28; i = i + 7) {
+    const shift = lo >>> i;
+    const hasNext = !(shift >>> 7 == 0 && hi == 0);
+    const byte = (hasNext ? shift | 128 : shift) & 255;
+    bytes.push(byte);
+    if (!hasNext) {
+      return;
+    }
+  }
+  const splitBits = lo >>> 28 & 15 | (hi & 7) << 4;
+  const hasMoreBits = !(hi >> 3 == 0);
+  bytes.push((hasMoreBits ? splitBits | 128 : splitBits) & 255);
+  if (!hasMoreBits) {
+    return;
+  }
+  for (let i = 3;i < 31; i = i + 7) {
+    const shift = hi >>> i;
+    const hasNext = !(shift >>> 7 == 0);
+    const byte = (hasNext ? shift | 128 : shift) & 255;
+    bytes.push(byte);
+    if (!hasNext) {
+      return;
+    }
+  }
+  bytes.push(hi >>> 31 & 1);
+}
+var TWO_PWR_32_DBL = 4294967296;
+function int64FromString(dec) {
+  const minus = dec[0] === "-";
+  if (minus) {
+    dec = dec.slice(1);
+  }
+  const base = 1e6;
+  let lowBits = 0;
+  let highBits = 0;
+  function add1e6digit(begin, end) {
+    const digit1e6 = Number(dec.slice(begin, end));
+    highBits *= base;
+    lowBits = lowBits * base + digit1e6;
+    if (lowBits >= TWO_PWR_32_DBL) {
+      highBits = highBits + (lowBits / TWO_PWR_32_DBL | 0);
+      lowBits = lowBits % TWO_PWR_32_DBL;
+    }
+  }
+  add1e6digit(-24, -18);
+  add1e6digit(-18, -12);
+  add1e6digit(-12, -6);
+  add1e6digit(-6);
+  return minus ? negate(lowBits, highBits) : newBits(lowBits, highBits);
+}
+function int64ToString(lo, hi) {
+  let bits = newBits(lo, hi);
+  const negative = bits.hi & 2147483648;
+  if (negative) {
+    bits = negate(bits.lo, bits.hi);
+  }
+  const result = uInt64ToString(bits.lo, bits.hi);
+  return negative ? "-" + result : result;
+}
+function uInt64ToString(lo, hi) {
+  ({ lo, hi } = toUnsigned(lo, hi));
+  if (hi <= 2097151) {
+    return String(TWO_PWR_32_DBL * hi + lo);
+  }
+  const low = lo & 16777215;
+  const mid = (lo >>> 24 | hi << 8) & 16777215;
+  const high = hi >> 16 & 65535;
+  let digitA = low + mid * 6777216 + high * 6710656;
+  let digitB = mid + high * 8147497;
+  let digitC = high * 2;
+  const base = 1e7;
+  if (digitA >= base) {
+    digitB += Math.floor(digitA / base);
+    digitA %= base;
+  }
+  if (digitB >= base) {
+    digitC += Math.floor(digitB / base);
+    digitB %= base;
+  }
+  return digitC.toString() + decimalFrom1e7WithLeadingZeros(digitB) + decimalFrom1e7WithLeadingZeros(digitA);
+}
+function toUnsigned(lo, hi) {
+  return { lo: lo >>> 0, hi: hi >>> 0 };
+}
+function newBits(lo, hi) {
+  return { lo: lo | 0, hi: hi | 0 };
+}
+function negate(lowBits, highBits) {
+  highBits = ~highBits;
+  if (lowBits) {
+    lowBits = ~lowBits + 1;
+  } else {
+    highBits += 1;
+  }
+  return newBits(lowBits, highBits);
+}
+var decimalFrom1e7WithLeadingZeros = (digit1e7) => {
+  const partial = String(digit1e7);
+  return "0000000".slice(partial.length) + partial;
+};
+function varint32write(value, bytes) {
+  if (value >= 0) {
+    while (value > 127) {
+      bytes.push(value & 127 | 128);
+      value = value >>> 7;
+    }
+    bytes.push(value);
+  } else {
+    for (let i = 0;i < 9; i++) {
+      bytes.push(value & 127 | 128);
+      value = value >> 7;
+    }
+    bytes.push(1);
+  }
+}
+function varint32read() {
+  let b = this.buf[this.pos++];
+  let result = b & 127;
+  if ((b & 128) == 0) {
+    this.assertBounds();
+    return result;
+  }
+  b = this.buf[this.pos++];
+  result |= (b & 127) << 7;
+  if ((b & 128) == 0) {
+    this.assertBounds();
+    return result;
+  }
+  b = this.buf[this.pos++];
+  result |= (b & 127) << 14;
+  if ((b & 128) == 0) {
+    this.assertBounds();
+    return result;
+  }
+  b = this.buf[this.pos++];
+  result |= (b & 127) << 21;
+  if ((b & 128) == 0) {
+    this.assertBounds();
+    return result;
+  }
+  b = this.buf[this.pos++];
+  result |= (b & 15) << 28;
+  for (let readBytes = 5;(b & 128) !== 0 && readBytes < 10; readBytes++)
+    b = this.buf[this.pos++];
+  if ((b & 128) != 0)
+    throw new Error("invalid varint");
+  this.assertBounds();
+  return result >>> 0;
+}
+var protoInt64 = /* @__PURE__ */ makeInt64Support();
+function makeInt64Support() {
+  const dv = new DataView(new ArrayBuffer(8));
+  const ok = typeof BigInt === "function" && typeof dv.getBigInt64 === "function" && typeof dv.getBigUint64 === "function" && typeof dv.setBigInt64 === "function" && typeof dv.setBigUint64 === "function" && (typeof process != "object" || typeof process.env != "object" || process.env.BUF_BIGINT_DISABLE !== "1");
+  if (ok) {
+    const MIN = BigInt("-9223372036854775808");
+    const MAX = BigInt("9223372036854775807");
+    const UMIN = BigInt("0");
+    const UMAX = BigInt("18446744073709551615");
+    return {
+      zero: BigInt(0),
+      supported: true,
+      parse(value) {
+        const bi = typeof value == "bigint" ? value : BigInt(value);
+        if (bi > MAX || bi < MIN) {
+          throw new Error(`invalid int64: ${value}`);
+        }
+        return bi;
+      },
+      uParse(value) {
+        const bi = typeof value == "bigint" ? value : BigInt(value);
+        if (bi > UMAX || bi < UMIN) {
+          throw new Error(`invalid uint64: ${value}`);
+        }
+        return bi;
+      },
+      enc(value) {
+        dv.setBigInt64(0, this.parse(value), true);
+        return {
+          lo: dv.getInt32(0, true),
+          hi: dv.getInt32(4, true)
+        };
+      },
+      uEnc(value) {
+        dv.setBigInt64(0, this.uParse(value), true);
+        return {
+          lo: dv.getInt32(0, true),
+          hi: dv.getInt32(4, true)
+        };
+      },
+      dec(lo, hi) {
+        dv.setInt32(0, lo, true);
+        dv.setInt32(4, hi, true);
+        return dv.getBigInt64(0, true);
+      },
+      uDec(lo, hi) {
+        dv.setInt32(0, lo, true);
+        dv.setInt32(4, hi, true);
+        return dv.getBigUint64(0, true);
+      }
+    };
+  }
+  return {
+    zero: "0",
+    supported: false,
+    parse(value) {
+      if (typeof value != "string") {
+        value = value.toString();
+      }
+      assertInt64String(value);
+      return value;
+    },
+    uParse(value) {
+      if (typeof value != "string") {
+        value = value.toString();
+      }
+      assertUInt64String(value);
+      return value;
+    },
+    enc(value) {
+      if (typeof value != "string") {
+        value = value.toString();
+      }
+      assertInt64String(value);
+      return int64FromString(value);
+    },
+    uEnc(value) {
+      if (typeof value != "string") {
+        value = value.toString();
+      }
+      assertUInt64String(value);
+      return int64FromString(value);
+    },
+    dec(lo, hi) {
+      return int64ToString(lo, hi);
+    },
+    uDec(lo, hi) {
+      return uInt64ToString(lo, hi);
+    }
+  };
+}
+function assertInt64String(value) {
+  if (!/^-?[0-9]+$/.test(value)) {
+    throw new Error("invalid int64: " + value);
+  }
+}
+function assertUInt64String(value) {
+  if (!/^[0-9]+$/.test(value)) {
+    throw new Error("invalid uint64: " + value);
+  }
+}
+function scalarZeroValue(type, longAsString) {
+  switch (type) {
+    case ScalarType.STRING:
+      return "";
+    case ScalarType.BOOL:
+      return false;
+    case ScalarType.DOUBLE:
+    case ScalarType.FLOAT:
+      return 0;
+    case ScalarType.INT64:
+    case ScalarType.UINT64:
+    case ScalarType.SFIXED64:
+    case ScalarType.FIXED64:
+    case ScalarType.SINT64:
+      return longAsString ? "0" : protoInt64.zero;
+    case ScalarType.BYTES:
+      return new Uint8Array(0);
+    default:
+      return 0;
+  }
+}
+function isScalarZeroValue(type, value) {
+  switch (type) {
+    case ScalarType.BOOL:
+      return value === false;
+    case ScalarType.STRING:
+      return value === "";
+    case ScalarType.BYTES:
+      return value instanceof Uint8Array && !value.byteLength;
+    default:
+      return value == 0;
+  }
+}
+var IMPLICIT = 2;
+var unsafeLocal = Symbol.for("reflect unsafe local");
+function unsafeOneofCase(target, oneof) {
+  const c = target[oneof.localName].case;
+  if (c === undefined) {
+    return c;
+  }
+  return oneof.fields.find((f) => f.localName === c);
+}
+function unsafeIsSet(target, field) {
+  const name = field.localName;
+  if (field.oneof) {
+    return target[field.oneof.localName].case === name;
+  }
+  if (field.presence != IMPLICIT) {
+    return target[name] !== undefined && Object.prototype.hasOwnProperty.call(target, name);
+  }
+  switch (field.fieldKind) {
+    case "list":
+      return target[name].length > 0;
+    case "map":
+      return Object.keys(target[name]).length > 0;
+    case "scalar":
+      return !isScalarZeroValue(field.scalar, target[name]);
+    case "enum":
+      return target[name] !== field.enum.values[0].number;
+  }
+  throw new Error("message field with implicit presence");
+}
+function unsafeIsSetExplicit(target, localName) {
+  return Object.prototype.hasOwnProperty.call(target, localName) && target[localName] !== undefined;
+}
+function unsafeGet(target, field) {
+  if (field.oneof) {
+    const oneof = target[field.oneof.localName];
+    if (oneof.case === field.localName) {
+      return oneof.value;
+    }
+    return;
+  }
+  return target[field.localName];
+}
+function unsafeSet(target, field, value) {
+  if (field.oneof) {
+    target[field.oneof.localName] = {
+      case: field.localName,
+      value
+    };
+  } else {
+    target[field.localName] = value;
+  }
+}
+function unsafeClear(target, field) {
+  const name = field.localName;
+  if (field.oneof) {
+    const oneofLocalName = field.oneof.localName;
+    if (target[oneofLocalName].case === name) {
+      target[oneofLocalName] = { case: undefined };
+    }
+  } else if (field.presence != IMPLICIT) {
+    delete target[name];
+  } else {
+    switch (field.fieldKind) {
+      case "map":
+        target[name] = {};
+        break;
+      case "list":
+        target[name] = [];
+        break;
+      case "enum":
+        target[name] = field.enum.values[0].number;
+        break;
+      case "scalar":
+        target[name] = scalarZeroValue(field.scalar, field.longAsString);
+        break;
+    }
+  }
+}
+function isObject(arg) {
+  return arg !== null && typeof arg == "object" && !Array.isArray(arg);
+}
+function isReflectList(arg, field) {
+  var _a, _b, _c, _d;
+  if (isObject(arg) && unsafeLocal in arg && "add" in arg && "field" in arg && typeof arg.field == "function") {
+    if (field !== undefined) {
+      const a = field;
+      const b = arg.field();
+      return a.listKind == b.listKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === undefined ? undefined : _a.typeName) === ((_b = b.message) === null || _b === undefined ? undefined : _b.typeName) && ((_c = a.enum) === null || _c === undefined ? undefined : _c.typeName) === ((_d = b.enum) === null || _d === undefined ? undefined : _d.typeName);
+    }
+    return true;
+  }
+  return false;
+}
+function isReflectMap(arg, field) {
+  var _a, _b, _c, _d;
+  if (isObject(arg) && unsafeLocal in arg && "has" in arg && "field" in arg && typeof arg.field == "function") {
+    if (field !== undefined) {
+      const a = field, b = arg.field();
+      return a.mapKey === b.mapKey && a.mapKind == b.mapKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === undefined ? undefined : _a.typeName) === ((_b = b.message) === null || _b === undefined ? undefined : _b.typeName) && ((_c = a.enum) === null || _c === undefined ? undefined : _c.typeName) === ((_d = b.enum) === null || _d === undefined ? undefined : _d.typeName);
+    }
+    return true;
+  }
+  return false;
+}
+function isReflectMessage(arg, messageDesc) {
+  return isObject(arg) && unsafeLocal in arg && "desc" in arg && isObject(arg.desc) && arg.desc.kind === "message" && (messageDesc === undefined || arg.desc.typeName == messageDesc.typeName);
+}
+function isWrapper(arg) {
+  return isWrapperTypeName(arg.$typeName);
+}
+function isWrapperDesc(messageDesc) {
+  const f = messageDesc.fields[0];
+  return isWrapperTypeName(messageDesc.typeName) && f !== undefined && f.fieldKind == "scalar" && f.name == "value" && f.number == 1;
+}
+function isWrapperTypeName(name) {
+  return name.startsWith("google.protobuf.") && [
+    "DoubleValue",
+    "FloatValue",
+    "Int64Value",
+    "UInt64Value",
+    "Int32Value",
+    "UInt32Value",
+    "BoolValue",
+    "StringValue",
+    "BytesValue"
+  ].includes(name.substring(16));
+}
+var EDITION_PROTO3 = 999;
+var EDITION_PROTO2 = 998;
+var IMPLICIT2 = 2;
+function create(schema, init) {
+  if (isMessage(init, schema)) {
+    return init;
+  }
+  const message = createZeroMessage(schema);
+  if (init !== undefined) {
+    initMessage(schema, message, init);
+  }
+  return message;
+}
+function initMessage(messageDesc, message, init) {
+  for (const member of messageDesc.members) {
+    let value = init[member.localName];
+    if (value == null) {
+      continue;
+    }
+    let field;
+    if (member.kind == "oneof") {
+      const oneofField = unsafeOneofCase(init, member);
+      if (!oneofField) {
+        continue;
+      }
+      field = oneofField;
+      value = unsafeGet(init, oneofField);
+    } else {
+      field = member;
+    }
+    switch (field.fieldKind) {
+      case "message":
+        value = toMessage(field, value);
+        break;
+      case "scalar":
+        value = initScalar(field, value);
+        break;
+      case "list":
+        value = initList(field, value);
+        break;
+      case "map":
+        value = initMap(field, value);
+        break;
+    }
+    unsafeSet(message, field, value);
+  }
+  return message;
+}
+function initScalar(field, value) {
+  if (field.scalar == ScalarType.BYTES) {
+    return toU8Arr(value);
+  }
+  return value;
+}
+function initMap(field, value) {
+  if (isObject(value)) {
+    if (field.scalar == ScalarType.BYTES) {
+      return convertObjectValues(value, toU8Arr);
+    }
+    if (field.mapKind == "message") {
+      return convertObjectValues(value, (val) => toMessage(field, val));
+    }
+  }
+  return value;
+}
+function initList(field, value) {
+  if (Array.isArray(value)) {
+    if (field.scalar == ScalarType.BYTES) {
+      return value.map(toU8Arr);
+    }
+    if (field.listKind == "message") {
+      return value.map((item) => toMessage(field, item));
+    }
+  }
+  return value;
+}
+function toMessage(field, value) {
+  if (field.fieldKind == "message" && !field.oneof && isWrapperDesc(field.message)) {
+    return initScalar(field.message.fields[0], value);
+  }
+  if (isObject(value)) {
+    if (field.message.typeName == "google.protobuf.Struct" && field.parent.typeName !== "google.protobuf.Value") {
+      return value;
+    }
+    if (!isMessage(value, field.message)) {
+      return create(field.message, value);
+    }
+  }
+  return value;
+}
+function toU8Arr(value) {
+  return Array.isArray(value) ? new Uint8Array(value) : value;
+}
+function convertObjectValues(obj, fn) {
+  const ret = {};
+  for (const entry of Object.entries(obj)) {
+    ret[entry[0]] = fn(entry[1]);
+  }
+  return ret;
+}
+var tokenZeroMessageField = Symbol();
+var messagePrototypes = new WeakMap;
+function createZeroMessage(desc) {
+  let msg;
+  if (!needsPrototypeChain(desc)) {
+    msg = {
+      $typeName: desc.typeName
+    };
+    for (const member of desc.members) {
+      if (member.kind == "oneof" || member.presence == IMPLICIT2) {
+        msg[member.localName] = createZeroField(member);
+      }
+    }
+  } else {
+    const cached = messagePrototypes.get(desc);
+    let prototype;
+    let members;
+    if (cached) {
+      ({ prototype, members } = cached);
+    } else {
+      prototype = {};
+      members = new Set;
+      for (const member of desc.members) {
+        if (member.kind == "oneof") {
+          continue;
+        }
+        if (member.fieldKind != "scalar" && member.fieldKind != "enum") {
+          continue;
+        }
+        if (member.presence == IMPLICIT2) {
+          continue;
+        }
+        members.add(member);
+        prototype[member.localName] = createZeroField(member);
+      }
+      messagePrototypes.set(desc, { prototype, members });
+    }
+    msg = Object.create(prototype);
+    msg.$typeName = desc.typeName;
+    for (const member of desc.members) {
+      if (members.has(member)) {
+        continue;
+      }
+      if (member.kind == "field") {
+        if (member.fieldKind == "message") {
+          continue;
+        }
+        if (member.fieldKind == "scalar" || member.fieldKind == "enum") {
+          if (member.presence != IMPLICIT2) {
+            continue;
+          }
+        }
+      }
+      msg[member.localName] = createZeroField(member);
+    }
+  }
+  return msg;
+}
+function needsPrototypeChain(desc) {
+  switch (desc.file.edition) {
+    case EDITION_PROTO3:
+      return false;
+    case EDITION_PROTO2:
+      return true;
+    default:
+      return desc.fields.some((f) => f.presence != IMPLICIT2 && f.fieldKind != "message" && !f.oneof);
+  }
+}
+function createZeroField(field) {
+  if (field.kind == "oneof") {
+    return { case: undefined };
+  }
+  if (field.fieldKind == "list") {
+    return [];
+  }
+  if (field.fieldKind == "map") {
+    return {};
+  }
+  if (field.fieldKind == "message") {
+    return tokenZeroMessageField;
+  }
+  const defaultValue = field.getDefaultValue();
+  if (defaultValue !== undefined) {
+    return field.fieldKind == "scalar" && field.longAsString ? defaultValue.toString() : defaultValue;
+  }
+  return field.fieldKind == "scalar" ? scalarZeroValue(field.scalar, field.longAsString) : field.enum.values[0].number;
+}
+var errorNames = [
+  "FieldValueInvalidError",
+  "FieldListRangeError",
+  "ForeignFieldError"
+];
+
+class FieldError extends Error {
+  constructor(fieldOrOneof, message, name = "FieldValueInvalidError") {
+    super(message);
+    this.name = name;
+    this.field = () => fieldOrOneof;
+  }
+}
+function isFieldError(arg) {
+  return arg instanceof Error && errorNames.includes(arg.name) && "field" in arg && typeof arg.field == "function";
+}
+var symbol = Symbol.for("@bufbuild/protobuf/text-encoding");
+function getTextEncoding() {
+  if (globalThis[symbol] == undefined) {
+    const te = new globalThis.TextEncoder;
+    const td = new globalThis.TextDecoder;
+    globalThis[symbol] = {
+      encodeUtf8(text) {
+        return te.encode(text);
+      },
+      decodeUtf8(bytes) {
+        return td.decode(bytes);
+      },
+      checkUtf8(text) {
+        try {
+          encodeURIComponent(text);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+    };
+  }
+  return globalThis[symbol];
+}
+var WireType;
+(function(WireType2) {
+  WireType2[WireType2["Varint"] = 0] = "Varint";
+  WireType2[WireType2["Bit64"] = 1] = "Bit64";
+  WireType2[WireType2["LengthDelimited"] = 2] = "LengthDelimited";
+  WireType2[WireType2["StartGroup"] = 3] = "StartGroup";
+  WireType2[WireType2["EndGroup"] = 4] = "EndGroup";
+  WireType2[WireType2["Bit32"] = 5] = "Bit32";
+})(WireType || (WireType = {}));
+var FLOAT32_MAX = 340282346638528860000000000000000000000;
+var FLOAT32_MIN = -340282346638528860000000000000000000000;
+var UINT32_MAX = 4294967295;
+var INT32_MAX = 2147483647;
+var INT32_MIN = -2147483648;
+
+class BinaryWriter {
+  constructor(encodeUtf8 = getTextEncoding().encodeUtf8) {
+    this.encodeUtf8 = encodeUtf8;
+    this.stack = [];
+    this.chunks = [];
+    this.buf = [];
+  }
+  finish() {
+    if (this.buf.length) {
+      this.chunks.push(new Uint8Array(this.buf));
+      this.buf = [];
+    }
+    let len = 0;
+    for (let i = 0;i < this.chunks.length; i++)
+      len += this.chunks[i].length;
+    let bytes = new Uint8Array(len);
+    let offset = 0;
+    for (let i = 0;i < this.chunks.length; i++) {
+      bytes.set(this.chunks[i], offset);
+      offset += this.chunks[i].length;
+    }
+    this.chunks = [];
+    return bytes;
+  }
+  fork() {
+    this.stack.push({ chunks: this.chunks, buf: this.buf });
+    this.chunks = [];
+    this.buf = [];
+    return this;
+  }
+  join() {
+    let chunk = this.finish();
+    let prev = this.stack.pop();
+    if (!prev)
+      throw new Error("invalid state, fork stack empty");
+    this.chunks = prev.chunks;
+    this.buf = prev.buf;
+    this.uint32(chunk.byteLength);
+    return this.raw(chunk);
+  }
+  tag(fieldNo, type) {
+    return this.uint32((fieldNo << 3 | type) >>> 0);
+  }
+  raw(chunk) {
+    if (this.buf.length) {
+      this.chunks.push(new Uint8Array(this.buf));
+      this.buf = [];
+    }
+    this.chunks.push(chunk);
+    return this;
+  }
+  uint32(value) {
+    assertUInt32(value);
+    while (value > 127) {
+      this.buf.push(value & 127 | 128);
+      value = value >>> 7;
+    }
+    this.buf.push(value);
+    return this;
+  }
+  int32(value) {
+    assertInt32(value);
+    varint32write(value, this.buf);
+    return this;
+  }
+  bool(value) {
+    this.buf.push(value ? 1 : 0);
+    return this;
+  }
+  bytes(value) {
+    this.uint32(value.byteLength);
+    return this.raw(value);
+  }
+  string(value) {
+    let chunk = this.encodeUtf8(value);
+    this.uint32(chunk.byteLength);
+    return this.raw(chunk);
+  }
+  float(value) {
+    assertFloat32(value);
+    let chunk = new Uint8Array(4);
+    new DataView(chunk.buffer).setFloat32(0, value, true);
+    return this.raw(chunk);
+  }
+  double(value) {
+    let chunk = new Uint8Array(8);
+    new DataView(chunk.buffer).setFloat64(0, value, true);
+    return this.raw(chunk);
+  }
+  fixed32(value) {
+    assertUInt32(value);
+    let chunk = new Uint8Array(4);
+    new DataView(chunk.buffer).setUint32(0, value, true);
+    return this.raw(chunk);
+  }
+  sfixed32(value) {
+    assertInt32(value);
+    let chunk = new Uint8Array(4);
+    new DataView(chunk.buffer).setInt32(0, value, true);
+    return this.raw(chunk);
+  }
+  sint32(value) {
+    assertInt32(value);
+    value = (value << 1 ^ value >> 31) >>> 0;
+    varint32write(value, this.buf);
+    return this;
+  }
+  sfixed64(value) {
+    let chunk = new Uint8Array(8), view = new DataView(chunk.buffer), tc = protoInt64.enc(value);
+    view.setInt32(0, tc.lo, true);
+    view.setInt32(4, tc.hi, true);
+    return this.raw(chunk);
+  }
+  fixed64(value) {
+    let chunk = new Uint8Array(8), view = new DataView(chunk.buffer), tc = protoInt64.uEnc(value);
+    view.setInt32(0, tc.lo, true);
+    view.setInt32(4, tc.hi, true);
+    return this.raw(chunk);
+  }
+  int64(value) {
+    let tc = protoInt64.enc(value);
+    varint64write(tc.lo, tc.hi, this.buf);
+    return this;
+  }
+  sint64(value) {
+    const tc = protoInt64.enc(value), sign = tc.hi >> 31, lo = tc.lo << 1 ^ sign, hi = (tc.hi << 1 | tc.lo >>> 31) ^ sign;
+    varint64write(lo, hi, this.buf);
+    return this;
+  }
+  uint64(value) {
+    const tc = protoInt64.uEnc(value);
+    varint64write(tc.lo, tc.hi, this.buf);
+    return this;
+  }
+}
+
+class BinaryReader {
+  constructor(buf, decodeUtf8 = getTextEncoding().decodeUtf8) {
+    this.decodeUtf8 = decodeUtf8;
+    this.varint64 = varint64read;
+    this.uint32 = varint32read;
+    this.buf = buf;
+    this.len = buf.length;
+    this.pos = 0;
+    this.view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+  tag() {
+    let tag = this.uint32(), fieldNo = tag >>> 3, wireType = tag & 7;
+    if (fieldNo <= 0 || wireType < 0 || wireType > 5)
+      throw new Error("illegal tag: field no " + fieldNo + " wire type " + wireType);
+    return [fieldNo, wireType];
+  }
+  skip(wireType, fieldNo) {
+    let start = this.pos;
+    switch (wireType) {
+      case WireType.Varint:
+        while (this.buf[this.pos++] & 128) {}
+        break;
+      case WireType.Bit64:
+        this.pos += 4;
+      case WireType.Bit32:
+        this.pos += 4;
+        break;
+      case WireType.LengthDelimited:
+        let len = this.uint32();
+        this.pos += len;
+        break;
+      case WireType.StartGroup:
+        for (;; ) {
+          const [fn, wt] = this.tag();
+          if (wt === WireType.EndGroup) {
+            if (fieldNo !== undefined && fn !== fieldNo) {
+              throw new Error("invalid end group tag");
+            }
+            break;
+          }
+          this.skip(wt, fn);
+        }
+        break;
+      default:
+        throw new Error("cant skip wire type " + wireType);
+    }
+    this.assertBounds();
+    return this.buf.subarray(start, this.pos);
+  }
+  assertBounds() {
+    if (this.pos > this.len)
+      throw new RangeError("premature EOF");
+  }
+  int32() {
+    return this.uint32() | 0;
+  }
+  sint32() {
+    let zze = this.uint32();
+    return zze >>> 1 ^ -(zze & 1);
+  }
+  int64() {
+    return protoInt64.dec(...this.varint64());
+  }
+  uint64() {
+    return protoInt64.uDec(...this.varint64());
+  }
+  sint64() {
+    let [lo, hi] = this.varint64();
+    let s = -(lo & 1);
+    lo = (lo >>> 1 | (hi & 1) << 31) ^ s;
+    hi = hi >>> 1 ^ s;
+    return protoInt64.dec(lo, hi);
+  }
+  bool() {
+    let [lo, hi] = this.varint64();
+    return lo !== 0 || hi !== 0;
+  }
+  fixed32() {
+    return this.view.getUint32((this.pos += 4) - 4, true);
+  }
+  sfixed32() {
+    return this.view.getInt32((this.pos += 4) - 4, true);
+  }
+  fixed64() {
+    return protoInt64.uDec(this.sfixed32(), this.sfixed32());
+  }
+  sfixed64() {
+    return protoInt64.dec(this.sfixed32(), this.sfixed32());
+  }
+  float() {
+    return this.view.getFloat32((this.pos += 4) - 4, true);
+  }
+  double() {
+    return this.view.getFloat64((this.pos += 8) - 8, true);
+  }
+  bytes() {
+    let len = this.uint32(), start = this.pos;
+    this.pos += len;
+    this.assertBounds();
+    return this.buf.subarray(start, start + len);
+  }
+  string() {
+    return this.decodeUtf8(this.bytes());
+  }
+}
+function assertInt32(arg) {
+  if (typeof arg == "string") {
+    arg = Number(arg);
+  } else if (typeof arg != "number") {
+    throw new Error("invalid int32: " + typeof arg);
+  }
+  if (!Number.isInteger(arg) || arg > INT32_MAX || arg < INT32_MIN)
+    throw new Error("invalid int32: " + arg);
+}
+function assertUInt32(arg) {
+  if (typeof arg == "string") {
+    arg = Number(arg);
+  } else if (typeof arg != "number") {
+    throw new Error("invalid uint32: " + typeof arg);
+  }
+  if (!Number.isInteger(arg) || arg > UINT32_MAX || arg < 0)
+    throw new Error("invalid uint32: " + arg);
+}
+function assertFloat32(arg) {
+  if (typeof arg == "string") {
+    const o = arg;
+    arg = Number(arg);
+    if (Number.isNaN(arg) && o !== "NaN") {
+      throw new Error("invalid float32: " + o);
+    }
+  } else if (typeof arg != "number") {
+    throw new Error("invalid float32: " + typeof arg);
+  }
+  if (Number.isFinite(arg) && (arg > FLOAT32_MAX || arg < FLOAT32_MIN))
+    throw new Error("invalid float32: " + arg);
+}
+function checkField(field, value) {
+  const check = field.fieldKind == "list" ? isReflectList(value, field) : field.fieldKind == "map" ? isReflectMap(value, field) : checkSingular(field, value);
+  if (check === true) {
+    return;
+  }
+  let reason;
+  switch (field.fieldKind) {
+    case "list":
+      reason = `expected ${formatReflectList(field)}, got ${formatVal(value)}`;
+      break;
+    case "map":
+      reason = `expected ${formatReflectMap(field)}, got ${formatVal(value)}`;
+      break;
+    default: {
+      reason = reasonSingular(field, value, check);
+    }
+  }
+  return new FieldError(field, reason);
+}
+function checkListItem(field, index, value) {
+  const check = checkSingular(field, value);
+  if (check !== true) {
+    return new FieldError(field, `list item #${index + 1}: ${reasonSingular(field, value, check)}`);
+  }
+  return;
+}
+function checkMapEntry(field, key, value) {
+  const checkKey = checkScalarValue(key, field.mapKey);
+  if (checkKey !== true) {
+    return new FieldError(field, `invalid map key: ${reasonSingular({ scalar: field.mapKey }, key, checkKey)}`);
+  }
+  const checkVal = checkSingular(field, value);
+  if (checkVal !== true) {
+    return new FieldError(field, `map entry ${formatVal(key)}: ${reasonSingular(field, value, checkVal)}`);
+  }
+  return;
+}
+function checkSingular(field, value) {
+  if (field.scalar !== undefined) {
+    return checkScalarValue(value, field.scalar);
+  }
+  if (field.enum !== undefined) {
+    if (field.enum.open) {
+      return Number.isInteger(value);
+    }
+    return field.enum.values.some((v) => v.number === value);
+  }
+  return isReflectMessage(value, field.message);
+}
+function checkScalarValue(value, scalar) {
+  switch (scalar) {
+    case ScalarType.DOUBLE:
+      return typeof value == "number";
+    case ScalarType.FLOAT:
+      if (typeof value != "number") {
+        return false;
+      }
+      if (Number.isNaN(value) || !Number.isFinite(value)) {
+        return true;
+      }
+      if (value > FLOAT32_MAX || value < FLOAT32_MIN) {
+        return `${value.toFixed()} out of range`;
+      }
+      return true;
+    case ScalarType.INT32:
+    case ScalarType.SFIXED32:
+    case ScalarType.SINT32:
+      if (typeof value !== "number" || !Number.isInteger(value)) {
+        return false;
+      }
+      if (value > INT32_MAX || value < INT32_MIN) {
+        return `${value.toFixed()} out of range`;
+      }
+      return true;
+    case ScalarType.FIXED32:
+    case ScalarType.UINT32:
+      if (typeof value !== "number" || !Number.isInteger(value)) {
+        return false;
+      }
+      if (value > UINT32_MAX || value < 0) {
+        return `${value.toFixed()} out of range`;
+      }
+      return true;
+    case ScalarType.BOOL:
+      return typeof value == "boolean";
+    case ScalarType.STRING:
+      if (typeof value != "string") {
+        return false;
+      }
+      return getTextEncoding().checkUtf8(value) || "invalid UTF8";
+    case ScalarType.BYTES:
+      return value instanceof Uint8Array;
+    case ScalarType.INT64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+      if (typeof value == "bigint" || typeof value == "number" || typeof value == "string" && value.length > 0) {
+        try {
+          protoInt64.parse(value);
+          return true;
+        } catch (_) {
+          return `${value} out of range`;
+        }
+      }
+      return false;
+    case ScalarType.FIXED64:
+    case ScalarType.UINT64:
+      if (typeof value == "bigint" || typeof value == "number" || typeof value == "string" && value.length > 0) {
+        try {
+          protoInt64.uParse(value);
+          return true;
+        } catch (_) {
+          return `${value} out of range`;
+        }
+      }
+      return false;
+  }
+}
+function reasonSingular(field, val, details) {
+  details = typeof details == "string" ? `: ${details}` : `, got ${formatVal(val)}`;
+  if (field.scalar !== undefined) {
+    return `expected ${scalarTypeDescription(field.scalar)}` + details;
+  }
+  if (field.enum !== undefined) {
+    return `expected ${field.enum.toString()}` + details;
+  }
+  return `expected ${formatReflectMessage(field.message)}` + details;
+}
+function formatVal(val) {
+  switch (typeof val) {
+    case "object":
+      if (val === null) {
+        return "null";
+      }
+      if (val instanceof Uint8Array) {
+        return `Uint8Array(${val.length})`;
+      }
+      if (Array.isArray(val)) {
+        return `Array(${val.length})`;
+      }
+      if (isReflectList(val)) {
+        return formatReflectList(val.field());
+      }
+      if (isReflectMap(val)) {
+        return formatReflectMap(val.field());
+      }
+      if (isReflectMessage(val)) {
+        return formatReflectMessage(val.desc);
+      }
+      if (isMessage(val)) {
+        return `message ${val.$typeName}`;
+      }
+      return "object";
+    case "string":
+      return val.length > 30 ? "string" : `"${val.split('"').join("\\\"")}"`;
+    case "boolean":
+      return String(val);
+    case "number":
+      return String(val);
+    case "bigint":
+      return String(val) + "n";
+    default:
+      return typeof val;
+  }
+}
+function formatReflectMessage(desc) {
+  return `ReflectMessage (${desc.typeName})`;
+}
+function formatReflectList(field) {
+  switch (field.listKind) {
+    case "message":
+      return `ReflectList (${field.message.toString()})`;
+    case "enum":
+      return `ReflectList (${field.enum.toString()})`;
+    case "scalar":
+      return `ReflectList (${ScalarType[field.scalar]})`;
+  }
+}
+function formatReflectMap(field) {
+  switch (field.mapKind) {
+    case "message":
+      return `ReflectMap (${ScalarType[field.mapKey]}, ${field.message.toString()})`;
+    case "enum":
+      return `ReflectMap (${ScalarType[field.mapKey]}, ${field.enum.toString()})`;
+    case "scalar":
+      return `ReflectMap (${ScalarType[field.mapKey]}, ${ScalarType[field.scalar]})`;
+  }
+}
+function scalarTypeDescription(scalar) {
+  switch (scalar) {
+    case ScalarType.STRING:
+      return "string";
+    case ScalarType.BOOL:
+      return "boolean";
+    case ScalarType.INT64:
+    case ScalarType.SINT64:
+    case ScalarType.SFIXED64:
+      return "bigint (int64)";
+    case ScalarType.UINT64:
+    case ScalarType.FIXED64:
+      return "bigint (uint64)";
+    case ScalarType.BYTES:
+      return "Uint8Array";
+    case ScalarType.DOUBLE:
+      return "number (float64)";
+    case ScalarType.FLOAT:
+      return "number (float32)";
+    case ScalarType.FIXED32:
+    case ScalarType.UINT32:
+      return "number (uint32)";
+    case ScalarType.INT32:
+    case ScalarType.SFIXED32:
+    case ScalarType.SINT32:
+      return "number (int32)";
+  }
+}
+function reflect(messageDesc, message, check = true) {
+  return new ReflectMessageImpl(messageDesc, message, check);
+}
+
+class ReflectMessageImpl {
+  get sortedFields() {
+    var _a;
+    return (_a = this._sortedFields) !== null && _a !== undefined ? _a : this._sortedFields = this.desc.fields.concat().sort((a, b) => a.number - b.number);
+  }
+  constructor(messageDesc, message, check = true) {
+    this.lists = new Map;
+    this.maps = new Map;
+    this.check = check;
+    this.desc = messageDesc;
+    this.message = this[unsafeLocal] = message !== null && message !== undefined ? message : create(messageDesc);
+    this.fields = messageDesc.fields;
+    this.oneofs = messageDesc.oneofs;
+    this.members = messageDesc.members;
+  }
+  findNumber(number) {
+    if (!this._fieldsByNumber) {
+      this._fieldsByNumber = new Map(this.desc.fields.map((f) => [f.number, f]));
+    }
+    return this._fieldsByNumber.get(number);
+  }
+  oneofCase(oneof) {
+    assertOwn(this.message, oneof);
+    return unsafeOneofCase(this.message, oneof);
+  }
+  isSet(field) {
+    assertOwn(this.message, field);
+    return unsafeIsSet(this.message, field);
+  }
+  clear(field) {
+    assertOwn(this.message, field);
+    unsafeClear(this.message, field);
+  }
+  get(field) {
+    assertOwn(this.message, field);
+    const value = unsafeGet(this.message, field);
+    switch (field.fieldKind) {
+      case "list":
+        let list = this.lists.get(field);
+        if (!list || list[unsafeLocal] !== value) {
+          this.lists.set(field, list = new ReflectListImpl(field, value, this.check));
+        }
+        return list;
+      case "map":
+        let map = this.maps.get(field);
+        if (!map || map[unsafeLocal] !== value) {
+          this.maps.set(field, map = new ReflectMapImpl(field, value, this.check));
+        }
+        return map;
+      case "message":
+        return messageToReflect(field, value, this.check);
+      case "scalar":
+        return value === undefined ? scalarZeroValue(field.scalar, false) : longToReflect(field, value);
+      case "enum":
+        return value !== null && value !== undefined ? value : field.enum.values[0].number;
+    }
+  }
+  set(field, value) {
+    assertOwn(this.message, field);
+    if (this.check) {
+      const err = checkField(field, value);
+      if (err) {
+        throw err;
+      }
+    }
+    let local;
+    if (field.fieldKind == "message") {
+      local = messageToLocal(field, value);
+    } else if (isReflectMap(value) || isReflectList(value)) {
+      local = value[unsafeLocal];
+    } else {
+      local = longToLocal(field, value);
+    }
+    unsafeSet(this.message, field, local);
+  }
+  getUnknown() {
+    return this.message.$unknown;
+  }
+  setUnknown(value) {
+    this.message.$unknown = value;
+  }
+}
+function assertOwn(owner, member) {
+  if (member.parent.typeName !== owner.$typeName) {
+    throw new FieldError(member, `cannot use ${member.toString()} with message ${owner.$typeName}`, "ForeignFieldError");
+  }
+}
+
+class ReflectListImpl {
+  field() {
+    return this._field;
+  }
+  get size() {
+    return this._arr.length;
+  }
+  constructor(field, unsafeInput, check) {
+    this._field = field;
+    this._arr = this[unsafeLocal] = unsafeInput;
+    this.check = check;
+  }
+  get(index) {
+    const item = this._arr[index];
+    return item === undefined ? undefined : listItemToReflect(this._field, item, this.check);
+  }
+  set(index, item) {
+    if (index < 0 || index >= this._arr.length) {
+      throw new FieldError(this._field, `list item #${index + 1}: out of range`);
+    }
+    if (this.check) {
+      const err = checkListItem(this._field, index, item);
+      if (err) {
+        throw err;
+      }
+    }
+    this._arr[index] = listItemToLocal(this._field, item);
+  }
+  add(item) {
+    if (this.check) {
+      const err = checkListItem(this._field, this._arr.length, item);
+      if (err) {
+        throw err;
+      }
+    }
+    this._arr.push(listItemToLocal(this._field, item));
+    return;
+  }
+  clear() {
+    this._arr.splice(0, this._arr.length);
+  }
+  [Symbol.iterator]() {
+    return this.values();
+  }
+  keys() {
+    return this._arr.keys();
+  }
+  *values() {
+    for (const item of this._arr) {
+      yield listItemToReflect(this._field, item, this.check);
+    }
+  }
+  *entries() {
+    for (let i = 0;i < this._arr.length; i++) {
+      yield [i, listItemToReflect(this._field, this._arr[i], this.check)];
+    }
+  }
+}
+
+class ReflectMapImpl {
+  constructor(field, unsafeInput, check = true) {
+    this.obj = this[unsafeLocal] = unsafeInput !== null && unsafeInput !== undefined ? unsafeInput : {};
+    this.check = check;
+    this._field = field;
+  }
+  field() {
+    return this._field;
+  }
+  set(key, value) {
+    if (this.check) {
+      const err = checkMapEntry(this._field, key, value);
+      if (err) {
+        throw err;
+      }
+    }
+    this.obj[mapKeyToLocal(key)] = mapValueToLocal(this._field, value);
+    return this;
+  }
+  delete(key) {
+    const k = mapKeyToLocal(key);
+    const has = Object.prototype.hasOwnProperty.call(this.obj, k);
+    if (has) {
+      delete this.obj[k];
+    }
+    return has;
+  }
+  clear() {
+    for (const key of Object.keys(this.obj)) {
+      delete this.obj[key];
+    }
+  }
+  get(key) {
+    let val = this.obj[mapKeyToLocal(key)];
+    if (val !== undefined) {
+      val = mapValueToReflect(this._field, val, this.check);
+    }
+    return val;
+  }
+  has(key) {
+    return Object.prototype.hasOwnProperty.call(this.obj, mapKeyToLocal(key));
+  }
+  *keys() {
+    for (const objKey of Object.keys(this.obj)) {
+      yield mapKeyToReflect(objKey, this._field.mapKey);
+    }
+  }
+  *entries() {
+    for (const objEntry of Object.entries(this.obj)) {
+      yield [
+        mapKeyToReflect(objEntry[0], this._field.mapKey),
+        mapValueToReflect(this._field, objEntry[1], this.check)
+      ];
+    }
+  }
+  [Symbol.iterator]() {
+    return this.entries();
+  }
+  get size() {
+    return Object.keys(this.obj).length;
+  }
+  *values() {
+    for (const val of Object.values(this.obj)) {
+      yield mapValueToReflect(this._field, val, this.check);
+    }
+  }
+  forEach(callbackfn, thisArg) {
+    for (const mapEntry of this.entries()) {
+      callbackfn.call(thisArg, mapEntry[1], mapEntry[0], this);
+    }
+  }
+}
+function messageToLocal(field, value) {
+  if (!isReflectMessage(value)) {
+    return value;
+  }
+  if (isWrapper(value.message) && !field.oneof && field.fieldKind == "message") {
+    return value.message.value;
+  }
+  if (value.desc.typeName == "google.protobuf.Struct" && field.parent.typeName != "google.protobuf.Value") {
+    return wktStructToLocal(value.message);
+  }
+  return value.message;
+}
+function messageToReflect(field, value, check) {
+  if (value !== undefined) {
+    if (isWrapperDesc(field.message) && !field.oneof && field.fieldKind == "message") {
+      value = {
+        $typeName: field.message.typeName,
+        value: longToReflect(field.message.fields[0], value)
+      };
+    } else if (field.message.typeName == "google.protobuf.Struct" && field.parent.typeName != "google.protobuf.Value" && isObject(value)) {
+      value = wktStructToReflect(value);
+    }
+  }
+  return new ReflectMessageImpl(field.message, value, check);
+}
+function listItemToLocal(field, value) {
+  if (field.listKind == "message") {
+    return messageToLocal(field, value);
+  }
+  return longToLocal(field, value);
+}
+function listItemToReflect(field, value, check) {
+  if (field.listKind == "message") {
+    return messageToReflect(field, value, check);
+  }
+  return longToReflect(field, value);
+}
+function mapValueToLocal(field, value) {
+  if (field.mapKind == "message") {
+    return messageToLocal(field, value);
+  }
+  return longToLocal(field, value);
+}
+function mapValueToReflect(field, value, check) {
+  if (field.mapKind == "message") {
+    return messageToReflect(field, value, check);
+  }
+  return value;
+}
+function mapKeyToLocal(key) {
+  return typeof key == "string" || typeof key == "number" ? key : String(key);
+}
+function mapKeyToReflect(key, type) {
+  switch (type) {
+    case ScalarType.STRING:
+      return key;
+    case ScalarType.INT32:
+    case ScalarType.FIXED32:
+    case ScalarType.UINT32:
+    case ScalarType.SFIXED32:
+    case ScalarType.SINT32: {
+      const n = Number.parseInt(key);
+      if (Number.isFinite(n)) {
+        return n;
+      }
+      break;
+    }
+    case ScalarType.BOOL:
+      switch (key) {
+        case "true":
+          return true;
+        case "false":
+          return false;
+      }
+      break;
+    case ScalarType.UINT64:
+    case ScalarType.FIXED64:
+      try {
+        return protoInt64.uParse(key);
+      } catch (_a) {}
+      break;
+    default:
+      try {
+        return protoInt64.parse(key);
+      } catch (_b) {}
+      break;
+  }
+  return key;
+}
+function longToReflect(field, value) {
+  switch (field.scalar) {
+    case ScalarType.INT64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+      if ("longAsString" in field && field.longAsString && typeof value == "string") {
+        value = protoInt64.parse(value);
+      }
+      break;
+    case ScalarType.FIXED64:
+    case ScalarType.UINT64:
+      if ("longAsString" in field && field.longAsString && typeof value == "string") {
+        value = protoInt64.uParse(value);
+      }
+      break;
+  }
+  return value;
+}
+function longToLocal(field, value) {
+  switch (field.scalar) {
+    case ScalarType.INT64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+      if ("longAsString" in field && field.longAsString) {
+        value = String(value);
+      } else if (typeof value == "string" || typeof value == "number") {
+        value = protoInt64.parse(value);
+      }
+      break;
+    case ScalarType.FIXED64:
+    case ScalarType.UINT64:
+      if ("longAsString" in field && field.longAsString) {
+        value = String(value);
+      } else if (typeof value == "string" || typeof value == "number") {
+        value = protoInt64.uParse(value);
+      }
+      break;
+  }
+  return value;
+}
+function wktStructToReflect(json) {
+  const struct = {
+    $typeName: "google.protobuf.Struct",
+    fields: {}
+  };
+  if (isObject(json)) {
+    for (const [k, v] of Object.entries(json)) {
+      struct.fields[k] = wktValueToReflect(v);
+    }
+  }
+  return struct;
+}
+function wktStructToLocal(val) {
+  const json = {};
+  for (const [k, v] of Object.entries(val.fields)) {
+    json[k] = wktValueToLocal(v);
+  }
+  return json;
+}
+function wktValueToLocal(val) {
+  switch (val.kind.case) {
+    case "structValue":
+      return wktStructToLocal(val.kind.value);
+    case "listValue":
+      return val.kind.value.values.map(wktValueToLocal);
+    case "nullValue":
+    case undefined:
+      return null;
+    default:
+      return val.kind.value;
+  }
+}
+function wktValueToReflect(json) {
+  const value = {
+    $typeName: "google.protobuf.Value",
+    kind: { case: undefined }
+  };
+  switch (typeof json) {
+    case "number":
+      value.kind = { case: "numberValue", value: json };
+      break;
+    case "string":
+      value.kind = { case: "stringValue", value: json };
+      break;
+    case "boolean":
+      value.kind = { case: "boolValue", value: json };
+      break;
+    case "object":
+      if (json === null) {
+        const nullValue = 0;
+        value.kind = { case: "nullValue", value: nullValue };
+      } else if (Array.isArray(json)) {
+        const listValue = {
+          $typeName: "google.protobuf.ListValue",
+          values: []
+        };
+        if (Array.isArray(json)) {
+          for (const e of json) {
+            listValue.values.push(wktValueToReflect(e));
+          }
+        }
+        value.kind = {
+          case: "listValue",
+          value: listValue
+        };
+      } else {
+        value.kind = {
+          case: "structValue",
+          value: wktStructToReflect(json)
+        };
+      }
+      break;
+  }
+  return value;
+}
+function base64Decode(base64Str) {
+  const table = getDecodeTable();
+  let es = base64Str.length * 3 / 4;
+  if (base64Str[base64Str.length - 2] == "=")
+    es -= 2;
+  else if (base64Str[base64Str.length - 1] == "=")
+    es -= 1;
+  let bytes = new Uint8Array(es), bytePos = 0, groupPos = 0, b, p = 0;
+  for (let i = 0;i < base64Str.length; i++) {
+    b = table[base64Str.charCodeAt(i)];
+    if (b === undefined) {
+      switch (base64Str[i]) {
+        case "=":
+          groupPos = 0;
+        case `
+`:
+        case "\r":
+        case "\t":
+        case " ":
+          continue;
+        default:
+          throw Error("invalid base64 string");
+      }
+    }
+    switch (groupPos) {
+      case 0:
+        p = b;
+        groupPos = 1;
+        break;
+      case 1:
+        bytes[bytePos++] = p << 2 | (b & 48) >> 4;
+        p = b;
+        groupPos = 2;
+        break;
+      case 2:
+        bytes[bytePos++] = (p & 15) << 4 | (b & 60) >> 2;
+        p = b;
+        groupPos = 3;
+        break;
+      case 3:
+        bytes[bytePos++] = (p & 3) << 6 | b;
+        groupPos = 0;
+        break;
+    }
+  }
+  if (groupPos == 1)
+    throw Error("invalid base64 string");
+  return bytes.subarray(0, bytePos);
+}
+var encodeTableStd;
+var encodeTableUrl;
+var decodeTable;
+function getEncodeTable(encoding) {
+  if (!encodeTableStd) {
+    encodeTableStd = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".split("");
+    encodeTableUrl = encodeTableStd.slice(0, -2).concat("-", "_");
+  }
+  return encoding == "url" ? encodeTableUrl : encodeTableStd;
+}
+function getDecodeTable() {
+  if (!decodeTable) {
+    decodeTable = [];
+    const encodeTable = getEncodeTable("std");
+    for (let i = 0;i < encodeTable.length; i++)
+      decodeTable[encodeTable[i].charCodeAt(0)] = i;
+    decodeTable[45] = encodeTable.indexOf("+");
+    decodeTable[95] = encodeTable.indexOf("/");
+  }
+  return decodeTable;
+}
+function protoCamelCase(snakeCase) {
+  let capNext = false;
+  const b = [];
+  for (let i = 0;i < snakeCase.length; i++) {
+    let c = snakeCase.charAt(i);
+    switch (c) {
+      case "_":
+        capNext = true;
+        break;
+      case "0":
+      case "1":
+      case "2":
+      case "3":
+      case "4":
+      case "5":
+      case "6":
+      case "7":
+      case "8":
+      case "9":
+        b.push(c);
+        capNext = false;
+        break;
+      default:
+        if (capNext) {
+          capNext = false;
+          c = c.toUpperCase();
+        }
+        b.push(c);
+        break;
+    }
+  }
+  return b.join("");
+}
+var reservedObjectProperties = new Set([
+  "constructor",
+  "toString",
+  "toJSON",
+  "valueOf"
+]);
+function safeObjectProperty(name) {
+  return reservedObjectProperties.has(name) ? name + "$" : name;
+}
+function restoreJsonNames(message) {
+  for (const f of message.field) {
+    if (!unsafeIsSetExplicit(f, "jsonName")) {
+      f.jsonName = protoCamelCase(f.name);
+    }
+  }
+  message.nestedType.forEach(restoreJsonNames);
+}
+function parseTextFormatEnumValue(descEnum, value) {
+  const enumValue = descEnum.values.find((v) => v.name === value);
+  if (!enumValue) {
+    throw new Error(`cannot parse ${descEnum} default value: ${value}`);
+  }
+  return enumValue.number;
+}
+function parseTextFormatScalarValue(type, value) {
+  switch (type) {
+    case ScalarType.STRING:
+      return value;
+    case ScalarType.BYTES: {
+      const u = unescapeBytesDefaultValue(value);
+      if (u === false) {
+        throw new Error(`cannot parse ${ScalarType[type]} default value: ${value}`);
+      }
+      return u;
+    }
+    case ScalarType.INT64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+      return protoInt64.parse(value);
+    case ScalarType.UINT64:
+    case ScalarType.FIXED64:
+      return protoInt64.uParse(value);
+    case ScalarType.DOUBLE:
+    case ScalarType.FLOAT:
+      switch (value) {
+        case "inf":
+          return Number.POSITIVE_INFINITY;
+        case "-inf":
+          return Number.NEGATIVE_INFINITY;
+        case "nan":
+          return Number.NaN;
+        default:
+          return parseFloat(value);
+      }
+    case ScalarType.BOOL:
+      return value === "true";
+    case ScalarType.INT32:
+    case ScalarType.UINT32:
+    case ScalarType.SINT32:
+    case ScalarType.FIXED32:
+    case ScalarType.SFIXED32:
+      return parseInt(value, 10);
+  }
+}
+function unescapeBytesDefaultValue(str) {
+  const b = [];
+  const input = {
+    tail: str,
+    c: "",
+    next() {
+      if (this.tail.length == 0) {
+        return false;
+      }
+      this.c = this.tail[0];
+      this.tail = this.tail.substring(1);
+      return true;
+    },
+    take(n) {
+      if (this.tail.length >= n) {
+        const r = this.tail.substring(0, n);
+        this.tail = this.tail.substring(n);
+        return r;
+      }
+      return false;
+    }
+  };
+  while (input.next()) {
+    switch (input.c) {
+      case "\\":
+        if (input.next()) {
+          switch (input.c) {
+            case "\\":
+              b.push(input.c.charCodeAt(0));
+              break;
+            case "b":
+              b.push(8);
+              break;
+            case "f":
+              b.push(12);
+              break;
+            case "n":
+              b.push(10);
+              break;
+            case "r":
+              b.push(13);
+              break;
+            case "t":
+              b.push(9);
+              break;
+            case "v":
+              b.push(11);
+              break;
+            case "0":
+            case "1":
+            case "2":
+            case "3":
+            case "4":
+            case "5":
+            case "6":
+            case "7": {
+              const s = input.c;
+              const t = input.take(2);
+              if (t === false) {
+                return false;
+              }
+              const n = parseInt(s + t, 8);
+              if (Number.isNaN(n)) {
+                return false;
+              }
+              b.push(n);
+              break;
+            }
+            case "x": {
+              const s = input.c;
+              const t = input.take(2);
+              if (t === false) {
+                return false;
+              }
+              const n = parseInt(s + t, 16);
+              if (Number.isNaN(n)) {
+                return false;
+              }
+              b.push(n);
+              break;
+            }
+            case "u": {
+              const s = input.c;
+              const t = input.take(4);
+              if (t === false) {
+                return false;
+              }
+              const n = parseInt(s + t, 16);
+              if (Number.isNaN(n)) {
+                return false;
+              }
+              const chunk = new Uint8Array(4);
+              const view = new DataView(chunk.buffer);
+              view.setInt32(0, n, true);
+              b.push(chunk[0], chunk[1], chunk[2], chunk[3]);
+              break;
+            }
+            case "U": {
+              const s = input.c;
+              const t = input.take(8);
+              if (t === false) {
+                return false;
+              }
+              const tc = protoInt64.uEnc(s + t);
+              const chunk = new Uint8Array(8);
+              const view = new DataView(chunk.buffer);
+              view.setInt32(0, tc.lo, true);
+              view.setInt32(4, tc.hi, true);
+              b.push(chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7]);
+              break;
+            }
+          }
+        }
+        break;
+      default:
+        b.push(input.c.charCodeAt(0));
+    }
+  }
+  return new Uint8Array(b);
+}
+function* nestedTypes(desc) {
+  switch (desc.kind) {
+    case "file":
+      for (const message of desc.messages) {
+        yield message;
+        yield* nestedTypes(message);
+      }
+      yield* desc.enums;
+      yield* desc.services;
+      yield* desc.extensions;
+      break;
+    case "message":
+      for (const message of desc.nestedMessages) {
+        yield message;
+        yield* nestedTypes(message);
+      }
+      yield* desc.nestedEnums;
+      yield* desc.nestedExtensions;
+      break;
+  }
+}
+function createFileRegistry(...args) {
+  const registry = createBaseRegistry();
+  if (!args.length) {
+    return registry;
+  }
+  if ("$typeName" in args[0] && args[0].$typeName == "google.protobuf.FileDescriptorSet") {
+    for (const file of args[0].file) {
+      addFile(file, registry);
+    }
+    return registry;
+  }
+  if ("$typeName" in args[0]) {
+    let recurseDeps = function(file) {
+      const deps = [];
+      for (const protoFileName of file.dependency) {
+        if (registry.getFile(protoFileName) != null) {
+          continue;
+        }
+        if (seen.has(protoFileName)) {
+          continue;
+        }
+        const dep = resolve(protoFileName);
+        if (!dep) {
+          throw new Error(`Unable to resolve ${protoFileName}, imported by ${file.name}`);
+        }
+        if ("kind" in dep) {
+          registry.addFile(dep, false, true);
+        } else {
+          seen.add(dep.name);
+          deps.push(dep);
+        }
+      }
+      return deps.concat(...deps.map(recurseDeps));
+    };
+    const input = args[0];
+    const resolve = args[1];
+    const seen = new Set;
+    for (const file of [input, ...recurseDeps(input)].reverse()) {
+      addFile(file, registry);
+    }
+  } else {
+    for (const fileReg of args) {
+      for (const file of fileReg.files) {
+        registry.addFile(file);
+      }
+    }
+  }
+  return registry;
+}
+function createBaseRegistry() {
+  const types = new Map;
+  const extendees = new Map;
+  const files = new Map;
+  return {
+    kind: "registry",
+    types,
+    extendees,
+    [Symbol.iterator]() {
+      return types.values();
+    },
+    get files() {
+      return files.values();
+    },
+    addFile(file, skipTypes, withDeps) {
+      files.set(file.proto.name, file);
+      if (!skipTypes) {
+        for (const type of nestedTypes(file)) {
+          this.add(type);
+        }
+      }
+      if (withDeps) {
+        for (const f of file.dependencies) {
+          this.addFile(f, skipTypes, withDeps);
+        }
+      }
+    },
+    add(desc) {
+      if (desc.kind == "extension") {
+        let numberToExt = extendees.get(desc.extendee.typeName);
+        if (!numberToExt) {
+          extendees.set(desc.extendee.typeName, numberToExt = new Map);
+        }
+        numberToExt.set(desc.number, desc);
+      }
+      types.set(desc.typeName, desc);
+    },
+    get(typeName) {
+      return types.get(typeName);
+    },
+    getFile(fileName) {
+      return files.get(fileName);
+    },
+    getMessage(typeName) {
+      const t = types.get(typeName);
+      return (t === null || t === undefined ? undefined : t.kind) == "message" ? t : undefined;
+    },
+    getEnum(typeName) {
+      const t = types.get(typeName);
+      return (t === null || t === undefined ? undefined : t.kind) == "enum" ? t : undefined;
+    },
+    getExtension(typeName) {
+      const t = types.get(typeName);
+      return (t === null || t === undefined ? undefined : t.kind) == "extension" ? t : undefined;
+    },
+    getExtensionFor(extendee, no) {
+      var _a;
+      return (_a = extendees.get(extendee.typeName)) === null || _a === undefined ? undefined : _a.get(no);
+    },
+    getService(typeName) {
+      const t = types.get(typeName);
+      return (t === null || t === undefined ? undefined : t.kind) == "service" ? t : undefined;
+    }
+  };
+}
+var EDITION_PROTO22 = 998;
+var EDITION_PROTO32 = 999;
+var TYPE_STRING = 9;
+var TYPE_GROUP = 10;
+var TYPE_MESSAGE = 11;
+var TYPE_BYTES = 12;
+var TYPE_ENUM = 14;
+var LABEL_REPEATED = 3;
+var LABEL_REQUIRED = 2;
+var JS_STRING = 1;
+var IDEMPOTENCY_UNKNOWN = 0;
+var EXPLICIT = 1;
+var IMPLICIT3 = 2;
+var LEGACY_REQUIRED = 3;
+var PACKED = 1;
+var DELIMITED = 2;
+var OPEN = 1;
+var featureDefaults = {
+  998: {
+    fieldPresence: 1,
+    enumType: 2,
+    repeatedFieldEncoding: 2,
+    utf8Validation: 3,
+    messageEncoding: 1,
+    jsonFormat: 2,
+    enforceNamingStyle: 2,
+    defaultSymbolVisibility: 1
+  },
+  999: {
+    fieldPresence: 2,
+    enumType: 1,
+    repeatedFieldEncoding: 1,
+    utf8Validation: 2,
+    messageEncoding: 1,
+    jsonFormat: 1,
+    enforceNamingStyle: 2,
+    defaultSymbolVisibility: 1
+  },
+  1000: {
+    fieldPresence: 1,
+    enumType: 1,
+    repeatedFieldEncoding: 1,
+    utf8Validation: 2,
+    messageEncoding: 1,
+    jsonFormat: 1,
+    enforceNamingStyle: 2,
+    defaultSymbolVisibility: 1
+  }
+};
+function addFile(proto, reg) {
+  var _a, _b;
+  const file = {
+    kind: "file",
+    proto,
+    deprecated: (_b = (_a = proto.options) === null || _a === undefined ? undefined : _a.deprecated) !== null && _b !== undefined ? _b : false,
+    edition: getFileEdition(proto),
+    name: proto.name.replace(/\.proto$/, ""),
+    dependencies: findFileDependencies(proto, reg),
+    enums: [],
+    messages: [],
+    extensions: [],
+    services: [],
+    toString() {
+      return `file ${proto.name}`;
+    }
+  };
+  const mapEntriesStore = new Map;
+  const mapEntries = {
+    get(typeName) {
+      return mapEntriesStore.get(typeName);
+    },
+    add(desc) {
+      var _a2;
+      assert(((_a2 = desc.proto.options) === null || _a2 === undefined ? undefined : _a2.mapEntry) === true);
+      mapEntriesStore.set(desc.typeName, desc);
+    }
+  };
+  for (const enumProto of proto.enumType) {
+    addEnum(enumProto, file, undefined, reg);
+  }
+  for (const messageProto of proto.messageType) {
+    addMessage(messageProto, file, undefined, reg, mapEntries);
+  }
+  for (const serviceProto of proto.service) {
+    addService(serviceProto, file, reg);
+  }
+  addExtensions(file, reg);
+  for (const mapEntry of mapEntriesStore.values()) {
+    addFields(mapEntry, reg, mapEntries);
+  }
+  for (const message of file.messages) {
+    addFields(message, reg, mapEntries);
+    addExtensions(message, reg);
+  }
+  reg.addFile(file, true);
+}
+function addExtensions(desc, reg) {
+  switch (desc.kind) {
+    case "file":
+      for (const proto of desc.proto.extension) {
+        const ext = newField(proto, desc, reg);
+        desc.extensions.push(ext);
+        reg.add(ext);
+      }
+      break;
+    case "message":
+      for (const proto of desc.proto.extension) {
+        const ext = newField(proto, desc, reg);
+        desc.nestedExtensions.push(ext);
+        reg.add(ext);
+      }
+      for (const message of desc.nestedMessages) {
+        addExtensions(message, reg);
+      }
+      break;
+  }
+}
+function addFields(message, reg, mapEntries) {
+  const allOneofs = message.proto.oneofDecl.map((proto) => newOneof(proto, message));
+  const oneofsSeen = new Set;
+  for (const proto of message.proto.field) {
+    const oneof = findOneof(proto, allOneofs);
+    const field = newField(proto, message, reg, oneof, mapEntries);
+    message.fields.push(field);
+    message.field[field.localName] = field;
+    if (oneof === undefined) {
+      message.members.push(field);
+    } else {
+      oneof.fields.push(field);
+      if (!oneofsSeen.has(oneof)) {
+        oneofsSeen.add(oneof);
+        message.members.push(oneof);
+      }
+    }
+  }
+  for (const oneof of allOneofs.filter((o) => oneofsSeen.has(o))) {
+    message.oneofs.push(oneof);
+  }
+  for (const child of message.nestedMessages) {
+    addFields(child, reg, mapEntries);
+  }
+}
+function addEnum(proto, file, parent, reg) {
+  var _a, _b, _c, _d, _e;
+  const sharedPrefix = findEnumSharedPrefix(proto.name, proto.value);
+  const desc = {
+    kind: "enum",
+    proto,
+    deprecated: (_b = (_a = proto.options) === null || _a === undefined ? undefined : _a.deprecated) !== null && _b !== undefined ? _b : false,
+    file,
+    parent,
+    open: true,
+    name: proto.name,
+    typeName: makeTypeName(proto, parent, file),
+    value: {},
+    values: [],
+    sharedPrefix,
+    toString() {
+      return `enum ${this.typeName}`;
+    }
+  };
+  desc.open = isEnumOpen(desc);
+  reg.add(desc);
+  for (const p of proto.value) {
+    const name = p.name;
+    desc.values.push(desc.value[p.number] = {
+      kind: "enum_value",
+      proto: p,
+      deprecated: (_d = (_c = p.options) === null || _c === undefined ? undefined : _c.deprecated) !== null && _d !== undefined ? _d : false,
+      parent: desc,
+      name,
+      localName: safeObjectProperty(sharedPrefix == undefined ? name : name.substring(sharedPrefix.length)),
+      number: p.number,
+      toString() {
+        return `enum value ${desc.typeName}.${name}`;
+      }
+    });
+  }
+  ((_e = parent === null || parent === undefined ? undefined : parent.nestedEnums) !== null && _e !== undefined ? _e : file.enums).push(desc);
+}
+function addMessage(proto, file, parent, reg, mapEntries) {
+  var _a, _b, _c, _d;
+  const desc = {
+    kind: "message",
+    proto,
+    deprecated: (_b = (_a = proto.options) === null || _a === undefined ? undefined : _a.deprecated) !== null && _b !== undefined ? _b : false,
+    file,
+    parent,
+    name: proto.name,
+    typeName: makeTypeName(proto, parent, file),
+    fields: [],
+    field: {},
+    oneofs: [],
+    members: [],
+    nestedEnums: [],
+    nestedMessages: [],
+    nestedExtensions: [],
+    toString() {
+      return `message ${this.typeName}`;
+    }
+  };
+  if (((_c = proto.options) === null || _c === undefined ? undefined : _c.mapEntry) === true) {
+    mapEntries.add(desc);
+  } else {
+    ((_d = parent === null || parent === undefined ? undefined : parent.nestedMessages) !== null && _d !== undefined ? _d : file.messages).push(desc);
+    reg.add(desc);
+  }
+  for (const enumProto of proto.enumType) {
+    addEnum(enumProto, file, desc, reg);
+  }
+  for (const messageProto of proto.nestedType) {
+    addMessage(messageProto, file, desc, reg, mapEntries);
+  }
+}
+function addService(proto, file, reg) {
+  var _a, _b;
+  const desc = {
+    kind: "service",
+    proto,
+    deprecated: (_b = (_a = proto.options) === null || _a === undefined ? undefined : _a.deprecated) !== null && _b !== undefined ? _b : false,
+    file,
+    name: proto.name,
+    typeName: makeTypeName(proto, undefined, file),
+    methods: [],
+    method: {},
+    toString() {
+      return `service ${this.typeName}`;
+    }
+  };
+  file.services.push(desc);
+  reg.add(desc);
+  for (const methodProto of proto.method) {
+    const method = newMethod(methodProto, desc, reg);
+    desc.methods.push(method);
+    desc.method[method.localName] = method;
+  }
+}
+function newMethod(proto, parent, reg) {
+  var _a, _b, _c, _d;
+  let methodKind;
+  if (proto.clientStreaming && proto.serverStreaming) {
+    methodKind = "bidi_streaming";
+  } else if (proto.clientStreaming) {
+    methodKind = "client_streaming";
+  } else if (proto.serverStreaming) {
+    methodKind = "server_streaming";
+  } else {
+    methodKind = "unary";
+  }
+  const input = reg.getMessage(trimLeadingDot(proto.inputType));
+  const output = reg.getMessage(trimLeadingDot(proto.outputType));
+  assert(input, `invalid MethodDescriptorProto: input_type ${proto.inputType} not found`);
+  assert(output, `invalid MethodDescriptorProto: output_type ${proto.inputType} not found`);
+  const name = proto.name;
+  return {
+    kind: "rpc",
+    proto,
+    deprecated: (_b = (_a = proto.options) === null || _a === undefined ? undefined : _a.deprecated) !== null && _b !== undefined ? _b : false,
+    parent,
+    name,
+    localName: safeObjectProperty(name.length ? safeObjectProperty(name[0].toLowerCase() + name.substring(1)) : name),
+    methodKind,
+    input,
+    output,
+    idempotency: (_d = (_c = proto.options) === null || _c === undefined ? undefined : _c.idempotencyLevel) !== null && _d !== undefined ? _d : IDEMPOTENCY_UNKNOWN,
+    toString() {
+      return `rpc ${parent.typeName}.${name}`;
+    }
+  };
+}
+function newOneof(proto, parent) {
+  return {
+    kind: "oneof",
+    proto,
+    deprecated: false,
+    parent,
+    fields: [],
+    name: proto.name,
+    localName: safeObjectProperty(protoCamelCase(proto.name)),
+    toString() {
+      return `oneof ${parent.typeName}.${this.name}`;
+    }
+  };
+}
+function newField(proto, parentOrFile, reg, oneof, mapEntries) {
+  var _a, _b, _c;
+  const isExtension = mapEntries === undefined;
+  const field = {
+    kind: "field",
+    proto,
+    deprecated: (_b = (_a = proto.options) === null || _a === undefined ? undefined : _a.deprecated) !== null && _b !== undefined ? _b : false,
+    name: proto.name,
+    number: proto.number,
+    scalar: undefined,
+    message: undefined,
+    enum: undefined,
+    presence: getFieldPresence(proto, oneof, isExtension, parentOrFile),
+    listKind: undefined,
+    mapKind: undefined,
+    mapKey: undefined,
+    delimitedEncoding: undefined,
+    packed: undefined,
+    longAsString: false,
+    getDefaultValue: undefined
+  };
+  if (isExtension) {
+    const file = parentOrFile.kind == "file" ? parentOrFile : parentOrFile.file;
+    const parent = parentOrFile.kind == "file" ? undefined : parentOrFile;
+    const typeName = makeTypeName(proto, parent, file);
+    field.kind = "extension";
+    field.file = file;
+    field.parent = parent;
+    field.oneof = undefined;
+    field.typeName = typeName;
+    field.jsonName = `[${typeName}]`;
+    field.toString = () => `extension ${typeName}`;
+    const extendee = reg.getMessage(trimLeadingDot(proto.extendee));
+    assert(extendee, `invalid FieldDescriptorProto: extendee ${proto.extendee} not found`);
+    field.extendee = extendee;
+  } else {
+    const parent = parentOrFile;
+    assert(parent.kind == "message");
+    field.parent = parent;
+    field.oneof = oneof;
+    field.localName = oneof ? protoCamelCase(proto.name) : safeObjectProperty(protoCamelCase(proto.name));
+    field.jsonName = proto.jsonName;
+    field.toString = () => `field ${parent.typeName}.${proto.name}`;
+  }
+  const label = proto.label;
+  const type = proto.type;
+  const jstype = (_c = proto.options) === null || _c === undefined ? undefined : _c.jstype;
+  if (label === LABEL_REPEATED) {
+    const mapEntry = type == TYPE_MESSAGE ? mapEntries === null || mapEntries === undefined ? undefined : mapEntries.get(trimLeadingDot(proto.typeName)) : undefined;
+    if (mapEntry) {
+      field.fieldKind = "map";
+      const { key, value } = findMapEntryFields(mapEntry);
+      field.mapKey = key.scalar;
+      field.mapKind = value.fieldKind;
+      field.message = value.message;
+      field.delimitedEncoding = false;
+      field.enum = value.enum;
+      field.scalar = value.scalar;
+      return field;
+    }
+    field.fieldKind = "list";
+    switch (type) {
+      case TYPE_MESSAGE:
+      case TYPE_GROUP:
+        field.listKind = "message";
+        field.message = reg.getMessage(trimLeadingDot(proto.typeName));
+        assert(field.message);
+        field.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+        break;
+      case TYPE_ENUM:
+        field.listKind = "enum";
+        field.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+        assert(field.enum);
+        break;
+      default:
+        field.listKind = "scalar";
+        field.scalar = type;
+        field.longAsString = jstype == JS_STRING;
+        break;
+    }
+    field.packed = isPackedField(proto, parentOrFile);
+    return field;
+  }
+  switch (type) {
+    case TYPE_MESSAGE:
+    case TYPE_GROUP:
+      field.fieldKind = "message";
+      field.message = reg.getMessage(trimLeadingDot(proto.typeName));
+      assert(field.message, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
+      field.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+      field.getDefaultValue = () => {
+        return;
+      };
+      break;
+    case TYPE_ENUM: {
+      const enumeration = reg.getEnum(trimLeadingDot(proto.typeName));
+      assert(enumeration !== undefined, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
+      field.fieldKind = "enum";
+      field.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+      field.getDefaultValue = () => {
+        return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatEnumValue(enumeration, proto.defaultValue) : undefined;
+      };
+      break;
+    }
+    default: {
+      field.fieldKind = "scalar";
+      field.scalar = type;
+      field.longAsString = jstype == JS_STRING;
+      field.getDefaultValue = () => {
+        return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatScalarValue(type, proto.defaultValue) : undefined;
+      };
+      break;
+    }
+  }
+  return field;
+}
+function getFileEdition(proto) {
+  switch (proto.syntax) {
+    case "":
+    case "proto2":
+      return EDITION_PROTO22;
+    case "proto3":
+      return EDITION_PROTO32;
+    case "editions":
+      if (proto.edition in featureDefaults) {
+        return proto.edition;
+      }
+      throw new Error(`${proto.name}: unsupported edition`);
+    default:
+      throw new Error(`${proto.name}: unsupported syntax "${proto.syntax}"`);
+  }
+}
+function findFileDependencies(proto, reg) {
+  return proto.dependency.map((wantName) => {
+    const dep = reg.getFile(wantName);
+    if (!dep) {
+      throw new Error(`Cannot find ${wantName}, imported by ${proto.name}`);
+    }
+    return dep;
+  });
+}
+function findEnumSharedPrefix(enumName, values) {
+  const prefix = camelToSnakeCase(enumName) + "_";
+  for (const value of values) {
+    if (!value.name.toLowerCase().startsWith(prefix)) {
+      return;
+    }
+    const shortName = value.name.substring(prefix.length);
+    if (shortName.length == 0) {
+      return;
+    }
+    if (/^\d/.test(shortName)) {
+      return;
+    }
+  }
+  return prefix;
+}
+function camelToSnakeCase(camel) {
+  return (camel.substring(0, 1) + camel.substring(1).replace(/[A-Z]/g, (c) => "_" + c)).toLowerCase();
+}
+function makeTypeName(proto, parent, file) {
+  let typeName;
+  if (parent) {
+    typeName = `${parent.typeName}.${proto.name}`;
+  } else if (file.proto.package.length > 0) {
+    typeName = `${file.proto.package}.${proto.name}`;
+  } else {
+    typeName = `${proto.name}`;
+  }
+  return typeName;
+}
+function trimLeadingDot(typeName) {
+  return typeName.startsWith(".") ? typeName.substring(1) : typeName;
+}
+function findOneof(proto, allOneofs) {
+  if (!unsafeIsSetExplicit(proto, "oneofIndex")) {
+    return;
+  }
+  if (proto.proto3Optional) {
+    return;
+  }
+  const oneof = allOneofs[proto.oneofIndex];
+  assert(oneof, `invalid FieldDescriptorProto: oneof #${proto.oneofIndex} for field #${proto.number} not found`);
+  return oneof;
+}
+function getFieldPresence(proto, oneof, isExtension, parent) {
+  if (proto.label == LABEL_REQUIRED) {
+    return LEGACY_REQUIRED;
+  }
+  if (proto.label == LABEL_REPEATED) {
+    return IMPLICIT3;
+  }
+  if (!!oneof || proto.proto3Optional) {
+    return EXPLICIT;
+  }
+  if (isExtension) {
+    return EXPLICIT;
+  }
+  const resolved = resolveFeature("fieldPresence", { proto, parent });
+  if (resolved == IMPLICIT3 && (proto.type == TYPE_MESSAGE || proto.type == TYPE_GROUP)) {
+    return EXPLICIT;
+  }
+  return resolved;
+}
+function isPackedField(proto, parent) {
+  if (proto.label != LABEL_REPEATED) {
+    return false;
+  }
+  switch (proto.type) {
+    case TYPE_STRING:
+    case TYPE_BYTES:
+    case TYPE_GROUP:
+    case TYPE_MESSAGE:
+      return false;
+  }
+  const o = proto.options;
+  if (o && unsafeIsSetExplicit(o, "packed")) {
+    return o.packed;
+  }
+  return PACKED == resolveFeature("repeatedFieldEncoding", {
+    proto,
+    parent
+  });
+}
+function findMapEntryFields(mapEntry) {
+  const key = mapEntry.fields.find((f) => f.number === 1);
+  const value = mapEntry.fields.find((f) => f.number === 2);
+  assert(key && key.fieldKind == "scalar" && key.scalar != ScalarType.BYTES && key.scalar != ScalarType.FLOAT && key.scalar != ScalarType.DOUBLE && value && value.fieldKind != "list" && value.fieldKind != "map");
+  return { key, value };
+}
+function isEnumOpen(desc) {
+  var _a;
+  return OPEN == resolveFeature("enumType", {
+    proto: desc.proto,
+    parent: (_a = desc.parent) !== null && _a !== undefined ? _a : desc.file
+  });
+}
+function isDelimitedEncoding(proto, parent) {
+  if (proto.type == TYPE_GROUP) {
+    return true;
+  }
+  return DELIMITED == resolveFeature("messageEncoding", {
+    proto,
+    parent
+  });
+}
+function resolveFeature(name, ref) {
+  var _a, _b;
+  const featureSet = (_a = ref.proto.options) === null || _a === undefined ? undefined : _a.features;
+  if (featureSet) {
+    const val = featureSet[name];
+    if (val != 0) {
+      return val;
+    }
+  }
+  if ("kind" in ref) {
+    if (ref.kind == "message") {
+      return resolveFeature(name, (_b = ref.parent) !== null && _b !== undefined ? _b : ref.file);
+    }
+    const editionDefaults = featureDefaults[ref.edition];
+    if (!editionDefaults) {
+      throw new Error(`feature default for edition ${ref.edition} not found`);
+    }
+    return editionDefaults[name];
+  }
+  return resolveFeature(name, ref.parent);
+}
+function assert(condition, msg) {
+  if (!condition) {
+    throw new Error(msg);
+  }
+}
+function boot(boot2) {
+  const root = bootFileDescriptorProto(boot2);
+  root.messageType.forEach(restoreJsonNames);
+  const reg = createFileRegistry(root, () => {
+    return;
+  });
+  return reg.getFile(root.name);
+}
+function bootFileDescriptorProto(init) {
+  const proto = Object.create({
+    syntax: "",
+    edition: 0
+  });
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init), { messageType: init.messageType.map(bootDescriptorProto), enumType: init.enumType.map(bootEnumDescriptorProto) }));
+}
+function bootDescriptorProto(init) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  const proto = Object.create({
+    visibility: 0
+  });
+  return Object.assign(proto, {
+    $typeName: "google.protobuf.DescriptorProto",
+    name: init.name,
+    field: (_b = (_a = init.field) === null || _a === undefined ? undefined : _a.map(bootFieldDescriptorProto)) !== null && _b !== undefined ? _b : [],
+    extension: [],
+    nestedType: (_d = (_c = init.nestedType) === null || _c === undefined ? undefined : _c.map(bootDescriptorProto)) !== null && _d !== undefined ? _d : [],
+    enumType: (_f = (_e = init.enumType) === null || _e === undefined ? undefined : _e.map(bootEnumDescriptorProto)) !== null && _f !== undefined ? _f : [],
+    extensionRange: (_h = (_g = init.extensionRange) === null || _g === undefined ? undefined : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== undefined ? _h : [],
+    oneofDecl: [],
+    reservedRange: [],
+    reservedName: []
+  });
+}
+function bootFieldDescriptorProto(init) {
+  const proto = Object.create({
+    label: 1,
+    typeName: "",
+    extendee: "",
+    defaultValue: "",
+    oneofIndex: 0,
+    jsonName: "",
+    proto3Optional: false
+  });
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init), { options: init.options ? bootFieldOptions(init.options) : undefined }));
+}
+function bootFieldOptions(init) {
+  var _a, _b, _c;
+  const proto = Object.create({
+    ctype: 0,
+    packed: false,
+    jstype: 0,
+    lazy: false,
+    unverifiedLazy: false,
+    deprecated: false,
+    weak: false,
+    debugRedact: false,
+    retention: 0
+  });
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init), { targets: (_a = init.targets) !== null && _a !== undefined ? _a : [], editionDefaults: (_c = (_b = init.editionDefaults) === null || _b === undefined ? undefined : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== undefined ? _c : [], uninterpretedOption: [] }));
+}
+function bootEnumDescriptorProto(init) {
+  const proto = Object.create({
+    visibility: 0
+  });
+  return Object.assign(proto, {
+    $typeName: "google.protobuf.EnumDescriptorProto",
+    name: init.name,
+    reservedName: [],
+    reservedRange: [],
+    value: init.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
+  });
+}
+function messageDesc(file, path, ...paths) {
+  return paths.reduce((acc, cur) => acc.nestedMessages[cur], file.messages[path]);
+}
+var file_google_protobuf_descriptor = /* @__PURE__ */ boot({ name: "google/protobuf/descriptor.proto", package: "google.protobuf", messageType: [{ name: "FileDescriptorSet", field: [{ name: "file", number: 1, type: 11, label: 3, typeName: ".google.protobuf.FileDescriptorProto" }], extensionRange: [{ start: 536000000, end: 536000001 }] }, { name: "FileDescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "package", number: 2, type: 9, label: 1 }, { name: "dependency", number: 3, type: 9, label: 3 }, { name: "public_dependency", number: 10, type: 5, label: 3 }, { name: "weak_dependency", number: 11, type: 5, label: 3 }, { name: "option_dependency", number: 15, type: 9, label: 3 }, { name: "message_type", number: 4, type: 11, label: 3, typeName: ".google.protobuf.DescriptorProto" }, { name: "enum_type", number: 5, type: 11, label: 3, typeName: ".google.protobuf.EnumDescriptorProto" }, { name: "service", number: 6, type: 11, label: 3, typeName: ".google.protobuf.ServiceDescriptorProto" }, { name: "extension", number: 7, type: 11, label: 3, typeName: ".google.protobuf.FieldDescriptorProto" }, { name: "options", number: 8, type: 11, label: 1, typeName: ".google.protobuf.FileOptions" }, { name: "source_code_info", number: 9, type: 11, label: 1, typeName: ".google.protobuf.SourceCodeInfo" }, { name: "syntax", number: 12, type: 9, label: 1 }, { name: "edition", number: 14, type: 14, label: 1, typeName: ".google.protobuf.Edition" }] }, { name: "DescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "field", number: 2, type: 11, label: 3, typeName: ".google.protobuf.FieldDescriptorProto" }, { name: "extension", number: 6, type: 11, label: 3, typeName: ".google.protobuf.FieldDescriptorProto" }, { name: "nested_type", number: 3, type: 11, label: 3, typeName: ".google.protobuf.DescriptorProto" }, { name: "enum_type", number: 4, type: 11, label: 3, typeName: ".google.protobuf.EnumDescriptorProto" }, { name: "extension_range", number: 5, type: 11, label: 3, typeName: ".google.protobuf.DescriptorProto.ExtensionRange" }, { name: "oneof_decl", number: 8, type: 11, label: 3, typeName: ".google.protobuf.OneofDescriptorProto" }, { name: "options", number: 7, type: 11, label: 1, typeName: ".google.protobuf.MessageOptions" }, { name: "reserved_range", number: 9, type: 11, label: 3, typeName: ".google.protobuf.DescriptorProto.ReservedRange" }, { name: "reserved_name", number: 10, type: 9, label: 3 }, { name: "visibility", number: 11, type: 14, label: 1, typeName: ".google.protobuf.SymbolVisibility" }], nestedType: [{ name: "ExtensionRange", field: [{ name: "start", number: 1, type: 5, label: 1 }, { name: "end", number: 2, type: 5, label: 1 }, { name: "options", number: 3, type: 11, label: 1, typeName: ".google.protobuf.ExtensionRangeOptions" }] }, { name: "ReservedRange", field: [{ name: "start", number: 1, type: 5, label: 1 }, { name: "end", number: 2, type: 5, label: 1 }] }] }, { name: "ExtensionRangeOptions", field: [{ name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }, { name: "declaration", number: 2, type: 11, label: 3, typeName: ".google.protobuf.ExtensionRangeOptions.Declaration", options: { retention: 2 } }, { name: "features", number: 50, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "verification", number: 3, type: 14, label: 1, typeName: ".google.protobuf.ExtensionRangeOptions.VerificationState", defaultValue: "UNVERIFIED", options: { retention: 2 } }], nestedType: [{ name: "Declaration", field: [{ name: "number", number: 1, type: 5, label: 1 }, { name: "full_name", number: 2, type: 9, label: 1 }, { name: "type", number: 3, type: 9, label: 1 }, { name: "reserved", number: 5, type: 8, label: 1 }, { name: "repeated", number: 6, type: 8, label: 1 }] }], enumType: [{ name: "VerificationState", value: [{ name: "DECLARATION", number: 0 }, { name: "UNVERIFIED", number: 1 }] }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "FieldDescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "number", number: 3, type: 5, label: 1 }, { name: "label", number: 4, type: 14, label: 1, typeName: ".google.protobuf.FieldDescriptorProto.Label" }, { name: "type", number: 5, type: 14, label: 1, typeName: ".google.protobuf.FieldDescriptorProto.Type" }, { name: "type_name", number: 6, type: 9, label: 1 }, { name: "extendee", number: 2, type: 9, label: 1 }, { name: "default_value", number: 7, type: 9, label: 1 }, { name: "oneof_index", number: 9, type: 5, label: 1 }, { name: "json_name", number: 10, type: 9, label: 1 }, { name: "options", number: 8, type: 11, label: 1, typeName: ".google.protobuf.FieldOptions" }, { name: "proto3_optional", number: 17, type: 8, label: 1 }], enumType: [{ name: "Type", value: [{ name: "TYPE_DOUBLE", number: 1 }, { name: "TYPE_FLOAT", number: 2 }, { name: "TYPE_INT64", number: 3 }, { name: "TYPE_UINT64", number: 4 }, { name: "TYPE_INT32", number: 5 }, { name: "TYPE_FIXED64", number: 6 }, { name: "TYPE_FIXED32", number: 7 }, { name: "TYPE_BOOL", number: 8 }, { name: "TYPE_STRING", number: 9 }, { name: "TYPE_GROUP", number: 10 }, { name: "TYPE_MESSAGE", number: 11 }, { name: "TYPE_BYTES", number: 12 }, { name: "TYPE_UINT32", number: 13 }, { name: "TYPE_ENUM", number: 14 }, { name: "TYPE_SFIXED32", number: 15 }, { name: "TYPE_SFIXED64", number: 16 }, { name: "TYPE_SINT32", number: 17 }, { name: "TYPE_SINT64", number: 18 }] }, { name: "Label", value: [{ name: "LABEL_OPTIONAL", number: 1 }, { name: "LABEL_REPEATED", number: 3 }, { name: "LABEL_REQUIRED", number: 2 }] }] }, { name: "OneofDescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "options", number: 2, type: 11, label: 1, typeName: ".google.protobuf.OneofOptions" }] }, { name: "EnumDescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "value", number: 2, type: 11, label: 3, typeName: ".google.protobuf.EnumValueDescriptorProto" }, { name: "options", number: 3, type: 11, label: 1, typeName: ".google.protobuf.EnumOptions" }, { name: "reserved_range", number: 4, type: 11, label: 3, typeName: ".google.protobuf.EnumDescriptorProto.EnumReservedRange" }, { name: "reserved_name", number: 5, type: 9, label: 3 }, { name: "visibility", number: 6, type: 14, label: 1, typeName: ".google.protobuf.SymbolVisibility" }], nestedType: [{ name: "EnumReservedRange", field: [{ name: "start", number: 1, type: 5, label: 1 }, { name: "end", number: 2, type: 5, label: 1 }] }] }, { name: "EnumValueDescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "number", number: 2, type: 5, label: 1 }, { name: "options", number: 3, type: 11, label: 1, typeName: ".google.protobuf.EnumValueOptions" }] }, { name: "ServiceDescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "method", number: 2, type: 11, label: 3, typeName: ".google.protobuf.MethodDescriptorProto" }, { name: "options", number: 3, type: 11, label: 1, typeName: ".google.protobuf.ServiceOptions" }] }, { name: "MethodDescriptorProto", field: [{ name: "name", number: 1, type: 9, label: 1 }, { name: "input_type", number: 2, type: 9, label: 1 }, { name: "output_type", number: 3, type: 9, label: 1 }, { name: "options", number: 4, type: 11, label: 1, typeName: ".google.protobuf.MethodOptions" }, { name: "client_streaming", number: 5, type: 8, label: 1, defaultValue: "false" }, { name: "server_streaming", number: 6, type: 8, label: 1, defaultValue: "false" }] }, { name: "FileOptions", field: [{ name: "java_package", number: 1, type: 9, label: 1 }, { name: "java_outer_classname", number: 8, type: 9, label: 1 }, { name: "java_multiple_files", number: 10, type: 8, label: 1, defaultValue: "false" }, { name: "java_generate_equals_and_hash", number: 20, type: 8, label: 1, options: { deprecated: true } }, { name: "java_string_check_utf8", number: 27, type: 8, label: 1, defaultValue: "false" }, { name: "optimize_for", number: 9, type: 14, label: 1, typeName: ".google.protobuf.FileOptions.OptimizeMode", defaultValue: "SPEED" }, { name: "go_package", number: 11, type: 9, label: 1 }, { name: "cc_generic_services", number: 16, type: 8, label: 1, defaultValue: "false" }, { name: "java_generic_services", number: 17, type: 8, label: 1, defaultValue: "false" }, { name: "py_generic_services", number: 18, type: 8, label: 1, defaultValue: "false" }, { name: "deprecated", number: 23, type: 8, label: 1, defaultValue: "false" }, { name: "cc_enable_arenas", number: 31, type: 8, label: 1, defaultValue: "true" }, { name: "objc_class_prefix", number: 36, type: 9, label: 1 }, { name: "csharp_namespace", number: 37, type: 9, label: 1 }, { name: "swift_prefix", number: 39, type: 9, label: 1 }, { name: "php_class_prefix", number: 40, type: 9, label: 1 }, { name: "php_namespace", number: 41, type: 9, label: 1 }, { name: "php_metadata_namespace", number: 44, type: 9, label: 1 }, { name: "ruby_package", number: 45, type: 9, label: 1 }, { name: "features", number: 50, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], enumType: [{ name: "OptimizeMode", value: [{ name: "SPEED", number: 1 }, { name: "CODE_SIZE", number: 2 }, { name: "LITE_RUNTIME", number: 3 }] }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "MessageOptions", field: [{ name: "message_set_wire_format", number: 1, type: 8, label: 1, defaultValue: "false" }, { name: "no_standard_descriptor_accessor", number: 2, type: 8, label: 1, defaultValue: "false" }, { name: "deprecated", number: 3, type: 8, label: 1, defaultValue: "false" }, { name: "map_entry", number: 7, type: 8, label: 1 }, { name: "deprecated_legacy_json_field_conflicts", number: 11, type: 8, label: 1, options: { deprecated: true } }, { name: "features", number: 12, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "FieldOptions", field: [{ name: "ctype", number: 1, type: 14, label: 1, typeName: ".google.protobuf.FieldOptions.CType", defaultValue: "STRING" }, { name: "packed", number: 2, type: 8, label: 1 }, { name: "jstype", number: 6, type: 14, label: 1, typeName: ".google.protobuf.FieldOptions.JSType", defaultValue: "JS_NORMAL" }, { name: "lazy", number: 5, type: 8, label: 1, defaultValue: "false" }, { name: "unverified_lazy", number: 15, type: 8, label: 1, defaultValue: "false" }, { name: "deprecated", number: 3, type: 8, label: 1, defaultValue: "false" }, { name: "weak", number: 10, type: 8, label: 1, defaultValue: "false" }, { name: "debug_redact", number: 16, type: 8, label: 1, defaultValue: "false" }, { name: "retention", number: 17, type: 14, label: 1, typeName: ".google.protobuf.FieldOptions.OptionRetention" }, { name: "targets", number: 19, type: 14, label: 3, typeName: ".google.protobuf.FieldOptions.OptionTargetType" }, { name: "edition_defaults", number: 20, type: 11, label: 3, typeName: ".google.protobuf.FieldOptions.EditionDefault" }, { name: "features", number: 21, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "feature_support", number: 22, type: 11, label: 1, typeName: ".google.protobuf.FieldOptions.FeatureSupport" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], nestedType: [{ name: "EditionDefault", field: [{ name: "edition", number: 3, type: 14, label: 1, typeName: ".google.protobuf.Edition" }, { name: "value", number: 2, type: 9, label: 1 }] }, { name: "FeatureSupport", field: [{ name: "edition_introduced", number: 1, type: 14, label: 1, typeName: ".google.protobuf.Edition" }, { name: "edition_deprecated", number: 2, type: 14, label: 1, typeName: ".google.protobuf.Edition" }, { name: "deprecation_warning", number: 3, type: 9, label: 1 }, { name: "edition_removed", number: 4, type: 14, label: 1, typeName: ".google.protobuf.Edition" }] }], enumType: [{ name: "CType", value: [{ name: "STRING", number: 0 }, { name: "CORD", number: 1 }, { name: "STRING_PIECE", number: 2 }] }, { name: "JSType", value: [{ name: "JS_NORMAL", number: 0 }, { name: "JS_STRING", number: 1 }, { name: "JS_NUMBER", number: 2 }] }, { name: "OptionRetention", value: [{ name: "RETENTION_UNKNOWN", number: 0 }, { name: "RETENTION_RUNTIME", number: 1 }, { name: "RETENTION_SOURCE", number: 2 }] }, { name: "OptionTargetType", value: [{ name: "TARGET_TYPE_UNKNOWN", number: 0 }, { name: "TARGET_TYPE_FILE", number: 1 }, { name: "TARGET_TYPE_EXTENSION_RANGE", number: 2 }, { name: "TARGET_TYPE_MESSAGE", number: 3 }, { name: "TARGET_TYPE_FIELD", number: 4 }, { name: "TARGET_TYPE_ONEOF", number: 5 }, { name: "TARGET_TYPE_ENUM", number: 6 }, { name: "TARGET_TYPE_ENUM_ENTRY", number: 7 }, { name: "TARGET_TYPE_SERVICE", number: 8 }, { name: "TARGET_TYPE_METHOD", number: 9 }] }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "OneofOptions", field: [{ name: "features", number: 1, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "EnumOptions", field: [{ name: "allow_alias", number: 2, type: 8, label: 1 }, { name: "deprecated", number: 3, type: 8, label: 1, defaultValue: "false" }, { name: "deprecated_legacy_json_field_conflicts", number: 6, type: 8, label: 1, options: { deprecated: true } }, { name: "features", number: 7, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "EnumValueOptions", field: [{ name: "deprecated", number: 1, type: 8, label: 1, defaultValue: "false" }, { name: "features", number: 2, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "debug_redact", number: 3, type: 8, label: 1, defaultValue: "false" }, { name: "feature_support", number: 4, type: 11, label: 1, typeName: ".google.protobuf.FieldOptions.FeatureSupport" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "ServiceOptions", field: [{ name: "features", number: 34, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "deprecated", number: 33, type: 8, label: 1, defaultValue: "false" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "MethodOptions", field: [{ name: "deprecated", number: 33, type: 8, label: 1, defaultValue: "false" }, { name: "idempotency_level", number: 34, type: 14, label: 1, typeName: ".google.protobuf.MethodOptions.IdempotencyLevel", defaultValue: "IDEMPOTENCY_UNKNOWN" }, { name: "features", number: 35, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "uninterpreted_option", number: 999, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption" }], enumType: [{ name: "IdempotencyLevel", value: [{ name: "IDEMPOTENCY_UNKNOWN", number: 0 }, { name: "NO_SIDE_EFFECTS", number: 1 }, { name: "IDEMPOTENT", number: 2 }] }], extensionRange: [{ start: 1000, end: 536870912 }] }, { name: "UninterpretedOption", field: [{ name: "name", number: 2, type: 11, label: 3, typeName: ".google.protobuf.UninterpretedOption.NamePart" }, { name: "identifier_value", number: 3, type: 9, label: 1 }, { name: "positive_int_value", number: 4, type: 4, label: 1 }, { name: "negative_int_value", number: 5, type: 3, label: 1 }, { name: "double_value", number: 6, type: 1, label: 1 }, { name: "string_value", number: 7, type: 12, label: 1 }, { name: "aggregate_value", number: 8, type: 9, label: 1 }], nestedType: [{ name: "NamePart", field: [{ name: "name_part", number: 1, type: 9, label: 2 }, { name: "is_extension", number: 2, type: 8, label: 2 }] }] }, { name: "FeatureSet", field: [{ name: "field_presence", number: 1, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.FieldPresence", options: { retention: 1, targets: [4, 1], editionDefaults: [{ value: "EXPLICIT", edition: 900 }, { value: "IMPLICIT", edition: 999 }, { value: "EXPLICIT", edition: 1000 }] } }, { name: "enum_type", number: 2, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.EnumType", options: { retention: 1, targets: [6, 1], editionDefaults: [{ value: "CLOSED", edition: 900 }, { value: "OPEN", edition: 999 }] } }, { name: "repeated_field_encoding", number: 3, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.RepeatedFieldEncoding", options: { retention: 1, targets: [4, 1], editionDefaults: [{ value: "EXPANDED", edition: 900 }, { value: "PACKED", edition: 999 }] } }, { name: "utf8_validation", number: 4, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.Utf8Validation", options: { retention: 1, targets: [4, 1], editionDefaults: [{ value: "NONE", edition: 900 }, { value: "VERIFY", edition: 999 }] } }, { name: "message_encoding", number: 5, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.MessageEncoding", options: { retention: 1, targets: [4, 1], editionDefaults: [{ value: "LENGTH_PREFIXED", edition: 900 }] } }, { name: "json_format", number: 6, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.JsonFormat", options: { retention: 1, targets: [3, 6, 1], editionDefaults: [{ value: "LEGACY_BEST_EFFORT", edition: 900 }, { value: "ALLOW", edition: 999 }] } }, { name: "enforce_naming_style", number: 7, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.EnforceNamingStyle", options: { retention: 2, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9], editionDefaults: [{ value: "STYLE_LEGACY", edition: 900 }, { value: "STYLE2024", edition: 1001 }] } }, { name: "default_symbol_visibility", number: 8, type: 14, label: 1, typeName: ".google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility", options: { retention: 2, targets: [1], editionDefaults: [{ value: "EXPORT_ALL", edition: 900 }, { value: "EXPORT_TOP_LEVEL", edition: 1001 }] } }], nestedType: [{ name: "VisibilityFeature", enumType: [{ name: "DefaultSymbolVisibility", value: [{ name: "DEFAULT_SYMBOL_VISIBILITY_UNKNOWN", number: 0 }, { name: "EXPORT_ALL", number: 1 }, { name: "EXPORT_TOP_LEVEL", number: 2 }, { name: "LOCAL_ALL", number: 3 }, { name: "STRICT", number: 4 }] }] }], enumType: [{ name: "FieldPresence", value: [{ name: "FIELD_PRESENCE_UNKNOWN", number: 0 }, { name: "EXPLICIT", number: 1 }, { name: "IMPLICIT", number: 2 }, { name: "LEGACY_REQUIRED", number: 3 }] }, { name: "EnumType", value: [{ name: "ENUM_TYPE_UNKNOWN", number: 0 }, { name: "OPEN", number: 1 }, { name: "CLOSED", number: 2 }] }, { name: "RepeatedFieldEncoding", value: [{ name: "REPEATED_FIELD_ENCODING_UNKNOWN", number: 0 }, { name: "PACKED", number: 1 }, { name: "EXPANDED", number: 2 }] }, { name: "Utf8Validation", value: [{ name: "UTF8_VALIDATION_UNKNOWN", number: 0 }, { name: "VERIFY", number: 2 }, { name: "NONE", number: 3 }] }, { name: "MessageEncoding", value: [{ name: "MESSAGE_ENCODING_UNKNOWN", number: 0 }, { name: "LENGTH_PREFIXED", number: 1 }, { name: "DELIMITED", number: 2 }] }, { name: "JsonFormat", value: [{ name: "JSON_FORMAT_UNKNOWN", number: 0 }, { name: "ALLOW", number: 1 }, { name: "LEGACY_BEST_EFFORT", number: 2 }] }, { name: "EnforceNamingStyle", value: [{ name: "ENFORCE_NAMING_STYLE_UNKNOWN", number: 0 }, { name: "STYLE2024", number: 1 }, { name: "STYLE_LEGACY", number: 2 }] }], extensionRange: [{ start: 1000, end: 9995 }, { start: 9995, end: 1e4 }, { start: 1e4, end: 10001 }] }, { name: "FeatureSetDefaults", field: [{ name: "defaults", number: 1, type: 11, label: 3, typeName: ".google.protobuf.FeatureSetDefaults.FeatureSetEditionDefault" }, { name: "minimum_edition", number: 4, type: 14, label: 1, typeName: ".google.protobuf.Edition" }, { name: "maximum_edition", number: 5, type: 14, label: 1, typeName: ".google.protobuf.Edition" }], nestedType: [{ name: "FeatureSetEditionDefault", field: [{ name: "edition", number: 3, type: 14, label: 1, typeName: ".google.protobuf.Edition" }, { name: "overridable_features", number: 4, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }, { name: "fixed_features", number: 5, type: 11, label: 1, typeName: ".google.protobuf.FeatureSet" }] }] }, { name: "SourceCodeInfo", field: [{ name: "location", number: 1, type: 11, label: 3, typeName: ".google.protobuf.SourceCodeInfo.Location" }], nestedType: [{ name: "Location", field: [{ name: "path", number: 1, type: 5, label: 3, options: { packed: true } }, { name: "span", number: 2, type: 5, label: 3, options: { packed: true } }, { name: "leading_comments", number: 3, type: 9, label: 1 }, { name: "trailing_comments", number: 4, type: 9, label: 1 }, { name: "leading_detached_comments", number: 6, type: 9, label: 3 }] }], extensionRange: [{ start: 536000000, end: 536000001 }] }, { name: "GeneratedCodeInfo", field: [{ name: "annotation", number: 1, type: 11, label: 3, typeName: ".google.protobuf.GeneratedCodeInfo.Annotation" }], nestedType: [{ name: "Annotation", field: [{ name: "path", number: 1, type: 5, label: 3, options: { packed: true } }, { name: "source_file", number: 2, type: 9, label: 1 }, { name: "begin", number: 3, type: 5, label: 1 }, { name: "end", number: 4, type: 5, label: 1 }, { name: "semantic", number: 5, type: 14, label: 1, typeName: ".google.protobuf.GeneratedCodeInfo.Annotation.Semantic" }], enumType: [{ name: "Semantic", value: [{ name: "NONE", number: 0 }, { name: "SET", number: 1 }, { name: "ALIAS", number: 2 }] }] }] }], enumType: [{ name: "Edition", value: [{ name: "EDITION_UNKNOWN", number: 0 }, { name: "EDITION_LEGACY", number: 900 }, { name: "EDITION_PROTO2", number: 998 }, { name: "EDITION_PROTO3", number: 999 }, { name: "EDITION_2023", number: 1000 }, { name: "EDITION_2024", number: 1001 }, { name: "EDITION_1_TEST_ONLY", number: 1 }, { name: "EDITION_2_TEST_ONLY", number: 2 }, { name: "EDITION_99997_TEST_ONLY", number: 99997 }, { name: "EDITION_99998_TEST_ONLY", number: 99998 }, { name: "EDITION_99999_TEST_ONLY", number: 99999 }, { name: "EDITION_MAX", number: 2147483647 }] }, { name: "SymbolVisibility", value: [{ name: "VISIBILITY_UNSET", number: 0 }, { name: "VISIBILITY_LOCAL", number: 1 }, { name: "VISIBILITY_EXPORT", number: 2 }] }] });
+var FileDescriptorProtoSchema = /* @__PURE__ */ messageDesc(file_google_protobuf_descriptor, 1);
+var ExtensionRangeOptions_VerificationState;
+(function(ExtensionRangeOptions_VerificationState2) {
+  ExtensionRangeOptions_VerificationState2[ExtensionRangeOptions_VerificationState2["DECLARATION"] = 0] = "DECLARATION";
+  ExtensionRangeOptions_VerificationState2[ExtensionRangeOptions_VerificationState2["UNVERIFIED"] = 1] = "UNVERIFIED";
+})(ExtensionRangeOptions_VerificationState || (ExtensionRangeOptions_VerificationState = {}));
+var FieldDescriptorProto_Type;
+(function(FieldDescriptorProto_Type2) {
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["DOUBLE"] = 1] = "DOUBLE";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["FLOAT"] = 2] = "FLOAT";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["INT64"] = 3] = "INT64";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["UINT64"] = 4] = "UINT64";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["INT32"] = 5] = "INT32";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["FIXED64"] = 6] = "FIXED64";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["FIXED32"] = 7] = "FIXED32";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["BOOL"] = 8] = "BOOL";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["STRING"] = 9] = "STRING";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["GROUP"] = 10] = "GROUP";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["MESSAGE"] = 11] = "MESSAGE";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["BYTES"] = 12] = "BYTES";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["UINT32"] = 13] = "UINT32";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["ENUM"] = 14] = "ENUM";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["SFIXED32"] = 15] = "SFIXED32";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["SFIXED64"] = 16] = "SFIXED64";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["SINT32"] = 17] = "SINT32";
+  FieldDescriptorProto_Type2[FieldDescriptorProto_Type2["SINT64"] = 18] = "SINT64";
+})(FieldDescriptorProto_Type || (FieldDescriptorProto_Type = {}));
+var FieldDescriptorProto_Label;
+(function(FieldDescriptorProto_Label2) {
+  FieldDescriptorProto_Label2[FieldDescriptorProto_Label2["OPTIONAL"] = 1] = "OPTIONAL";
+  FieldDescriptorProto_Label2[FieldDescriptorProto_Label2["REPEATED"] = 3] = "REPEATED";
+  FieldDescriptorProto_Label2[FieldDescriptorProto_Label2["REQUIRED"] = 2] = "REQUIRED";
+})(FieldDescriptorProto_Label || (FieldDescriptorProto_Label = {}));
+var FileOptions_OptimizeMode;
+(function(FileOptions_OptimizeMode2) {
+  FileOptions_OptimizeMode2[FileOptions_OptimizeMode2["SPEED"] = 1] = "SPEED";
+  FileOptions_OptimizeMode2[FileOptions_OptimizeMode2["CODE_SIZE"] = 2] = "CODE_SIZE";
+  FileOptions_OptimizeMode2[FileOptions_OptimizeMode2["LITE_RUNTIME"] = 3] = "LITE_RUNTIME";
+})(FileOptions_OptimizeMode || (FileOptions_OptimizeMode = {}));
+var FieldOptions_CType;
+(function(FieldOptions_CType2) {
+  FieldOptions_CType2[FieldOptions_CType2["STRING"] = 0] = "STRING";
+  FieldOptions_CType2[FieldOptions_CType2["CORD"] = 1] = "CORD";
+  FieldOptions_CType2[FieldOptions_CType2["STRING_PIECE"] = 2] = "STRING_PIECE";
+})(FieldOptions_CType || (FieldOptions_CType = {}));
+var FieldOptions_JSType;
+(function(FieldOptions_JSType2) {
+  FieldOptions_JSType2[FieldOptions_JSType2["JS_NORMAL"] = 0] = "JS_NORMAL";
+  FieldOptions_JSType2[FieldOptions_JSType2["JS_STRING"] = 1] = "JS_STRING";
+  FieldOptions_JSType2[FieldOptions_JSType2["JS_NUMBER"] = 2] = "JS_NUMBER";
+})(FieldOptions_JSType || (FieldOptions_JSType = {}));
+var FieldOptions_OptionRetention;
+(function(FieldOptions_OptionRetention2) {
+  FieldOptions_OptionRetention2[FieldOptions_OptionRetention2["RETENTION_UNKNOWN"] = 0] = "RETENTION_UNKNOWN";
+  FieldOptions_OptionRetention2[FieldOptions_OptionRetention2["RETENTION_RUNTIME"] = 1] = "RETENTION_RUNTIME";
+  FieldOptions_OptionRetention2[FieldOptions_OptionRetention2["RETENTION_SOURCE"] = 2] = "RETENTION_SOURCE";
+})(FieldOptions_OptionRetention || (FieldOptions_OptionRetention = {}));
+var FieldOptions_OptionTargetType;
+(function(FieldOptions_OptionTargetType2) {
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_UNKNOWN"] = 0] = "TARGET_TYPE_UNKNOWN";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_FILE"] = 1] = "TARGET_TYPE_FILE";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_EXTENSION_RANGE"] = 2] = "TARGET_TYPE_EXTENSION_RANGE";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_MESSAGE"] = 3] = "TARGET_TYPE_MESSAGE";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_FIELD"] = 4] = "TARGET_TYPE_FIELD";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_ONEOF"] = 5] = "TARGET_TYPE_ONEOF";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_ENUM"] = 6] = "TARGET_TYPE_ENUM";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_ENUM_ENTRY"] = 7] = "TARGET_TYPE_ENUM_ENTRY";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_SERVICE"] = 8] = "TARGET_TYPE_SERVICE";
+  FieldOptions_OptionTargetType2[FieldOptions_OptionTargetType2["TARGET_TYPE_METHOD"] = 9] = "TARGET_TYPE_METHOD";
+})(FieldOptions_OptionTargetType || (FieldOptions_OptionTargetType = {}));
+var MethodOptions_IdempotencyLevel;
+(function(MethodOptions_IdempotencyLevel2) {
+  MethodOptions_IdempotencyLevel2[MethodOptions_IdempotencyLevel2["IDEMPOTENCY_UNKNOWN"] = 0] = "IDEMPOTENCY_UNKNOWN";
+  MethodOptions_IdempotencyLevel2[MethodOptions_IdempotencyLevel2["NO_SIDE_EFFECTS"] = 1] = "NO_SIDE_EFFECTS";
+  MethodOptions_IdempotencyLevel2[MethodOptions_IdempotencyLevel2["IDEMPOTENT"] = 2] = "IDEMPOTENT";
+})(MethodOptions_IdempotencyLevel || (MethodOptions_IdempotencyLevel = {}));
+var FeatureSet_VisibilityFeature_DefaultSymbolVisibility;
+(function(FeatureSet_VisibilityFeature_DefaultSymbolVisibility2) {
+  FeatureSet_VisibilityFeature_DefaultSymbolVisibility2[FeatureSet_VisibilityFeature_DefaultSymbolVisibility2["DEFAULT_SYMBOL_VISIBILITY_UNKNOWN"] = 0] = "DEFAULT_SYMBOL_VISIBILITY_UNKNOWN";
+  FeatureSet_VisibilityFeature_DefaultSymbolVisibility2[FeatureSet_VisibilityFeature_DefaultSymbolVisibility2["EXPORT_ALL"] = 1] = "EXPORT_ALL";
+  FeatureSet_VisibilityFeature_DefaultSymbolVisibility2[FeatureSet_VisibilityFeature_DefaultSymbolVisibility2["EXPORT_TOP_LEVEL"] = 2] = "EXPORT_TOP_LEVEL";
+  FeatureSet_VisibilityFeature_DefaultSymbolVisibility2[FeatureSet_VisibilityFeature_DefaultSymbolVisibility2["LOCAL_ALL"] = 3] = "LOCAL_ALL";
+  FeatureSet_VisibilityFeature_DefaultSymbolVisibility2[FeatureSet_VisibilityFeature_DefaultSymbolVisibility2["STRICT"] = 4] = "STRICT";
+})(FeatureSet_VisibilityFeature_DefaultSymbolVisibility || (FeatureSet_VisibilityFeature_DefaultSymbolVisibility = {}));
+var FeatureSet_FieldPresence;
+(function(FeatureSet_FieldPresence2) {
+  FeatureSet_FieldPresence2[FeatureSet_FieldPresence2["FIELD_PRESENCE_UNKNOWN"] = 0] = "FIELD_PRESENCE_UNKNOWN";
+  FeatureSet_FieldPresence2[FeatureSet_FieldPresence2["EXPLICIT"] = 1] = "EXPLICIT";
+  FeatureSet_FieldPresence2[FeatureSet_FieldPresence2["IMPLICIT"] = 2] = "IMPLICIT";
+  FeatureSet_FieldPresence2[FeatureSet_FieldPresence2["LEGACY_REQUIRED"] = 3] = "LEGACY_REQUIRED";
+})(FeatureSet_FieldPresence || (FeatureSet_FieldPresence = {}));
+var FeatureSet_EnumType;
+(function(FeatureSet_EnumType2) {
+  FeatureSet_EnumType2[FeatureSet_EnumType2["ENUM_TYPE_UNKNOWN"] = 0] = "ENUM_TYPE_UNKNOWN";
+  FeatureSet_EnumType2[FeatureSet_EnumType2["OPEN"] = 1] = "OPEN";
+  FeatureSet_EnumType2[FeatureSet_EnumType2["CLOSED"] = 2] = "CLOSED";
+})(FeatureSet_EnumType || (FeatureSet_EnumType = {}));
+var FeatureSet_RepeatedFieldEncoding;
+(function(FeatureSet_RepeatedFieldEncoding2) {
+  FeatureSet_RepeatedFieldEncoding2[FeatureSet_RepeatedFieldEncoding2["REPEATED_FIELD_ENCODING_UNKNOWN"] = 0] = "REPEATED_FIELD_ENCODING_UNKNOWN";
+  FeatureSet_RepeatedFieldEncoding2[FeatureSet_RepeatedFieldEncoding2["PACKED"] = 1] = "PACKED";
+  FeatureSet_RepeatedFieldEncoding2[FeatureSet_RepeatedFieldEncoding2["EXPANDED"] = 2] = "EXPANDED";
+})(FeatureSet_RepeatedFieldEncoding || (FeatureSet_RepeatedFieldEncoding = {}));
+var FeatureSet_Utf8Validation;
+(function(FeatureSet_Utf8Validation2) {
+  FeatureSet_Utf8Validation2[FeatureSet_Utf8Validation2["UTF8_VALIDATION_UNKNOWN"] = 0] = "UTF8_VALIDATION_UNKNOWN";
+  FeatureSet_Utf8Validation2[FeatureSet_Utf8Validation2["VERIFY"] = 2] = "VERIFY";
+  FeatureSet_Utf8Validation2[FeatureSet_Utf8Validation2["NONE"] = 3] = "NONE";
+})(FeatureSet_Utf8Validation || (FeatureSet_Utf8Validation = {}));
+var FeatureSet_MessageEncoding;
+(function(FeatureSet_MessageEncoding2) {
+  FeatureSet_MessageEncoding2[FeatureSet_MessageEncoding2["MESSAGE_ENCODING_UNKNOWN"] = 0] = "MESSAGE_ENCODING_UNKNOWN";
+  FeatureSet_MessageEncoding2[FeatureSet_MessageEncoding2["LENGTH_PREFIXED"] = 1] = "LENGTH_PREFIXED";
+  FeatureSet_MessageEncoding2[FeatureSet_MessageEncoding2["DELIMITED"] = 2] = "DELIMITED";
+})(FeatureSet_MessageEncoding || (FeatureSet_MessageEncoding = {}));
+var FeatureSet_JsonFormat;
+(function(FeatureSet_JsonFormat2) {
+  FeatureSet_JsonFormat2[FeatureSet_JsonFormat2["JSON_FORMAT_UNKNOWN"] = 0] = "JSON_FORMAT_UNKNOWN";
+  FeatureSet_JsonFormat2[FeatureSet_JsonFormat2["ALLOW"] = 1] = "ALLOW";
+  FeatureSet_JsonFormat2[FeatureSet_JsonFormat2["LEGACY_BEST_EFFORT"] = 2] = "LEGACY_BEST_EFFORT";
+})(FeatureSet_JsonFormat || (FeatureSet_JsonFormat = {}));
+var FeatureSet_EnforceNamingStyle;
+(function(FeatureSet_EnforceNamingStyle2) {
+  FeatureSet_EnforceNamingStyle2[FeatureSet_EnforceNamingStyle2["ENFORCE_NAMING_STYLE_UNKNOWN"] = 0] = "ENFORCE_NAMING_STYLE_UNKNOWN";
+  FeatureSet_EnforceNamingStyle2[FeatureSet_EnforceNamingStyle2["STYLE2024"] = 1] = "STYLE2024";
+  FeatureSet_EnforceNamingStyle2[FeatureSet_EnforceNamingStyle2["STYLE_LEGACY"] = 2] = "STYLE_LEGACY";
+})(FeatureSet_EnforceNamingStyle || (FeatureSet_EnforceNamingStyle = {}));
+var GeneratedCodeInfo_Annotation_Semantic;
+(function(GeneratedCodeInfo_Annotation_Semantic2) {
+  GeneratedCodeInfo_Annotation_Semantic2[GeneratedCodeInfo_Annotation_Semantic2["NONE"] = 0] = "NONE";
+  GeneratedCodeInfo_Annotation_Semantic2[GeneratedCodeInfo_Annotation_Semantic2["SET"] = 1] = "SET";
+  GeneratedCodeInfo_Annotation_Semantic2[GeneratedCodeInfo_Annotation_Semantic2["ALIAS"] = 2] = "ALIAS";
+})(GeneratedCodeInfo_Annotation_Semantic || (GeneratedCodeInfo_Annotation_Semantic = {}));
+var Edition;
+(function(Edition2) {
+  Edition2[Edition2["EDITION_UNKNOWN"] = 0] = "EDITION_UNKNOWN";
+  Edition2[Edition2["EDITION_LEGACY"] = 900] = "EDITION_LEGACY";
+  Edition2[Edition2["EDITION_PROTO2"] = 998] = "EDITION_PROTO2";
+  Edition2[Edition2["EDITION_PROTO3"] = 999] = "EDITION_PROTO3";
+  Edition2[Edition2["EDITION_2023"] = 1000] = "EDITION_2023";
+  Edition2[Edition2["EDITION_2024"] = 1001] = "EDITION_2024";
+  Edition2[Edition2["EDITION_1_TEST_ONLY"] = 1] = "EDITION_1_TEST_ONLY";
+  Edition2[Edition2["EDITION_2_TEST_ONLY"] = 2] = "EDITION_2_TEST_ONLY";
+  Edition2[Edition2["EDITION_99997_TEST_ONLY"] = 99997] = "EDITION_99997_TEST_ONLY";
+  Edition2[Edition2["EDITION_99998_TEST_ONLY"] = 99998] = "EDITION_99998_TEST_ONLY";
+  Edition2[Edition2["EDITION_99999_TEST_ONLY"] = 99999] = "EDITION_99999_TEST_ONLY";
+  Edition2[Edition2["EDITION_MAX"] = 2147483647] = "EDITION_MAX";
+})(Edition || (Edition = {}));
+var SymbolVisibility;
+(function(SymbolVisibility2) {
+  SymbolVisibility2[SymbolVisibility2["VISIBILITY_UNSET"] = 0] = "VISIBILITY_UNSET";
+  SymbolVisibility2[SymbolVisibility2["VISIBILITY_LOCAL"] = 1] = "VISIBILITY_LOCAL";
+  SymbolVisibility2[SymbolVisibility2["VISIBILITY_EXPORT"] = 2] = "VISIBILITY_EXPORT";
+})(SymbolVisibility || (SymbolVisibility = {}));
+var readDefaults = {
+  readUnknownFields: true
+};
+function makeReadOptions(options) {
+  return options ? Object.assign(Object.assign({}, readDefaults), options) : readDefaults;
+}
+function fromBinary(schema, bytes, options) {
+  const msg = reflect(schema, undefined, false);
+  readMessage(msg, new BinaryReader(bytes), makeReadOptions(options), false, bytes.byteLength);
+  return msg.message;
+}
+function readMessage(message, reader, options, delimited, lengthOrDelimitedFieldNo) {
+  var _a;
+  const end = delimited ? reader.len : reader.pos + lengthOrDelimitedFieldNo;
+  let fieldNo;
+  let wireType;
+  const unknownFields = (_a = message.getUnknown()) !== null && _a !== undefined ? _a : [];
+  while (reader.pos < end) {
+    [fieldNo, wireType] = reader.tag();
+    if (delimited && wireType == WireType.EndGroup) {
+      break;
+    }
+    const field = message.findNumber(fieldNo);
+    if (!field) {
+      const data = reader.skip(wireType, fieldNo);
+      if (options.readUnknownFields) {
+        unknownFields.push({ no: fieldNo, wireType, data });
+      }
+      continue;
+    }
+    readField(message, reader, field, wireType, options);
+  }
+  if (delimited) {
+    if (wireType != WireType.EndGroup || fieldNo !== lengthOrDelimitedFieldNo) {
+      throw new Error("invalid end group tag");
+    }
+  }
+  if (unknownFields.length > 0) {
+    message.setUnknown(unknownFields);
+  }
+}
+function readField(message, reader, field, wireType, options) {
+  var _a;
+  switch (field.fieldKind) {
+    case "scalar":
+      message.set(field, readScalar(reader, field.scalar));
+      break;
+    case "enum":
+      const val = readScalar(reader, ScalarType.INT32);
+      if (field.enum.open) {
+        message.set(field, val);
+      } else {
+        const ok = field.enum.values.some((v) => v.number === val);
+        if (ok) {
+          message.set(field, val);
+        } else if (options.readUnknownFields) {
+          const data = new BinaryWriter().int32(val).finish();
+          const unknownFields = (_a = message.getUnknown()) !== null && _a !== undefined ? _a : [];
+          unknownFields.push({ no: field.number, wireType, data });
+          message.setUnknown(unknownFields);
+        }
+      }
+      break;
+    case "message":
+      message.set(field, readMessageField(reader, options, field, message.get(field)));
+      break;
+    case "list":
+      readListField(reader, wireType, message.get(field), options);
+      break;
+    case "map":
+      readMapEntry(reader, message.get(field), options);
+      break;
+  }
+}
+function readMapEntry(reader, map, options) {
+  const field = map.field();
+  let key;
+  let val;
+  const len = reader.uint32();
+  const end = reader.pos + len;
+  while (reader.pos < end) {
+    const [fieldNo] = reader.tag();
+    switch (fieldNo) {
+      case 1:
+        key = readScalar(reader, field.mapKey);
+        break;
+      case 2:
+        switch (field.mapKind) {
+          case "scalar":
+            val = readScalar(reader, field.scalar);
+            break;
+          case "enum":
+            val = reader.int32();
+            break;
+          case "message":
+            val = readMessageField(reader, options, field);
+            break;
+        }
+        break;
+    }
+  }
+  if (key === undefined) {
+    key = scalarZeroValue(field.mapKey, false);
+  }
+  if (val === undefined) {
+    switch (field.mapKind) {
+      case "scalar":
+        val = scalarZeroValue(field.scalar, false);
+        break;
+      case "enum":
+        val = field.enum.values[0].number;
+        break;
+      case "message":
+        val = reflect(field.message, undefined, false);
+        break;
+    }
+  }
+  map.set(key, val);
+}
+function readListField(reader, wireType, list, options) {
+  var _a;
+  const field = list.field();
+  if (field.listKind === "message") {
+    list.add(readMessageField(reader, options, field));
+    return;
+  }
+  const scalarType = (_a = field.scalar) !== null && _a !== undefined ? _a : ScalarType.INT32;
+  const packed = wireType == WireType.LengthDelimited && scalarType != ScalarType.STRING && scalarType != ScalarType.BYTES;
+  if (!packed) {
+    list.add(readScalar(reader, scalarType));
+    return;
+  }
+  const e = reader.uint32() + reader.pos;
+  while (reader.pos < e) {
+    list.add(readScalar(reader, scalarType));
+  }
+}
+function readMessageField(reader, options, field, mergeMessage) {
+  const delimited = field.delimitedEncoding;
+  const message = mergeMessage !== null && mergeMessage !== undefined ? mergeMessage : reflect(field.message, undefined, false);
+  readMessage(message, reader, options, delimited, delimited ? field.number : reader.uint32());
+  return message;
+}
+function readScalar(reader, type) {
+  switch (type) {
+    case ScalarType.STRING:
+      return reader.string();
+    case ScalarType.BOOL:
+      return reader.bool();
+    case ScalarType.DOUBLE:
+      return reader.double();
+    case ScalarType.FLOAT:
+      return reader.float();
+    case ScalarType.INT32:
+      return reader.int32();
+    case ScalarType.INT64:
+      return reader.int64();
+    case ScalarType.UINT64:
+      return reader.uint64();
+    case ScalarType.FIXED64:
+      return reader.fixed64();
+    case ScalarType.BYTES:
+      return reader.bytes();
+    case ScalarType.FIXED32:
+      return reader.fixed32();
+    case ScalarType.SFIXED32:
+      return reader.sfixed32();
+    case ScalarType.SFIXED64:
+      return reader.sfixed64();
+    case ScalarType.SINT64:
+      return reader.sint64();
+    case ScalarType.UINT32:
+      return reader.uint32();
+    case ScalarType.SINT32:
+      return reader.sint32();
+  }
+}
+function fileDesc(b64, imports) {
+  var _a;
+  const root = fromBinary(FileDescriptorProtoSchema, base64Decode(b64));
+  root.messageType.forEach(restoreJsonNames);
+  root.dependency = (_a = imports === null || imports === undefined ? undefined : imports.map((f) => f.proto.name)) !== null && _a !== undefined ? _a : [];
+  const reg = createFileRegistry(root, (protoFileName) => imports === null || imports === undefined ? undefined : imports.find((f) => f.proto.name === protoFileName));
+  return reg.getFile(root.name);
+}
+var file_google_protobuf_timestamp = /* @__PURE__ */ fileDesc("Ch9nb29nbGUvcHJvdG9idWYvdGltZXN0YW1wLnByb3RvEg9nb29nbGUucHJvdG9idWYiKwoJVGltZXN0YW1wEg8KB3NlY29uZHMYASABKAMSDQoFbmFub3MYAiABKAVChQEKE2NvbS5nb29nbGUucHJvdG9idWZCDlRpbWVzdGFtcFByb3RvUAFaMmdvb2dsZS5nb2xhbmcub3JnL3Byb3RvYnVmL3R5cGVzL2tub3duL3RpbWVzdGFtcHBi+AEBogIDR1BCqgIeR29vZ2xlLlByb3RvYnVmLldlbGxLbm93blR5cGVzYgZwcm90bzM");
+var TimestampSchema = /* @__PURE__ */ messageDesc(file_google_protobuf_timestamp, 0);
+function timestampFromDate(date) {
+  return timestampFromMs(date.getTime());
+}
+function timestampDate(timestamp) {
+  return new Date(timestampMs(timestamp));
+}
+function timestampFromMs(timestampMs) {
+  const seconds = Math.floor(timestampMs / 1000);
+  return create(TimestampSchema, {
+    seconds: protoInt64.parse(seconds),
+    nanos: (timestampMs - seconds * 1000) * 1e6
+  });
+}
+function timestampMs(timestamp) {
+  return Number(timestamp.seconds) * 1000 + Math.round(timestamp.nanos / 1e6);
+}
+var file_google_protobuf_any = /* @__PURE__ */ fileDesc("Chlnb29nbGUvcHJvdG9idWYvYW55LnByb3RvEg9nb29nbGUucHJvdG9idWYiJgoDQW55EhAKCHR5cGVfdXJsGAEgASgJEg0KBXZhbHVlGAIgASgMQnYKE2NvbS5nb29nbGUucHJvdG9idWZCCEFueVByb3RvUAFaLGdvb2dsZS5nb2xhbmcub3JnL3Byb3RvYnVmL3R5cGVzL2tub3duL2FueXBiogIDR1BCqgIeR29vZ2xlLlByb3RvYnVmLldlbGxLbm93blR5cGVzYgZwcm90bzM");
+var AnySchema = /* @__PURE__ */ messageDesc(file_google_protobuf_any, 0);
+var LEGACY_REQUIRED2 = 3;
+var writeDefaults = {
+  writeUnknownFields: true
+};
+function makeWriteOptions(options) {
+  return options ? Object.assign(Object.assign({}, writeDefaults), options) : writeDefaults;
+}
+function toBinary(schema, message, options) {
+  return writeFields(new BinaryWriter, makeWriteOptions(options), reflect(schema, message)).finish();
+}
+function writeFields(writer, opts, msg) {
+  var _a;
+  for (const f of msg.sortedFields) {
+    if (!msg.isSet(f)) {
+      if (f.presence == LEGACY_REQUIRED2) {
+        throw new Error(`cannot encode ${f} to binary: required field not set`);
+      }
+      continue;
+    }
+    writeField(writer, opts, msg, f);
+  }
+  if (opts.writeUnknownFields) {
+    for (const { no, wireType, data } of (_a = msg.getUnknown()) !== null && _a !== undefined ? _a : []) {
+      writer.tag(no, wireType).raw(data);
+    }
+  }
+  return writer;
+}
+function writeField(writer, opts, msg, field) {
+  var _a;
+  switch (field.fieldKind) {
+    case "scalar":
+    case "enum":
+      writeScalar(writer, msg.desc.typeName, field.name, (_a = field.scalar) !== null && _a !== undefined ? _a : ScalarType.INT32, field.number, msg.get(field));
+      break;
+    case "list":
+      writeListField(writer, opts, field, msg.get(field));
+      break;
+    case "message":
+      writeMessageField(writer, opts, field, msg.get(field));
+      break;
+    case "map":
+      for (const [key, val] of msg.get(field)) {
+        writeMapEntry(writer, opts, field, key, val);
+      }
+      break;
+  }
+}
+function writeScalar(writer, msgName, fieldName, scalarType, fieldNo, value) {
+  writeScalarValue(writer.tag(fieldNo, writeTypeOfScalar(scalarType)), msgName, fieldName, scalarType, value);
+}
+function writeMessageField(writer, opts, field, message) {
+  if (field.delimitedEncoding) {
+    writeFields(writer.tag(field.number, WireType.StartGroup), opts, message).tag(field.number, WireType.EndGroup);
+  } else {
+    writeFields(writer.tag(field.number, WireType.LengthDelimited).fork(), opts, message).join();
+  }
+}
+function writeListField(writer, opts, field, list) {
+  var _a;
+  if (field.listKind == "message") {
+    for (const item of list) {
+      writeMessageField(writer, opts, field, item);
+    }
+    return;
+  }
+  const scalarType = (_a = field.scalar) !== null && _a !== undefined ? _a : ScalarType.INT32;
+  if (field.packed) {
+    if (!list.size) {
+      return;
+    }
+    writer.tag(field.number, WireType.LengthDelimited).fork();
+    for (const item of list) {
+      writeScalarValue(writer, field.parent.typeName, field.name, scalarType, item);
+    }
+    writer.join();
+    return;
+  }
+  for (const item of list) {
+    writeScalar(writer, field.parent.typeName, field.name, scalarType, field.number, item);
+  }
+}
+function writeMapEntry(writer, opts, field, key, value) {
+  var _a;
+  writer.tag(field.number, WireType.LengthDelimited).fork();
+  writeScalar(writer, field.parent.typeName, field.name, field.mapKey, 1, key);
+  switch (field.mapKind) {
+    case "scalar":
+    case "enum":
+      writeScalar(writer, field.parent.typeName, field.name, (_a = field.scalar) !== null && _a !== undefined ? _a : ScalarType.INT32, 2, value);
+      break;
+    case "message":
+      writeFields(writer.tag(2, WireType.LengthDelimited).fork(), opts, value).join();
+      break;
+  }
+  writer.join();
+}
+function writeScalarValue(writer, msgName, fieldName, type, value) {
+  try {
+    switch (type) {
+      case ScalarType.STRING:
+        writer.string(value);
+        break;
+      case ScalarType.BOOL:
+        writer.bool(value);
+        break;
+      case ScalarType.DOUBLE:
+        writer.double(value);
+        break;
+      case ScalarType.FLOAT:
+        writer.float(value);
+        break;
+      case ScalarType.INT32:
+        writer.int32(value);
+        break;
+      case ScalarType.INT64:
+        writer.int64(value);
+        break;
+      case ScalarType.UINT64:
+        writer.uint64(value);
+        break;
+      case ScalarType.FIXED64:
+        writer.fixed64(value);
+        break;
+      case ScalarType.BYTES:
+        writer.bytes(value);
+        break;
+      case ScalarType.FIXED32:
+        writer.fixed32(value);
+        break;
+      case ScalarType.SFIXED32:
+        writer.sfixed32(value);
+        break;
+      case ScalarType.SFIXED64:
+        writer.sfixed64(value);
+        break;
+      case ScalarType.SINT64:
+        writer.sint64(value);
+        break;
+      case ScalarType.UINT32:
+        writer.uint32(value);
+        break;
+      case ScalarType.SINT32:
+        writer.sint32(value);
+        break;
+    }
+  } catch (e) {
+    if (e instanceof Error) {
+      throw new Error(`cannot encode field ${msgName}.${fieldName} to binary: ${e.message}`);
+    }
+    throw e;
+  }
+}
+function writeTypeOfScalar(type) {
+  switch (type) {
+    case ScalarType.BYTES:
+    case ScalarType.STRING:
+      return WireType.LengthDelimited;
+    case ScalarType.DOUBLE:
+    case ScalarType.FIXED64:
+    case ScalarType.SFIXED64:
+      return WireType.Bit64;
+    case ScalarType.FIXED32:
+    case ScalarType.SFIXED32:
+    case ScalarType.FLOAT:
+      return WireType.Bit32;
+    default:
+      return WireType.Varint;
+  }
+}
+function anyPack(schema, message, into) {
+  let ret = false;
+  if (!into) {
+    into = create(AnySchema);
+    ret = true;
+  }
+  into.value = toBinary(schema, message);
+  into.typeUrl = typeNameToUrl(message.$typeName);
+  return ret ? into : undefined;
+}
+function anyIs(any, descOrTypeName) {
+  if (any.typeUrl === "") {
+    return false;
+  }
+  const want = typeof descOrTypeName == "string" ? descOrTypeName : descOrTypeName.typeName;
+  const got = typeUrlToName(any.typeUrl);
+  return want === got;
+}
+function anyUnpack(any, registryOrMessageDesc) {
+  if (any.typeUrl === "") {
+    return;
+  }
+  const desc = registryOrMessageDesc.kind == "message" ? registryOrMessageDesc : registryOrMessageDesc.getMessage(typeUrlToName(any.typeUrl));
+  if (!desc || !anyIs(any, desc)) {
+    return;
+  }
+  return fromBinary(desc, any.value);
+}
+function typeNameToUrl(name) {
+  return `type.googleapis.com/${name}`;
+}
+function typeUrlToName(url) {
+  const slash = url.lastIndexOf("/");
+  const name = slash >= 0 ? url.substring(slash + 1) : url;
+  if (!name.length) {
+    throw new Error(`invalid type url: ${url}`);
+  }
+  return name;
+}
+var file_google_protobuf_duration = /* @__PURE__ */ fileDesc("Ch5nb29nbGUvcHJvdG9idWYvZHVyYXRpb24ucHJvdG8SD2dvb2dsZS5wcm90b2J1ZiIqCghEdXJhdGlvbhIPCgdzZWNvbmRzGAEgASgDEg0KBW5hbm9zGAIgASgFQoMBChNjb20uZ29vZ2xlLnByb3RvYnVmQg1EdXJhdGlvblByb3RvUAFaMWdvb2dsZS5nb2xhbmcub3JnL3Byb3RvYnVmL3R5cGVzL2tub3duL2R1cmF0aW9ucGL4AQGiAgNHUEKqAh5Hb29nbGUuUHJvdG9idWYuV2VsbEtub3duVHlwZXNiBnByb3RvMw");
+var file_google_protobuf_empty = /* @__PURE__ */ fileDesc("Chtnb29nbGUvcHJvdG9idWYvZW1wdHkucHJvdG8SD2dvb2dsZS5wcm90b2J1ZiIHCgVFbXB0eUJ9ChNjb20uZ29vZ2xlLnByb3RvYnVmQgpFbXB0eVByb3RvUAFaLmdvb2dsZS5nb2xhbmcub3JnL3Byb3RvYnVmL3R5cGVzL2tub3duL2VtcHR5cGL4AQGiAgNHUEKqAh5Hb29nbGUuUHJvdG9idWYuV2VsbEtub3duVHlwZXNiBnByb3RvMw");
+var file_google_protobuf_struct = /* @__PURE__ */ fileDesc("Chxnb29nbGUvcHJvdG9idWYvc3RydWN0LnByb3RvEg9nb29nbGUucHJvdG9idWYihAEKBlN0cnVjdBIzCgZmaWVsZHMYASADKAsyIy5nb29nbGUucHJvdG9idWYuU3RydWN0LkZpZWxkc0VudHJ5GkUKC0ZpZWxkc0VudHJ5EgsKA2tleRgBIAEoCRIlCgV2YWx1ZRgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5WYWx1ZToCOAEi6gEKBVZhbHVlEjAKCm51bGxfdmFsdWUYASABKA4yGi5nb29nbGUucHJvdG9idWYuTnVsbFZhbHVlSAASFgoMbnVtYmVyX3ZhbHVlGAIgASgBSAASFgoMc3RyaW5nX3ZhbHVlGAMgASgJSAASFAoKYm9vbF92YWx1ZRgEIAEoCEgAEi8KDHN0cnVjdF92YWx1ZRgFIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3RIABIwCgpsaXN0X3ZhbHVlGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLkxpc3RWYWx1ZUgAQgYKBGtpbmQiMwoJTGlzdFZhbHVlEiYKBnZhbHVlcxgBIAMoCzIWLmdvb2dsZS5wcm90b2J1Zi5WYWx1ZSobCglOdWxsVmFsdWUSDgoKTlVMTF9WQUxVRRAAQn8KE2NvbS5nb29nbGUucHJvdG9idWZCC1N0cnVjdFByb3RvUAFaL2dvb2dsZS5nb2xhbmcub3JnL3Byb3RvYnVmL3R5cGVzL2tub3duL3N0cnVjdHBi+AEBogIDR1BCqgIeR29vZ2xlLlByb3RvYnVmLldlbGxLbm93blR5cGVzYgZwcm90bzM");
+var StructSchema = /* @__PURE__ */ messageDesc(file_google_protobuf_struct, 0);
+var ValueSchema = /* @__PURE__ */ messageDesc(file_google_protobuf_struct, 1);
+var ListValueSchema = /* @__PURE__ */ messageDesc(file_google_protobuf_struct, 2);
+var NullValue;
+(function(NullValue2) {
+  NullValue2[NullValue2["NULL_VALUE"] = 0] = "NULL_VALUE";
+})(NullValue || (NullValue = {}));
+function setExtension(message, extension, value) {
+  var _a;
+  assertExtendee(extension, message);
+  const ufs = ((_a = message.$unknown) !== null && _a !== undefined ? _a : []).filter((uf) => uf.no !== extension.number);
+  const [container, field] = createExtensionContainer(extension, value);
+  const writer = new BinaryWriter;
+  writeField(writer, { writeUnknownFields: true }, container, field);
+  const reader = new BinaryReader(writer.finish());
+  while (reader.pos < reader.len) {
+    const [no, wireType] = reader.tag();
+    const data = reader.skip(wireType, no);
+    ufs.push({ no, wireType, data });
+  }
+  message.$unknown = ufs;
+}
+function createExtensionContainer(extension, value) {
+  const localName = extension.typeName;
+  const field = Object.assign(Object.assign({}, extension), { kind: "field", parent: extension.extendee, localName });
+  const desc = Object.assign(Object.assign({}, extension.extendee), { fields: [field], members: [field], oneofs: [] });
+  const container = create(desc, value !== undefined ? { [localName]: value } : undefined);
+  return [
+    reflect(desc, container),
+    field,
+    () => {
+      const value2 = container[localName];
+      if (value2 === undefined) {
+        const desc2 = extension.message;
+        if (isWrapperDesc(desc2)) {
+          return scalarZeroValue(desc2.fields[0].scalar, desc2.fields[0].longAsString);
+        }
+        return create(desc2);
+      }
+      return value2;
+    }
+  ];
+}
+function assertExtendee(extension, message) {
+  if (extension.extendee.typeName != message.$typeName) {
+    throw new Error(`extension ${extension.typeName} can only be applied to message ${extension.extendee.typeName}`);
+  }
+}
+var jsonReadDefaults = {
+  ignoreUnknownFields: false
+};
+function makeReadOptions2(options) {
+  return options ? Object.assign(Object.assign({}, jsonReadDefaults), options) : jsonReadDefaults;
+}
+function fromJson(schema, json, options) {
+  const msg = reflect(schema);
+  try {
+    readMessage2(msg, json, makeReadOptions2(options));
+  } catch (e) {
+    if (isFieldError(e)) {
+      throw new Error(`cannot decode ${e.field()} from JSON: ${e.message}`, {
+        cause: e
+      });
+    }
+    throw e;
+  }
+  return msg.message;
+}
+function readMessage2(msg, json, opts) {
+  var _a;
+  if (tryWktFromJson(msg, json, opts)) {
+    return;
+  }
+  if (json == null || Array.isArray(json) || typeof json != "object") {
+    throw new Error(`cannot decode ${msg.desc} from JSON: ${formatVal(json)}`);
+  }
+  const oneofSeen = new Map;
+  const jsonNames = new Map;
+  for (const field of msg.desc.fields) {
+    jsonNames.set(field.name, field).set(field.jsonName, field);
+  }
+  for (const [jsonKey, jsonValue] of Object.entries(json)) {
+    const field = jsonNames.get(jsonKey);
+    if (field) {
+      if (field.oneof) {
+        if (jsonValue === null && field.fieldKind == "scalar") {
+          continue;
+        }
+        const seen = oneofSeen.get(field.oneof);
+        if (seen !== undefined) {
+          throw new FieldError(field.oneof, `oneof set multiple times by ${seen.name} and ${field.name}`);
+        }
+        oneofSeen.set(field.oneof, field);
+      }
+      readField2(msg, field, jsonValue, opts);
+    } else {
+      let extension = undefined;
+      if (jsonKey.startsWith("[") && jsonKey.endsWith("]") && (extension = (_a = opts.registry) === null || _a === undefined ? undefined : _a.getExtension(jsonKey.substring(1, jsonKey.length - 1))) && extension.extendee.typeName === msg.desc.typeName) {
+        const [container, field2, get] = createExtensionContainer(extension);
+        readField2(container, field2, jsonValue, opts);
+        setExtension(msg.message, extension, get());
+      }
+      if (!extension && !opts.ignoreUnknownFields) {
+        throw new Error(`cannot decode ${msg.desc} from JSON: key "${jsonKey}" is unknown`);
+      }
+    }
+  }
+}
+function readField2(msg, field, json, opts) {
+  switch (field.fieldKind) {
+    case "scalar":
+      readScalarField(msg, field, json);
+      break;
+    case "enum":
+      readEnumField(msg, field, json, opts);
+      break;
+    case "message":
+      readMessageField2(msg, field, json, opts);
+      break;
+    case "list":
+      readListField2(msg.get(field), json, opts);
+      break;
+    case "map":
+      readMapField(msg.get(field), json, opts);
+      break;
+  }
+}
+function readMapField(map, json, opts) {
+  if (json === null) {
+    return;
+  }
+  const field = map.field();
+  if (typeof json != "object" || Array.isArray(json)) {
+    throw new FieldError(field, "expected object, got " + formatVal(json));
+  }
+  for (const [jsonMapKey, jsonMapValue] of Object.entries(json)) {
+    if (jsonMapValue === null) {
+      throw new FieldError(field, "map value must not be null");
+    }
+    let value;
+    switch (field.mapKind) {
+      case "message":
+        const msgValue = reflect(field.message);
+        readMessage2(msgValue, jsonMapValue, opts);
+        value = msgValue;
+        break;
+      case "enum":
+        value = readEnum(field.enum, jsonMapValue, opts.ignoreUnknownFields, true);
+        if (value === tokenIgnoredUnknownEnum) {
+          return;
+        }
+        break;
+      case "scalar":
+        value = scalarFromJson(field, jsonMapValue, true);
+        break;
+    }
+    const key = mapKeyFromJson(field.mapKey, jsonMapKey);
+    map.set(key, value);
+  }
+}
+function readListField2(list, json, opts) {
+  if (json === null) {
+    return;
+  }
+  const field = list.field();
+  if (!Array.isArray(json)) {
+    throw new FieldError(field, "expected Array, got " + formatVal(json));
+  }
+  for (const jsonItem of json) {
+    if (jsonItem === null) {
+      throw new FieldError(field, "list item must not be null");
+    }
+    switch (field.listKind) {
+      case "message":
+        const msgValue = reflect(field.message);
+        readMessage2(msgValue, jsonItem, opts);
+        list.add(msgValue);
+        break;
+      case "enum":
+        const enumValue = readEnum(field.enum, jsonItem, opts.ignoreUnknownFields, true);
+        if (enumValue !== tokenIgnoredUnknownEnum) {
+          list.add(enumValue);
+        }
+        break;
+      case "scalar":
+        list.add(scalarFromJson(field, jsonItem, true));
+        break;
+    }
+  }
+}
+function readMessageField2(msg, field, json, opts) {
+  if (json === null && field.message.typeName != "google.protobuf.Value") {
+    msg.clear(field);
+    return;
+  }
+  const msgValue = msg.isSet(field) ? msg.get(field) : reflect(field.message);
+  readMessage2(msgValue, json, opts);
+  msg.set(field, msgValue);
+}
+function readEnumField(msg, field, json, opts) {
+  const enumValue = readEnum(field.enum, json, opts.ignoreUnknownFields, false);
+  if (enumValue === tokenNull) {
+    msg.clear(field);
+  } else if (enumValue !== tokenIgnoredUnknownEnum) {
+    msg.set(field, enumValue);
+  }
+}
+function readScalarField(msg, field, json) {
+  const scalarValue = scalarFromJson(field, json, false);
+  if (scalarValue === tokenNull) {
+    msg.clear(field);
+  } else {
+    msg.set(field, scalarValue);
+  }
+}
+var tokenIgnoredUnknownEnum = Symbol();
+function readEnum(desc, json, ignoreUnknownFields, nullAsZeroValue) {
+  if (json === null) {
+    if (desc.typeName == "google.protobuf.NullValue") {
+      return 0;
+    }
+    return nullAsZeroValue ? desc.values[0].number : tokenNull;
+  }
+  switch (typeof json) {
+    case "number":
+      if (Number.isInteger(json)) {
+        return json;
+      }
+      break;
+    case "string":
+      const value = desc.values.find((ev) => ev.name === json);
+      if (value !== undefined) {
+        return value.number;
+      }
+      if (ignoreUnknownFields) {
+        return tokenIgnoredUnknownEnum;
+      }
+      break;
+  }
+  throw new Error(`cannot decode ${desc} from JSON: ${formatVal(json)}`);
+}
+var tokenNull = Symbol();
+function scalarFromJson(field, json, nullAsZeroValue) {
+  if (json === null) {
+    if (nullAsZeroValue) {
+      return scalarZeroValue(field.scalar, false);
+    }
+    return tokenNull;
+  }
+  switch (field.scalar) {
+    case ScalarType.DOUBLE:
+    case ScalarType.FLOAT:
+      if (json === "NaN")
+        return NaN;
+      if (json === "Infinity")
+        return Number.POSITIVE_INFINITY;
+      if (json === "-Infinity")
+        return Number.NEGATIVE_INFINITY;
+      if (typeof json == "number") {
+        if (Number.isNaN(json)) {
+          throw new FieldError(field, "unexpected NaN number");
+        }
+        if (!Number.isFinite(json)) {
+          throw new FieldError(field, "unexpected infinite number");
+        }
+        break;
+      }
+      if (typeof json == "string") {
+        if (json === "") {
+          break;
+        }
+        if (json.trim().length !== json.length) {
+          break;
+        }
+        const float = Number(json);
+        if (!Number.isFinite(float)) {
+          break;
+        }
+        return float;
+      }
+      break;
+    case ScalarType.INT32:
+    case ScalarType.FIXED32:
+    case ScalarType.SFIXED32:
+    case ScalarType.SINT32:
+    case ScalarType.UINT32:
+      return int32FromJson(json);
+    case ScalarType.BYTES:
+      if (typeof json == "string") {
+        if (json === "") {
+          return new Uint8Array(0);
+        }
+        try {
+          return base64Decode(json);
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          throw new FieldError(field, message);
+        }
+      }
+      break;
+  }
+  return json;
+}
+function mapKeyFromJson(type, json) {
+  switch (type) {
+    case ScalarType.BOOL:
+      switch (json) {
+        case "true":
+          return true;
+        case "false":
+          return false;
+      }
+      return json;
+    case ScalarType.INT32:
+    case ScalarType.FIXED32:
+    case ScalarType.UINT32:
+    case ScalarType.SFIXED32:
+    case ScalarType.SINT32:
+      return int32FromJson(json);
+    default:
+      return json;
+  }
+}
+function int32FromJson(json) {
+  if (typeof json == "string") {
+    if (json === "") {
+      return json;
+    }
+    if (json.trim().length !== json.length) {
+      return json;
+    }
+    const num = Number(json);
+    if (Number.isNaN(num)) {
+      return json;
+    }
+    return num;
+  }
+  return json;
+}
+function tryWktFromJson(msg, jsonValue, opts) {
+  if (!msg.desc.typeName.startsWith("google.protobuf.")) {
+    return false;
+  }
+  switch (msg.desc.typeName) {
+    case "google.protobuf.Any":
+      anyFromJson(msg.message, jsonValue, opts);
+      return true;
+    case "google.protobuf.Timestamp":
+      timestampFromJson(msg.message, jsonValue);
+      return true;
+    case "google.protobuf.Duration":
+      durationFromJson(msg.message, jsonValue);
+      return true;
+    case "google.protobuf.FieldMask":
+      fieldMaskFromJson(msg.message, jsonValue);
+      return true;
+    case "google.protobuf.Struct":
+      structFromJson(msg.message, jsonValue);
+      return true;
+    case "google.protobuf.Value":
+      valueFromJson(msg.message, jsonValue);
+      return true;
+    case "google.protobuf.ListValue":
+      listValueFromJson(msg.message, jsonValue);
+      return true;
+    default:
+      if (isWrapperDesc(msg.desc)) {
+        const valueField = msg.desc.fields[0];
+        if (jsonValue === null) {
+          msg.clear(valueField);
+        } else {
+          msg.set(valueField, scalarFromJson(valueField, jsonValue, true));
+        }
+        return true;
+      }
+      return false;
+  }
+}
+function anyFromJson(any, json, opts) {
+  var _a;
+  if (json === null || Array.isArray(json) || typeof json != "object") {
+    throw new Error(`cannot decode message ${any.$typeName} from JSON: expected object but got ${formatVal(json)}`);
+  }
+  if (Object.keys(json).length == 0) {
+    return;
+  }
+  const typeUrl = json["@type"];
+  if (typeof typeUrl != "string" || typeUrl == "") {
+    throw new Error(`cannot decode message ${any.$typeName} from JSON: "@type" is empty`);
+  }
+  const typeName = typeUrl.includes("/") ? typeUrl.substring(typeUrl.lastIndexOf("/") + 1) : typeUrl;
+  if (!typeName.length) {
+    throw new Error(`cannot decode message ${any.$typeName} from JSON: "@type" is invalid`);
+  }
+  const desc = (_a = opts.registry) === null || _a === undefined ? undefined : _a.getMessage(typeName);
+  if (!desc) {
+    throw new Error(`cannot decode message ${any.$typeName} from JSON: ${typeUrl} is not in the type registry`);
+  }
+  const msg = reflect(desc);
+  if (typeName.startsWith("google.protobuf.") && Object.prototype.hasOwnProperty.call(json, "value")) {
+    const value = json.value;
+    readMessage2(msg, value, opts);
+  } else {
+    const copy = Object.assign({}, json);
+    delete copy["@type"];
+    readMessage2(msg, copy, opts);
+  }
+  anyPack(msg.desc, msg.message, any);
+}
+function timestampFromJson(timestamp, json) {
+  if (typeof json !== "string") {
+    throw new Error(`cannot decode message ${timestamp.$typeName} from JSON: ${formatVal(json)}`);
+  }
+  const matches = json.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?(?:Z|([+-][0-9][0-9]:[0-9][0-9]))$/);
+  if (!matches) {
+    throw new Error(`cannot decode message ${timestamp.$typeName} from JSON: invalid RFC 3339 string`);
+  }
+  const ms = Date.parse(matches[1] + "-" + matches[2] + "-" + matches[3] + "T" + matches[4] + ":" + matches[5] + ":" + matches[6] + (matches[8] ? matches[8] : "Z"));
+  if (Number.isNaN(ms)) {
+    throw new Error(`cannot decode message ${timestamp.$typeName} from JSON: invalid RFC 3339 string`);
+  }
+  if (ms < Date.parse("0001-01-01T00:00:00Z") || ms > Date.parse("9999-12-31T23:59:59Z")) {
+    throw new Error(`cannot decode message ${timestamp.$typeName} from JSON: must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive`);
+  }
+  timestamp.seconds = protoInt64.parse(ms / 1000);
+  timestamp.nanos = 0;
+  if (matches[7]) {
+    timestamp.nanos = parseInt("1" + matches[7] + "0".repeat(9 - matches[7].length)) - 1e9;
+  }
+}
+function durationFromJson(duration, json) {
+  if (typeof json !== "string") {
+    throw new Error(`cannot decode message ${duration.$typeName} from JSON: ${formatVal(json)}`);
+  }
+  const match = json.match(/^(-?[0-9]+)(?:\.([0-9]+))?s/);
+  if (match === null) {
+    throw new Error(`cannot decode message ${duration.$typeName} from JSON: ${formatVal(json)}`);
+  }
+  const longSeconds = Number(match[1]);
+  if (longSeconds > 315576000000 || longSeconds < -315576000000) {
+    throw new Error(`cannot decode message ${duration.$typeName} from JSON: ${formatVal(json)}`);
+  }
+  duration.seconds = protoInt64.parse(longSeconds);
+  if (typeof match[2] !== "string") {
+    return;
+  }
+  const nanosStr = match[2] + "0".repeat(9 - match[2].length);
+  duration.nanos = parseInt(nanosStr);
+  if (longSeconds < 0 || Object.is(longSeconds, -0)) {
+    duration.nanos = -duration.nanos;
+  }
+}
+function fieldMaskFromJson(fieldMask, json) {
+  if (typeof json !== "string") {
+    throw new Error(`cannot decode message ${fieldMask.$typeName} from JSON: ${formatVal(json)}`);
+  }
+  if (json === "") {
+    return;
+  }
+  function camelToSnake(str) {
+    if (str.includes("_")) {
+      throw new Error(`cannot decode message ${fieldMask.$typeName} from JSON: path names must be lowerCamelCase`);
+    }
+    const sc = str.replace(/[A-Z]/g, (letter) => "_" + letter.toLowerCase());
+    return sc[0] === "_" ? sc.substring(1) : sc;
+  }
+  fieldMask.paths = json.split(",").map(camelToSnake);
+}
+function structFromJson(struct, json) {
+  if (typeof json != "object" || json == null || Array.isArray(json)) {
+    throw new Error(`cannot decode message ${struct.$typeName} from JSON ${formatVal(json)}`);
+  }
+  for (const [k, v] of Object.entries(json)) {
+    const parsedV = create(ValueSchema);
+    valueFromJson(parsedV, v);
+    struct.fields[k] = parsedV;
+  }
+}
+function valueFromJson(value, json) {
+  switch (typeof json) {
+    case "number":
+      value.kind = { case: "numberValue", value: json };
+      break;
+    case "string":
+      value.kind = { case: "stringValue", value: json };
+      break;
+    case "boolean":
+      value.kind = { case: "boolValue", value: json };
+      break;
+    case "object":
+      if (json === null) {
+        value.kind = { case: "nullValue", value: NullValue.NULL_VALUE };
+      } else if (Array.isArray(json)) {
+        const listValue = create(ListValueSchema);
+        listValueFromJson(listValue, json);
+        value.kind = { case: "listValue", value: listValue };
+      } else {
+        const struct = create(StructSchema);
+        structFromJson(struct, json);
+        value.kind = { case: "structValue", value: struct };
+      }
+      break;
+    default:
+      throw new Error(`cannot decode message ${value.$typeName} from JSON ${formatVal(json)}`);
+  }
+  return value;
+}
+function listValueFromJson(listValue, json) {
+  if (!Array.isArray(json)) {
+    throw new Error(`cannot decode message ${listValue.$typeName} from JSON ${formatVal(json)}`);
+  }
+  for (const e of json) {
+    const value = create(ValueSchema);
+    valueFromJson(value, e);
+    listValue.values.push(value);
+  }
+}
+var file_values_v1_values = /* @__PURE__ */ fileDesc("ChZ2YWx1ZXMvdjEvdmFsdWVzLnByb3RvEgl2YWx1ZXMudjEigQMKBVZhbHVlEhYKDHN0cmluZ192YWx1ZRgBIAEoCUgAEhQKCmJvb2xfdmFsdWUYAiABKAhIABIVCgtieXRlc192YWx1ZRgDIAEoDEgAEiMKCW1hcF92YWx1ZRgEIAEoCzIOLnZhbHVlcy52MS5NYXBIABIlCgpsaXN0X3ZhbHVlGAUgASgLMg8udmFsdWVzLnYxLkxpc3RIABIrCg1kZWNpbWFsX3ZhbHVlGAYgASgLMhIudmFsdWVzLnYxLkRlY2ltYWxIABIZCgtpbnQ2NF92YWx1ZRgHIAEoA0ICMABIABIpCgxiaWdpbnRfdmFsdWUYCSABKAsyES52YWx1ZXMudjEuQmlnSW50SAASMAoKdGltZV92YWx1ZRgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBIABIXCg1mbG9hdDY0X3ZhbHVlGAsgASgBSAASGgoMdWludDY0X3ZhbHVlGAwgASgEQgIwAEgAQgcKBXZhbHVlSgQICBAJIisKBkJpZ0ludBIPCgdhYnNfdmFsGAEgASgMEhAKBHNpZ24YAiABKANCAjAAInIKA01hcBIqCgZmaWVsZHMYASADKAsyGi52YWx1ZXMudjEuTWFwLkZpZWxkc0VudHJ5Gj8KC0ZpZWxkc0VudHJ5EgsKA2tleRgBIAEoCRIfCgV2YWx1ZRgCIAEoCzIQLnZhbHVlcy52MS5WYWx1ZToCOAEiKAoETGlzdBIgCgZmaWVsZHMYAiADKAsyEC52YWx1ZXMudjEuVmFsdWUiQwoHRGVjaW1hbBImCgtjb2VmZmljaWVudBgBIAEoCzIRLnZhbHVlcy52MS5CaWdJbnQSEAoIZXhwb25lbnQYAiABKAVCYQoNY29tLnZhbHVlcy52MUILVmFsdWVzUHJvdG9QAaICA1ZYWKoCCVZhbHVlcy5WMcoCCVZhbHVlc1xWMeICFVZhbHVlc1xWMVxHUEJNZXRhZGF0YeoCClZhbHVlczo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+var ValueSchema2 = /* @__PURE__ */ messageDesc(file_values_v1_values, 0);
+var BigIntSchema = /* @__PURE__ */ messageDesc(file_values_v1_values, 1);
+var MapSchema = /* @__PURE__ */ messageDesc(file_values_v1_values, 2);
+var ListSchema = /* @__PURE__ */ messageDesc(file_values_v1_values, 3);
+var DecimalSchema = /* @__PURE__ */ messageDesc(file_values_v1_values, 4);
+var file_sdk_v1alpha_sdk = /* @__PURE__ */ fileDesc("ChVzZGsvdjFhbHBoYS9zZGsucHJvdG8SC3Nkay52MWFscGhhIrQBChVTaW1wbGVDb25zZW5zdXNJbnB1dHMSIQoFdmFsdWUYASABKAsyEC52YWx1ZXMudjEuVmFsdWVIABIPCgVlcnJvchgCIAEoCUgAEjUKC2Rlc2NyaXB0b3JzGAMgASgLMiAuc2RrLnYxYWxwaGEuQ29uc2Vuc3VzRGVzY3JpcHRvchIhCgdkZWZhdWx0GAQgASgLMhAudmFsdWVzLnYxLlZhbHVlQg0KC29ic2VydmF0aW9uIpABCglGaWVsZHNNYXASMgoGZmllbGRzGAEgAygLMiIuc2RrLnYxYWxwaGEuRmllbGRzTWFwLkZpZWxkc0VudHJ5Gk8KC0ZpZWxkc0VudHJ5EgsKA2tleRgBIAEoCRIvCgV2YWx1ZRgCIAEoCzIgLnNkay52MWFscGhhLkNvbnNlbnN1c0Rlc2NyaXB0b3I6AjgBIoYBChNDb25zZW5zdXNEZXNjcmlwdG9yEjMKC2FnZ3JlZ2F0aW9uGAEgASgOMhwuc2RrLnYxYWxwaGEuQWdncmVnYXRpb25UeXBlSAASLAoKZmllbGRzX21hcBgCIAEoCzIWLnNkay52MWFscGhhLkZpZWxkc01hcEgAQgwKCmRlc2NyaXB0b3IiagoNUmVwb3J0UmVxdWVzdBIXCg9lbmNvZGVkX3BheWxvYWQYASABKAwSFAoMZW5jb2Rlcl9uYW1lGAIgASgJEhQKDHNpZ25pbmdfYWxnbxgDIAEoCRIUCgxoYXNoaW5nX2FsZ28YBCABKAkilwEKDlJlcG9ydFJlc3BvbnNlEhUKDWNvbmZpZ19kaWdlc3QYASABKAwSEgoGc2VxX25yGAIgASgEQgIwABIWCg5yZXBvcnRfY29udGV4dBgDIAEoDBISCgpyYXdfcmVwb3J0GAQgASgMEi4KBHNpZ3MYBSADKAsyIC5zZGsudjFhbHBoYS5BdHRyaWJ1dGVkU2lnbmF0dXJlIjsKE0F0dHJpYnV0ZWRTaWduYXR1cmUSEQoJc2lnbmF0dXJlGAEgASgMEhEKCXNpZ25lcl9pZBgCIAEoDSJrChFDYXBhYmlsaXR5UmVxdWVzdBIKCgJpZBgBIAEoCRIlCgdwYXlsb2FkGAIgASgLMhQuZ29vZ2xlLnByb3RvYnVmLkFueRIOCgZtZXRob2QYAyABKAkSEwoLY2FsbGJhY2tfaWQYBCABKAUiWgoSQ2FwYWJpbGl0eVJlc3BvbnNlEicKB3BheWxvYWQYASABKAsyFC5nb29nbGUucHJvdG9idWYuQW55SAASDwoFZXJyb3IYAiABKAlIAEIKCghyZXNwb25zZSJYChNUcmlnZ2VyU3Vic2NyaXB0aW9uEgoKAmlkGAEgASgJEiUKB3BheWxvYWQYAiABKAsyFC5nb29nbGUucHJvdG9idWYuQW55Eg4KBm1ldGhvZBgDIAEoCSJVChpUcmlnZ2VyU3Vic2NyaXB0aW9uUmVxdWVzdBI3Cg1zdWJzY3JpcHRpb25zGAEgAygLMiAuc2RrLnYxYWxwaGEuVHJpZ2dlclN1YnNjcmlwdGlvbiJACgdUcmlnZ2VyEg4KAmlkGAEgASgEQgIwABIlCgdwYXlsb2FkGAIgASgLMhQuZ29vZ2xlLnByb3RvYnVmLkFueSInChhBd2FpdENhcGFiaWxpdGllc1JlcXVlc3QSCwoDaWRzGAEgAygFIrgBChlBd2FpdENhcGFiaWxpdGllc1Jlc3BvbnNlEkgKCXJlc3BvbnNlcxgBIAMoCzI1LnNkay52MWFscGhhLkF3YWl0Q2FwYWJpbGl0aWVzUmVzcG9uc2UuUmVzcG9uc2VzRW50cnkaUQoOUmVzcG9uc2VzRW50cnkSCwoDa2V5GAEgASgFEi4KBXZhbHVlGAIgASgLMh8uc2RrLnYxYWxwaGEuQ2FwYWJpbGl0eVJlc3BvbnNlOgI4ASKgAQoORXhlY3V0ZVJlcXVlc3QSDgoGY29uZmlnGAEgASgMEisKCXN1YnNjcmliZRgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEicKB3RyaWdnZXIYAyABKAsyFC5zZGsudjFhbHBoYS5UcmlnZ2VySAASHQoRbWF4X3Jlc3BvbnNlX3NpemUYBCABKARCAjAAQgkKB3JlcXVlc3QimQEKD0V4ZWN1dGlvblJlc3VsdBIhCgV2YWx1ZRgBIAEoCzIQLnZhbHVlcy52MS5WYWx1ZUgAEg8KBWVycm9yGAIgASgJSAASSAoVdHJpZ2dlcl9zdWJzY3JpcHRpb25zGAMgASgLMicuc2RrLnYxYWxwaGEuVHJpZ2dlclN1YnNjcmlwdGlvblJlcXVlc3RIAEIICgZyZXN1bHQiVgoRR2V0U2VjcmV0c1JlcXVlc3QSLAoIcmVxdWVzdHMYASADKAsyGi5zZGsudjFhbHBoYS5TZWNyZXRSZXF1ZXN0EhMKC2NhbGxiYWNrX2lkGAIgASgFIiIKE0F3YWl0U2VjcmV0c1JlcXVlc3QSCwoDaWRzGAEgAygFIqsBChRBd2FpdFNlY3JldHNSZXNwb25zZRJDCglyZXNwb25zZXMYASADKAsyMC5zZGsudjFhbHBoYS5Bd2FpdFNlY3JldHNSZXNwb25zZS5SZXNwb25zZXNFbnRyeRpOCg5SZXNwb25zZXNFbnRyeRILCgNrZXkYASABKAUSKwoFdmFsdWUYAiABKAsyHC5zZGsudjFhbHBoYS5TZWNyZXRSZXNwb25zZXM6AjgBIi4KDVNlY3JldFJlcXVlc3QSCgoCaWQYASABKAkSEQoJbmFtZXNwYWNlGAIgASgJIkUKBlNlY3JldBIKCgJpZBgBIAEoCRIRCgluYW1lc3BhY2UYAiABKAkSDQoFb3duZXIYAyABKAkSDQoFdmFsdWUYBCABKAkiSgoLU2VjcmV0RXJyb3ISCgoCaWQYASABKAkSEQoJbmFtZXNwYWNlGAIgASgJEg0KBW93bmVyGAMgASgJEg0KBWVycm9yGAQgASgJIm4KDlNlY3JldFJlc3BvbnNlEiUKBnNlY3JldBgBIAEoCzITLnNkay52MWFscGhhLlNlY3JldEgAEikKBWVycm9yGAIgASgLMhguc2RrLnYxYWxwaGEuU2VjcmV0RXJyb3JIAEIKCghyZXNwb25zZSJBCg9TZWNyZXRSZXNwb25zZXMSLgoJcmVzcG9uc2VzGAEgAygLMhsuc2RrLnYxYWxwaGEuU2VjcmV0UmVzcG9uc2UquAEKD0FnZ3JlZ2F0aW9uVHlwZRIgChxBR0dSRUdBVElPTl9UWVBFX1VOU1BFQ0lGSUVEEAASGwoXQUdHUkVHQVRJT05fVFlQRV9NRURJQU4QARIeChpBR0dSRUdBVElPTl9UWVBFX0lERU5USUNBTBACEiIKHkFHR1JFR0FUSU9OX1RZUEVfQ09NTU9OX1BSRUZJWBADEiIKHkFHR1JFR0FUSU9OX1RZUEVfQ09NTU9OX1NVRkZJWBAEKjkKBE1vZGUSFAoQTU9ERV9VTlNQRUNJRklFRBAAEgwKCE1PREVfRE9OEAESDQoJTU9ERV9OT0RFEAJCaAoPY29tLnNkay52MWFscGhhQghTZGtQcm90b1ABogIDU1hYqgILU2RrLlYxYWxwaGHKAgtTZGtcVjFhbHBoYeICF1Nka1xWMWFscGhhXEdQQk1ldGFkYXRh6gIMU2RrOjpWMWFscGhhYgZwcm90bzM", [file_google_protobuf_any, file_google_protobuf_empty, file_values_v1_values]);
+var SimpleConsensusInputsSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 0);
+var ReportRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 3);
+var ReportResponseSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 4);
+var CapabilityRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 6);
+var TriggerSubscriptionRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 9);
+var AwaitCapabilitiesRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 11);
+var AwaitCapabilitiesResponseSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 12);
+var ExecuteRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 13);
+var ExecutionResultSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 14);
+var GetSecretsRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 15);
+var AwaitSecretsRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 16);
+var AwaitSecretsResponseSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 17);
+var SecretRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 18);
+var AggregationType;
+(function(AggregationType2) {
+  AggregationType2[AggregationType2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
+  AggregationType2[AggregationType2["MEDIAN"] = 1] = "MEDIAN";
+  AggregationType2[AggregationType2["IDENTICAL"] = 2] = "IDENTICAL";
+  AggregationType2[AggregationType2["COMMON_PREFIX"] = 3] = "COMMON_PREFIX";
+  AggregationType2[AggregationType2["COMMON_SUFFIX"] = 4] = "COMMON_SUFFIX";
+})(AggregationType || (AggregationType = {}));
+var Mode;
+(function(Mode2) {
+  Mode2[Mode2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
+  Mode2[Mode2["DON"] = 1] = "DON";
+  Mode2[Mode2["NODE"] = 2] = "NODE";
+})(Mode || (Mode = {}));
+var file_tools_generator_v1alpha_cre_metadata = /* @__PURE__ */ fileDesc("Cip0b29scy9nZW5lcmF0b3IvdjFhbHBoYS9jcmVfbWV0YWRhdGEucHJvdG8SF3Rvb2xzLmdlbmVyYXRvci52MWFscGhhIoQBCgtTdHJpbmdMYWJlbBJECghkZWZhdWx0cxgBIAMoCzIyLnRvb2xzLmdlbmVyYXRvci52MWFscGhhLlN0cmluZ0xhYmVsLkRlZmF1bHRzRW50cnkaLwoNRGVmYXVsdHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIogBCgtVaW50NjRMYWJlbBJECghkZWZhdWx0cxgBIAMoCzIyLnRvb2xzLmdlbmVyYXRvci52MWFscGhhLlVpbnQ2NExhYmVsLkRlZmF1bHRzRW50cnkaMwoNRGVmYXVsdHNFbnRyeRILCgNrZXkYASABKAkSEQoFdmFsdWUYAiABKARCAjAAOgI4ASKEAQoLVWludDMyTGFiZWwSRAoIZGVmYXVsdHMYASADKAsyMi50b29scy5nZW5lcmF0b3IudjFhbHBoYS5VaW50MzJMYWJlbC5EZWZhdWx0c0VudHJ5Gi8KDURlZmF1bHRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgNOgI4ASKGAQoKSW50NjRMYWJlbBJDCghkZWZhdWx0cxgBIAMoCzIxLnRvb2xzLmdlbmVyYXRvci52MWFscGhhLkludDY0TGFiZWwuRGVmYXVsdHNFbnRyeRozCg1EZWZhdWx0c0VudHJ5EgsKA2tleRgBIAEoCRIRCgV2YWx1ZRgCIAEoA0ICMAA6AjgBIoIBCgpJbnQzMkxhYmVsEkMKCGRlZmF1bHRzGAEgAygLMjEudG9vbHMuZ2VuZXJhdG9yLnYxYWxwaGEuSW50MzJMYWJlbC5EZWZhdWx0c0VudHJ5Gi8KDURlZmF1bHRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgFOgI4ASLBAgoFTGFiZWwSPAoMc3RyaW5nX2xhYmVsGAEgASgLMiQudG9vbHMuZ2VuZXJhdG9yLnYxYWxwaGEuU3RyaW5nTGFiZWxIABI8Cgx1aW50NjRfbGFiZWwYAiABKAsyJC50b29scy5nZW5lcmF0b3IudjFhbHBoYS5VaW50NjRMYWJlbEgAEjoKC2ludDY0X2xhYmVsGAMgASgLMiMudG9vbHMuZ2VuZXJhdG9yLnYxYWxwaGEuSW50NjRMYWJlbEgAEjwKDHVpbnQzMl9sYWJlbBgEIAEoCzIkLnRvb2xzLmdlbmVyYXRvci52MWFscGhhLlVpbnQzMkxhYmVsSAASOgoLaW50MzJfbGFiZWwYBSABKAsyIy50b29scy5nZW5lcmF0b3IudjFhbHBoYS5JbnQzMkxhYmVsSABCBgoEa2luZCLkAQoSQ2FwYWJpbGl0eU1ldGFkYXRhEh8KBG1vZGUYASABKA4yES5zZGsudjFhbHBoYS5Nb2RlEhUKDWNhcGFiaWxpdHlfaWQYAiABKAkSRwoGbGFiZWxzGAMgAygLMjcudG9vbHMuZ2VuZXJhdG9yLnYxYWxwaGEuQ2FwYWJpbGl0eU1ldGFkYXRhLkxhYmVsc0VudHJ5Gk0KC0xhYmVsc0VudHJ5EgsKA2tleRgBIAEoCRItCgV2YWx1ZRgCIAEoCzIeLnRvb2xzLmdlbmVyYXRvci52MWFscGhhLkxhYmVsOgI4ASI2ChhDYXBhYmlsaXR5TWV0aG9kTWV0YWRhdGESGgoSbWFwX3RvX3VudHlwZWRfYXBpGAEgASgIOm4KCmNhcGFiaWxpdHkSHy5nb29nbGUucHJvdG9idWYuU2VydmljZU9wdGlvbnMY0IYDIAEoCzIrLnRvb2xzLmdlbmVyYXRvci52MWFscGhhLkNhcGFiaWxpdHlNZXRhZGF0YVIKY2FwYWJpbGl0eTprCgZtZXRob2QSHi5nb29nbGUucHJvdG9idWYuTWV0aG9kT3B0aW9ucxjRhgMgASgLMjEudG9vbHMuZ2VuZXJhdG9yLnYxYWxwaGEuQ2FwYWJpbGl0eU1ldGhvZE1ldGFkYXRhUgZtZXRob2RCrwEKG2NvbS50b29scy5nZW5lcmF0b3IudjFhbHBoYUIQQ3JlTWV0YWRhdGFQcm90b1ABogIDVEdYqgIXVG9vbHMuR2VuZXJhdG9yLlYxYWxwaGHKAhhUb29sc1xHZW5lcmF0b3JfXFYxYWxwaGHiAiRUb29sc1xHZW5lcmF0b3JfXFYxYWxwaGFcR1BCTWV0YWRhdGHqAhlUb29sczo6R2VuZXJhdG9yOjpWMWFscGhhYgZwcm90bzM", [file_google_protobuf_descriptor, file_sdk_v1alpha_sdk]);
+var file_capabilities_blockchain_evm_v1alpha_client = /* @__PURE__ */ fileDesc("CjBjYXBhYmlsaXRpZXMvYmxvY2tjaGFpbi9ldm0vdjFhbHBoYS9jbGllbnQucHJvdG8SI2NhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhIh0KC1RvcGljVmFsdWVzEg4KBnZhbHVlcxgBIAMoDCK4AQoXRmlsdGVyTG9nVHJpZ2dlclJlcXVlc3QSEQoJYWRkcmVzc2VzGAEgAygMEkAKBnRvcGljcxgCIAMoCzIwLmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLlRvcGljVmFsdWVzEkgKCmNvbmZpZGVuY2UYAyABKA4yNC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5Db25maWRlbmNlTGV2ZWwiegoTQ2FsbENvbnRyYWN0UmVxdWVzdBI6CgRjYWxsGAEgASgLMiwuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuQ2FsbE1zZxInCgxibG9ja19udW1iZXIYAiABKAsyES52YWx1ZXMudjEuQmlnSW50IiEKEUNhbGxDb250cmFjdFJlcGx5EgwKBGRhdGEYASABKAwiWwoRRmlsdGVyTG9nc1JlcXVlc3QSRgoMZmlsdGVyX3F1ZXJ5GAEgASgLMjAuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuRmlsdGVyUXVlcnkiSQoPRmlsdGVyTG9nc1JlcGx5EjYKBGxvZ3MYASADKAsyKC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5Mb2cixwEKA0xvZxIPCgdhZGRyZXNzGAEgASgMEg4KBnRvcGljcxgCIAMoDBIPCgd0eF9oYXNoGAMgASgMEhIKCmJsb2NrX2hhc2gYBCABKAwSDAoEZGF0YRgFIAEoDBIRCglldmVudF9zaWcYBiABKAwSJwoMYmxvY2tfbnVtYmVyGAcgASgLMhEudmFsdWVzLnYxLkJpZ0ludBIQCgh0eF9pbmRleBgIIAEoDRINCgVpbmRleBgJIAEoDRIPCgdyZW1vdmVkGAogASgIIjEKB0NhbGxNc2cSDAoEZnJvbRgBIAEoDBIKCgJ0bxgCIAEoDBIMCgRkYXRhGAMgASgMIr0BCgtGaWx0ZXJRdWVyeRISCgpibG9ja19oYXNoGAEgASgMEiUKCmZyb21fYmxvY2sYAiABKAsyES52YWx1ZXMudjEuQmlnSW50EiMKCHRvX2Jsb2NrGAMgASgLMhEudmFsdWVzLnYxLkJpZ0ludBIRCglhZGRyZXNzZXMYBCADKAwSOwoGdG9waWNzGAUgAygLMisuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuVG9waWNzIhcKBlRvcGljcxINCgV0b3BpYxgBIAMoDCJMChBCYWxhbmNlQXRSZXF1ZXN0Eg8KB2FjY291bnQYASABKAwSJwoMYmxvY2tfbnVtYmVyGAIgASgLMhEudmFsdWVzLnYxLkJpZ0ludCI0Cg5CYWxhbmNlQXRSZXBseRIiCgdiYWxhbmNlGAEgASgLMhEudmFsdWVzLnYxLkJpZ0ludCJPChJFc3RpbWF0ZUdhc1JlcXVlc3QSOQoDbXNnGAEgASgLMiwuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuQ2FsbE1zZyIjChBFc3RpbWF0ZUdhc1JlcGx5Eg8KA2dhcxgBIAEoBEICMAAiKwobR2V0VHJhbnNhY3Rpb25CeUhhc2hSZXF1ZXN0EgwKBGhhc2gYASABKAwiYgoZR2V0VHJhbnNhY3Rpb25CeUhhc2hSZXBseRJFCgt0cmFuc2FjdGlvbhgBIAEoCzIwLmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLlRyYW5zYWN0aW9uIqEBCgtUcmFuc2FjdGlvbhIRCgVub25jZRgBIAEoBEICMAASDwoDZ2FzGAIgASgEQgIwABIKCgJ0bxgDIAEoDBIMCgRkYXRhGAQgASgMEgwKBGhhc2gYBSABKAwSIAoFdmFsdWUYBiABKAsyES52YWx1ZXMudjEuQmlnSW50EiQKCWdhc19wcmljZRgHIAEoCzIRLnZhbHVlcy52MS5CaWdJbnQiLAocR2V0VHJhbnNhY3Rpb25SZWNlaXB0UmVxdWVzdBIMCgRoYXNoGAEgASgMIlsKGkdldFRyYW5zYWN0aW9uUmVjZWlwdFJlcGx5Ej0KB3JlY2VpcHQYASABKAsyLC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5SZWNlaXB0IpkCCgdSZWNlaXB0EhIKBnN0YXR1cxgBIAEoBEICMAASFAoIZ2FzX3VzZWQYAiABKARCAjAAEhQKCHR4X2luZGV4GAMgASgEQgIwABISCgpibG9ja19oYXNoGAQgASgMEjYKBGxvZ3MYBiADKAsyKC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5Mb2cSDwoHdHhfaGFzaBgHIAEoDBIuChNlZmZlY3RpdmVfZ2FzX3ByaWNlGAggASgLMhEudmFsdWVzLnYxLkJpZ0ludBInCgxibG9ja19udW1iZXIYCSABKAsyES52YWx1ZXMudjEuQmlnSW50EhgKEGNvbnRyYWN0X2FkZHJlc3MYCiABKAwiQAoVSGVhZGVyQnlOdW1iZXJSZXF1ZXN0EicKDGJsb2NrX251bWJlchgBIAEoCzIRLnZhbHVlcy52MS5CaWdJbnQiUgoTSGVhZGVyQnlOdW1iZXJSZXBseRI7CgZoZWFkZXIYASABKAsyKy5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5IZWFkZXIiawoGSGVhZGVyEhUKCXRpbWVzdGFtcBgBIAEoBEICMAASJwoMYmxvY2tfbnVtYmVyGAIgASgLMhEudmFsdWVzLnYxLkJpZ0ludBIMCgRoYXNoGAMgASgMEhMKC3BhcmVudF9oYXNoGAQgASgMIqsBChJXcml0ZVJlcG9ydFJlcXVlc3QSEAoIcmVjZWl2ZXIYASABKAwSKwoGcmVwb3J0GAIgASgLMhsuc2RrLnYxYWxwaGEuUmVwb3J0UmVzcG9uc2USRwoKZ2FzX2NvbmZpZxgDIAEoCzIuLmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLkdhc0NvbmZpZ0gAiAEBQg0KC19nYXNfY29uZmlnIiIKCUdhc0NvbmZpZxIVCglnYXNfbGltaXQYASABKARCAjAAIocDChBXcml0ZVJlcG9ydFJlcGx5EkAKCXR4X3N0YXR1cxgBIAEoDjItLmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLlR4U3RhdHVzEnUKInJlY2VpdmVyX2NvbnRyYWN0X2V4ZWN1dGlvbl9zdGF0dXMYAiABKA4yRC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5SZWNlaXZlckNvbnRyYWN0RXhlY3V0aW9uU3RhdHVzSACIAQESFAoHdHhfaGFzaBgDIAEoDEgBiAEBEi8KD3RyYW5zYWN0aW9uX2ZlZRgEIAEoCzIRLnZhbHVlcy52MS5CaWdJbnRIAogBARIaCg1lcnJvcl9tZXNzYWdlGAUgASgJSAOIAQFCJQojX3JlY2VpdmVyX2NvbnRyYWN0X2V4ZWN1dGlvbl9zdGF0dXNCCgoIX3R4X2hhc2hCEgoQX3RyYW5zYWN0aW9uX2ZlZUIQCg5fZXJyb3JfbWVzc2FnZSppCg9Db25maWRlbmNlTGV2ZWwSGQoVQ09ORklERU5DRV9MRVZFTF9TQUZFEAASGwoXQ09ORklERU5DRV9MRVZFTF9MQVRFU1QQARIeChpDT05GSURFTkNFX0xFVkVMX0ZJTkFMSVpFRBACKoIBCh9SZWNlaXZlckNvbnRyYWN0RXhlY3V0aW9uU3RhdHVzEi4KKlJFQ0VJVkVSX0NPTlRSQUNUX0VYRUNVVElPTl9TVEFUVVNfU1VDQ0VTUxAAEi8KK1JFQ0VJVkVSX0NPTlRSQUNUX0VYRUNVVElPTl9TVEFUVVNfUkVWRVJURUQQASpOCghUeFN0YXR1cxITCg9UWF9TVEFUVVNfRkFUQUwQABIWChJUWF9TVEFUVVNfUkVWRVJURUQQARIVChFUWF9TVEFUVVNfU1VDQ0VTUxACMssRCgZDbGllbnQSgAEKDENhbGxDb250cmFjdBI4LmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLkNhbGxDb250cmFjdFJlcXVlc3QaNi5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5DYWxsQ29udHJhY3RSZXBseRJ6CgpGaWx0ZXJMb2dzEjYuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuRmlsdGVyTG9nc1JlcXVlc3QaNC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5GaWx0ZXJMb2dzUmVwbHkSdwoJQmFsYW5jZUF0EjUuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuQmFsYW5jZUF0UmVxdWVzdBozLmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLkJhbGFuY2VBdFJlcGx5En0KC0VzdGltYXRlR2FzEjcuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuRXN0aW1hdGVHYXNSZXF1ZXN0GjUuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuRXN0aW1hdGVHYXNSZXBseRKYAQoUR2V0VHJhbnNhY3Rpb25CeUhhc2gSQC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5HZXRUcmFuc2FjdGlvbkJ5SGFzaFJlcXVlc3QaPi5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5HZXRUcmFuc2FjdGlvbkJ5SGFzaFJlcGx5EpsBChVHZXRUcmFuc2FjdGlvblJlY2VpcHQSQS5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5HZXRUcmFuc2FjdGlvblJlY2VpcHRSZXF1ZXN0Gj8uY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuR2V0VHJhbnNhY3Rpb25SZWNlaXB0UmVwbHkShgEKDkhlYWRlckJ5TnVtYmVyEjouY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuSGVhZGVyQnlOdW1iZXJSZXF1ZXN0GjguY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuSGVhZGVyQnlOdW1iZXJSZXBseRJ2CgpMb2dUcmlnZ2VyEjwuY2FwYWJpbGl0aWVzLmJsb2NrY2hhaW4uZXZtLnYxYWxwaGEuRmlsdGVyTG9nVHJpZ2dlclJlcXVlc3QaKC5jYXBhYmlsaXRpZXMuYmxvY2tjaGFpbi5ldm0udjFhbHBoYS5Mb2cwARJ9CgtXcml0ZVJlcG9ydBI3LmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLldyaXRlUmVwb3J0UmVxdWVzdBo1LmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhLldyaXRlUmVwb3J0UmVwbHkakAiCtRiLCAgBEglldm1AMS4wLjAa+wcKDUNoYWluU2VsZWN0b3IS6QcS5gcKJAoXYXBlY2hhaW4tdGVzdG5ldC1jdXJ0aXMQwcO0+I3EkrKJAQoXCgthcmMtdGVzdG5ldBDnxoye19fQjSoKHQoRYXZhbGFuY2hlLW1haW5uZXQQ1eeKwOHVmKRZCiMKFmF2YWxhbmNoZS10ZXN0bmV0LWZ1amkQm/n8kKLjqPjMAQooChtiaW5hbmNlX3NtYXJ0X2NoYWluLW1haW5uZXQQz/eU8djtlbidAQooChtiaW5hbmNlX3NtYXJ0X2NoYWluLXRlc3RuZXQQ+62+nICu5Iq4AQocChBldGhlcmV1bS1tYWlubmV0EJX28eTPsqbCRQonChtldGhlcmV1bS1tYWlubmV0LWFyYml0cnVtLTEQxOiNzY6boddECiQKF2V0aGVyZXVtLW1haW5uZXQtYmFzZS0xEIL/q6L+uZDT3QEKJwobZXRoZXJldW0tbWFpbm5ldC1vcHRpbWlzbS0xELiVj8P3/tDpMwopCh1ldGhlcmV1bS1tYWlubmV0LXdvcmxkY2hhaW4tMRCH77q3xbbCuBwKJQoZZXRoZXJldW0tbWFpbm5ldC16a3N5bmMtMRCU7pfZ7bSx1xUKJQoYZXRoZXJldW0tdGVzdG5ldC1zZXBvbGlhENm15M78ye6g3gEKLwojZXRoZXJldW0tdGVzdG5ldC1zZXBvbGlhLWFyYml0cnVtLTEQ6s7u/+q2hKMwCiwKH2V0aGVyZXVtLXRlc3RuZXQtc2Vwb2xpYS1iYXNlLTEQuMq57/aQrsiPAQosCiBldGhlcmV1bS10ZXN0bmV0LXNlcG9saWEtbGluZWEtMRDrqtT+gvnmr08KLwojZXRoZXJldW0tdGVzdG5ldC1zZXBvbGlhLW9wdGltaXNtLTEQn4bFob7Yw8BICjEKJWV0aGVyZXVtLXRlc3RuZXQtc2Vwb2xpYS13b3JsZGNoYWluLTEQut/gxcep88VJCi0KIWV0aGVyZXVtLXRlc3RuZXQtc2Vwb2xpYS16a3N5bmMtMRC3wfz98sSA3l8KHwoTaHlwZXJsaXF1aWQtdGVzdG5ldBCIzt3Il+DJvTsKIAoTaW5rLXRlc3RuZXQtc2Vwb2xpYRDo9Kel8+aWwIcBChkKDWpvdmF5LXRlc3RuZXQQ5M+KhN6y3o4NChoKDnBsYXNtYS10ZXN0bmV0ENWbv6XDtJmHNwobCg9wb2x5Z29uLW1haW5uZXQQsavk8JqShp04CiEKFHBvbHlnb24tdGVzdG5ldC1hbW95EM2P1t/xx5D64QEKJAoYcHJpdmF0ZS10ZXN0bmV0LWFuZGVzaXRlENSmmKXBj9z8X0LlAQonY29tLmNhcGFiaWxpdGllcy5ibG9ja2NoYWluLmV2bS52MWFscGhhQgtDbGllbnRQcm90b1ABogIDQ0JFqgIjQ2FwYWJpbGl0aWVzLkJsb2NrY2hhaW4uRXZtLlYxYWxwaGHKAiNDYXBhYmlsaXRpZXNcQmxvY2tjaGFpblxFdm1cVjFhbHBoYeICL0NhcGFiaWxpdGllc1xCbG9ja2NoYWluXEV2bVxWMWFscGhhXEdQQk1ldGFkYXRh6gImQ2FwYWJpbGl0aWVzOjpCbG9ja2NoYWluOjpFdm06OlYxYWxwaGFiBnByb3RvMw", [file_sdk_v1alpha_sdk, file_tools_generator_v1alpha_cre_metadata, file_values_v1_values]);
+var FilterLogTriggerRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 1);
+var CallContractRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 2);
+var CallContractReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 3);
+var FilterLogsRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 4);
+var FilterLogsReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 5);
+var LogSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 6);
+var BalanceAtRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 10);
+var BalanceAtReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 11);
+var EstimateGasRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 12);
+var EstimateGasReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 13);
+var GetTransactionByHashRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 14);
+var GetTransactionByHashReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 15);
+var GetTransactionReceiptRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 17);
+var GetTransactionReceiptReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 18);
+var HeaderByNumberRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 20);
+var HeaderByNumberReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 21);
+var WriteReportRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 23);
+var GasConfigSchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 24);
+var WriteReportReplySchema = /* @__PURE__ */ messageDesc(file_capabilities_blockchain_evm_v1alpha_client, 25);
+var ConfidenceLevel;
+(function(ConfidenceLevel2) {
+  ConfidenceLevel2[ConfidenceLevel2["SAFE"] = 0] = "SAFE";
+  ConfidenceLevel2[ConfidenceLevel2["LATEST"] = 1] = "LATEST";
+  ConfidenceLevel2[ConfidenceLevel2["FINALIZED"] = 2] = "FINALIZED";
+})(ConfidenceLevel || (ConfidenceLevel = {}));
+var ReceiverContractExecutionStatus;
+(function(ReceiverContractExecutionStatus2) {
+  ReceiverContractExecutionStatus2[ReceiverContractExecutionStatus2["SUCCESS"] = 0] = "SUCCESS";
+  ReceiverContractExecutionStatus2[ReceiverContractExecutionStatus2["REVERTED"] = 1] = "REVERTED";
+})(ReceiverContractExecutionStatus || (ReceiverContractExecutionStatus = {}));
+var TxStatus;
+(function(TxStatus2) {
+  TxStatus2[TxStatus2["FATAL"] = 0] = "FATAL";
+  TxStatus2[TxStatus2["REVERTED"] = 1] = "REVERTED";
+  TxStatus2[TxStatus2["SUCCESS"] = 2] = "SUCCESS";
+})(TxStatus || (TxStatus = {}));
+
+class Report {
+  report;
+  constructor(report) {
+    this.report = report.$typeName ? report : fromJson(ReportResponseSchema, report);
+  }
+  x_generatedCodeOnly_unwrap() {
+    return this.report;
+  }
+}
+var hexToBytes = (hexStr) => {
+  if (!hexStr.startsWith("0x")) {
+    throw new Error(`Invalid hex string: ${hexStr}`);
+  }
+  if (!/^0x[0-9a-fA-F]*$/.test(hexStr)) {
+    throw new Error(`Invalid hex string: ${hexStr}`);
+  }
+  if ((hexStr.length - 2) % 2 !== 0) {
+    throw new Error(`Hex string must have an even number of characters: ${hexStr}`);
+  }
+  const hex = hexStr.slice(2);
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0;i < hex.length; i += 2) {
+    bytes[i / 2] = Number.parseInt(hex.slice(i, i + 2), 16);
+  }
+  return bytes;
+};
+var bytesToHex = (bytes) => {
+  return `0x${Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+};
+var hexToBase64 = (hex) => {
+  const cleanHex = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (cleanHex.length === 0) {
+    return "";
+  }
+  if (cleanHex.length % 2 !== 0) {
+    throw new Error(`Hex string must have an even number of characters: ${hex}`);
+  }
+  if (!/^[0-9a-fA-F]*$/.test(cleanHex)) {
+    throw new Error(`Invalid hex string: ${hex}`);
+  }
+  return Buffer.from(cleanHex, "hex").toString("base64");
+};
+function createWriteCreReportRequest(input) {
+  return {
+    receiver: hexToBytes(input.receiver),
+    report: input.report,
+    gasConfig: input.gasConfig !== undefined ? fromJson(GasConfigSchema, input.gasConfig) : undefined,
+    $report: true
+  };
+}
+function x_generatedCodeOnly_unwrap_WriteCreReportRequest(input) {
+  return create(WriteReportRequestSchema, {
+    receiver: input.receiver,
+    report: input.report !== undefined ? input.report.x_generatedCodeOnly_unwrap() : undefined,
+    gasConfig: input.gasConfig
+  });
+}
+
+class ClientCapability {
+  ChainSelector;
+  static CAPABILITY_ID = "evm@1.0.0";
+  static CAPABILITY_NAME = "evm";
+  static CAPABILITY_VERSION = "1.0.0";
+  static SUPPORTED_CHAIN_SELECTORS = {
+    "apechain-testnet-curtis": 9900119385908781505n,
+    "arc-testnet": 3034092155422581607n,
+    "avalanche-mainnet": 6433500567565415381n,
+    "avalanche-testnet-fuji": 14767482510784806043n,
+    "binance_smart_chain-mainnet": 11344663589394136015n,
+    "binance_smart_chain-testnet": 13264668187771770619n,
+    "ethereum-mainnet": 5009297550715157269n,
+    "ethereum-mainnet-arbitrum-1": 4949039107694359620n,
+    "ethereum-mainnet-base-1": 15971525489660198786n,
+    "ethereum-mainnet-optimism-1": 3734403246176062136n,
+    "ethereum-mainnet-worldchain-1": 2049429975587534727n,
+    "ethereum-mainnet-zksync-1": 1562403441176082196n,
+    "ethereum-testnet-sepolia": 16015286601757825753n,
+    "ethereum-testnet-sepolia-arbitrum-1": 3478487238524512106n,
+    "ethereum-testnet-sepolia-base-1": 10344971235874465080n,
+    "ethereum-testnet-sepolia-linea-1": 5719461335882077547n,
+    "ethereum-testnet-sepolia-optimism-1": 5224473277236331295n,
+    "ethereum-testnet-sepolia-worldchain-1": 5299555114858065850n,
+    "ethereum-testnet-sepolia-zksync-1": 6898391096552792247n,
+    "hyperliquid-testnet": 4286062357653186312n,
+    "ink-testnet-sepolia": 9763904284804119144n,
+    "jovay-testnet": 945045181441419236n,
+    "plasma-testnet": 3967220077692964309n,
+    "polygon-mainnet": 4051577828743386545n,
+    "polygon-testnet-amoy": 16281711391670634445n,
+    "private-testnet-andesite": 6915682381028791124n
+  };
+  constructor(ChainSelector) {
+    this.ChainSelector = ChainSelector;
+  }
+  callContract(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(CallContractRequestSchema, input);
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "CallContract",
+      payload,
+      inputSchema: CallContractRequestSchema,
+      outputSchema: CallContractReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  filterLogs(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(FilterLogsRequestSchema, input);
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "FilterLogs",
+      payload,
+      inputSchema: FilterLogsRequestSchema,
+      outputSchema: FilterLogsReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  balanceAt(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(BalanceAtRequestSchema, input);
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "BalanceAt",
+      payload,
+      inputSchema: BalanceAtRequestSchema,
+      outputSchema: BalanceAtReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  estimateGas(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(EstimateGasRequestSchema, input);
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "EstimateGas",
+      payload,
+      inputSchema: EstimateGasRequestSchema,
+      outputSchema: EstimateGasReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  getTransactionByHash(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(GetTransactionByHashRequestSchema, input);
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "GetTransactionByHash",
+      payload,
+      inputSchema: GetTransactionByHashRequestSchema,
+      outputSchema: GetTransactionByHashReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  getTransactionReceipt(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(GetTransactionReceiptRequestSchema, input);
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "GetTransactionReceipt",
+      payload,
+      inputSchema: GetTransactionReceiptRequestSchema,
+      outputSchema: GetTransactionReceiptReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  headerByNumber(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(HeaderByNumberRequestSchema, input);
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "HeaderByNumber",
+      payload,
+      inputSchema: HeaderByNumberRequestSchema,
+      outputSchema: HeaderByNumberReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  logTrigger(config) {
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    return new ClientLogTrigger(config, capabilityId, "LogTrigger", this.ChainSelector);
+  }
+  writeReport(runtime, input) {
+    let payload;
+    if (input.$report) {
+      payload = x_generatedCodeOnly_unwrap_WriteCreReportRequest(input);
+    } else {
+      payload = x_generatedCodeOnly_unwrap_WriteCreReportRequest(createWriteCreReportRequest(input));
+    }
+    const capabilityId = `${ClientCapability.CAPABILITY_NAME}:ChainSelector:${this.ChainSelector}@${ClientCapability.CAPABILITY_VERSION}`;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "WriteReport",
+      payload,
+      inputSchema: WriteReportRequestSchema,
+      outputSchema: WriteReportReplySchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+}
+
+class ClientLogTrigger {
+  _capabilityId;
+  _method;
+  ChainSelector;
+  config;
+  constructor(config, _capabilityId, _method, ChainSelector) {
+    this._capabilityId = _capabilityId;
+    this._method = _method;
+    this.ChainSelector = ChainSelector;
+    this.config = config.$typeName ? config : fromJson(FilterLogTriggerRequestSchema, config);
+  }
+  capabilityId() {
+    return this._capabilityId;
+  }
+  method() {
+    return this._method;
+  }
+  outputSchema() {
+    return LogSchema;
+  }
+  configAsAny() {
+    return anyPack(FilterLogTriggerRequestSchema, this.config);
+  }
+  adapt(rawOutput) {
+    return rawOutput;
+  }
+}
+var file_capabilities_networking_confidentialhttp_v1alpha_client = /* @__PURE__ */ fileDesc("Cj1jYXBhYmlsaXRpZXMvbmV0d29ya2luZy9jb25maWRlbnRpYWxodHRwL3YxYWxwaGEvY2xpZW50LnByb3RvEjBjYXBhYmlsaXRpZXMubmV0d29ya2luZy5jb25maWRlbnRpYWxodHRwLnYxYWxwaGEiUAoQU2VjcmV0SWRlbnRpZmllchILCgNrZXkYASABKAkSEQoJbmFtZXNwYWNlGAIgASgJEhIKBW93bmVyGAMgASgJSACIAQFCCAoGX293bmVyIh4KDEhlYWRlclZhbHVlcxIOCgZ2YWx1ZXMYASADKAki1wQKC0hUVFBSZXF1ZXN0EgsKA3VybBgBIAEoCRIOCgZtZXRob2QYAiABKAkSFQoLYm9keV9zdHJpbmcYAyABKAlIABIUCgpib2R5X2J5dGVzGAggASgMSAASZgoNbXVsdGlfaGVhZGVycxgEIAMoCzJPLmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmNvbmZpZGVudGlhbGh0dHAudjFhbHBoYS5IVFRQUmVxdWVzdC5NdWx0aUhlYWRlcnNFbnRyeRJ3ChZ0ZW1wbGF0ZV9wdWJsaWNfdmFsdWVzGAUgAygLMlcuY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuY29uZmlkZW50aWFsaHR0cC52MWFscGhhLkhUVFBSZXF1ZXN0LlRlbXBsYXRlUHVibGljVmFsdWVzRW50cnkSHwoXY3VzdG9tX3Jvb3RfY2FfY2VydF9wZW0YBiABKAwSKgoHdGltZW91dBgHIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIWCg5lbmNyeXB0X291dHB1dBgJIAEoCBpzChFNdWx0aUhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSTQoFdmFsdWUYAiABKAsyPi5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5jb25maWRlbnRpYWxodHRwLnYxYWxwaGEuSGVhZGVyVmFsdWVzOgI4ARo7ChlUZW1wbGF0ZVB1YmxpY1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAFCBgoEYm9keSKPAgoMSFRUUFJlc3BvbnNlEhMKC3N0YXR1c19jb2RlGAEgASgNEgwKBGJvZHkYAiABKAwSZwoNbXVsdGlfaGVhZGVycxgDIAMoCzJQLmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmNvbmZpZGVudGlhbGh0dHAudjFhbHBoYS5IVFRQUmVzcG9uc2UuTXVsdGlIZWFkZXJzRW50cnkacwoRTXVsdGlIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEk0KBXZhbHVlGAIgASgLMj4uY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuY29uZmlkZW50aWFsaHR0cC52MWFscGhhLkhlYWRlclZhbHVlczoCOAEiyAEKF0NvbmZpZGVudGlhbEhUVFBSZXF1ZXN0El0KEXZhdWx0X2Rvbl9zZWNyZXRzGAEgAygLMkIuY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuY29uZmlkZW50aWFsaHR0cC52MWFscGhhLlNlY3JldElkZW50aWZpZXISTgoHcmVxdWVzdBgCIAEoCzI9LmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmNvbmZpZGVudGlhbGh0dHAudjFhbHBoYS5IVFRQUmVxdWVzdDLKAQoGQ2xpZW50EpgBCgtTZW5kUmVxdWVzdBJJLmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmNvbmZpZGVudGlhbGh0dHAudjFhbHBoYS5Db25maWRlbnRpYWxIVFRQUmVxdWVzdBo+LmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmNvbmZpZGVudGlhbGh0dHAudjFhbHBoYS5IVFRQUmVzcG9uc2UaJYK1GCEIARIdY29uZmlkZW50aWFsLWh0dHBAMS4wLjAtYWxwaGFCpgIKNGNvbS5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5jb25maWRlbnRpYWxodHRwLnYxYWxwaGFCC0NsaWVudFByb3RvUAGiAgNDTkOqAjBDYXBhYmlsaXRpZXMuTmV0d29ya2luZy5Db25maWRlbnRpYWxodHRwLlYxYWxwaGHKAjBDYXBhYmlsaXRpZXNcTmV0d29ya2luZ1xDb25maWRlbnRpYWxodHRwXFYxYWxwaGHiAjxDYXBhYmlsaXRpZXNcTmV0d29ya2luZ1xDb25maWRlbnRpYWxodHRwXFYxYWxwaGFcR1BCTWV0YWRhdGHqAjNDYXBhYmlsaXRpZXM6Ok5ldHdvcmtpbmc6OkNvbmZpZGVudGlhbGh0dHA6OlYxYWxwaGFiBnByb3RvMw", [file_google_protobuf_duration, file_tools_generator_v1alpha_cre_metadata]);
+var HTTPResponseSchema = /* @__PURE__ */ messageDesc(file_capabilities_networking_confidentialhttp_v1alpha_client, 3);
+var ConfidentialHTTPRequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_networking_confidentialhttp_v1alpha_client, 4);
+
+class ClientCapability2 {
+  static CAPABILITY_ID = "confidential-http@1.0.0-alpha";
+  static CAPABILITY_NAME = "confidential-http";
+  static CAPABILITY_VERSION = "1.0.0-alpha";
+  sendRequest(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(ConfidentialHTTPRequestSchema, input);
+    }
+    const capabilityId = ClientCapability2.CAPABILITY_ID;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "SendRequest",
+      payload,
+      inputSchema: ConfidentialHTTPRequestSchema,
+      outputSchema: HTTPResponseSchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+}
+var file_capabilities_networking_http_v1alpha_client = /* @__PURE__ */ fileDesc("CjFjYXBhYmlsaXRpZXMvbmV0d29ya2luZy9odHRwL3YxYWxwaGEvY2xpZW50LnByb3RvEiRjYXBhYmlsaXRpZXMubmV0d29ya2luZy5odHRwLnYxYWxwaGEiSgoNQ2FjaGVTZXR0aW5ncxINCgVzdG9yZRgBIAEoCBIqCgdtYXhfYWdlGAIgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uIh4KDEhlYWRlclZhbHVlcxIOCgZ2YWx1ZXMYASADKAki7wMKB1JlcXVlc3QSCwoDdXJsGAEgASgJEg4KBm1ldGhvZBgCIAEoCRJPCgdoZWFkZXJzGAMgAygLMjouY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuaHR0cC52MWFscGhhLlJlcXVlc3QuSGVhZGVyc0VudHJ5QgIYARIMCgRib2R5GAQgASgMEioKB3RpbWVvdXQYBSABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SSwoOY2FjaGVfc2V0dGluZ3MYBiABKAsyMy5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5odHRwLnYxYWxwaGEuQ2FjaGVTZXR0aW5ncxJWCg1tdWx0aV9oZWFkZXJzGAcgAygLMj8uY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuaHR0cC52MWFscGhhLlJlcXVlc3QuTXVsdGlIZWFkZXJzRW50cnkaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaZwoRTXVsdGlIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEkEKBXZhbHVlGAIgASgLMjIuY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuaHR0cC52MWFscGhhLkhlYWRlclZhbHVlczoCOAEi8QIKCFJlc3BvbnNlEhMKC3N0YXR1c19jb2RlGAEgASgNElAKB2hlYWRlcnMYAiADKAsyOy5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5odHRwLnYxYWxwaGEuUmVzcG9uc2UuSGVhZGVyc0VudHJ5QgIYARIMCgRib2R5GAMgASgMElcKDW11bHRpX2hlYWRlcnMYBCADKAsyQC5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5odHRwLnYxYWxwaGEuUmVzcG9uc2UuTXVsdGlIZWFkZXJzRW50cnkaLgoMSGVhZGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaZwoRTXVsdGlIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEkEKBXZhbHVlGAIgASgLMjIuY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuaHR0cC52MWFscGhhLkhlYWRlclZhbHVlczoCOAEymAEKBkNsaWVudBJsCgtTZW5kUmVxdWVzdBItLmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmh0dHAudjFhbHBoYS5SZXF1ZXN0Gi4uY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuaHR0cC52MWFscGhhLlJlc3BvbnNlGiCCtRgcCAISGGh0dHAtYWN0aW9uc0AxLjAuMC1hbHBoYULqAQooY29tLmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmh0dHAudjFhbHBoYUILQ2xpZW50UHJvdG9QAaICA0NOSKoCJENhcGFiaWxpdGllcy5OZXR3b3JraW5nLkh0dHAuVjFhbHBoYcoCJENhcGFiaWxpdGllc1xOZXR3b3JraW5nXEh0dHBcVjFhbHBoYeICMENhcGFiaWxpdGllc1xOZXR3b3JraW5nXEh0dHBcVjFhbHBoYVxHUEJNZXRhZGF0YeoCJ0NhcGFiaWxpdGllczo6TmV0d29ya2luZzo6SHR0cDo6VjFhbHBoYWIGcHJvdG8z", [file_google_protobuf_duration, file_tools_generator_v1alpha_cre_metadata]);
+var RequestSchema = /* @__PURE__ */ messageDesc(file_capabilities_networking_http_v1alpha_client, 2);
+var ResponseSchema = /* @__PURE__ */ messageDesc(file_capabilities_networking_http_v1alpha_client, 3);
+
+class SendRequester {
+  runtime;
+  client;
+  constructor(runtime, client) {
+    this.runtime = runtime;
+    this.client = client;
+  }
+  sendRequest(input) {
+    return this.client.sendRequest(this.runtime, input);
+  }
+}
+
+class ClientCapability3 {
+  static CAPABILITY_ID = "http-actions@1.0.0-alpha";
+  static CAPABILITY_NAME = "http-actions";
+  static CAPABILITY_VERSION = "1.0.0-alpha";
+  sendRequest(...args) {
+    if (typeof args[1] === "function") {
+      const [runtime2, fn, consensusAggregation, unwrapOptions] = args;
+      return this.sendRequestSugarHelper(runtime2, fn, consensusAggregation, unwrapOptions);
+    }
+    const [runtime, input] = args;
+    return this.sendRequestCallHelper(runtime, input);
+  }
+  sendRequestCallHelper(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(RequestSchema, input);
+    }
+    const capabilityId = ClientCapability3.CAPABILITY_ID;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "SendRequest",
+      payload,
+      inputSchema: RequestSchema,
+      outputSchema: ResponseSchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  sendRequestSugarHelper(runtime, fn, consensusAggregation, unwrapOptions) {
+    const wrappedFn = (runtime2, ...args) => {
+      const sendRequester = new SendRequester(runtime2, this);
+      return fn(sendRequester, ...args);
+    };
+    return runtime.runInNodeMode(wrappedFn, consensusAggregation, unwrapOptions);
+  }
+}
+var file_capabilities_networking_http_v1alpha_trigger = /* @__PURE__ */ fileDesc("CjJjYXBhYmlsaXRpZXMvbmV0d29ya2luZy9odHRwL3YxYWxwaGEvdHJpZ2dlci5wcm90bxIkY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuaHR0cC52MWFscGhhIlYKBkNvbmZpZxJMCg9hdXRob3JpemVkX2tleXMYASADKAsyMy5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5odHRwLnYxYWxwaGEuQXV0aG9yaXplZEtleSJaCgdQYXlsb2FkEg0KBWlucHV0GAEgASgMEkAKA2tleRgCIAEoCzIzLmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmh0dHAudjFhbHBoYS5BdXRob3JpemVkS2V5ImAKDUF1dGhvcml6ZWRLZXkSOwoEdHlwZRgBIAEoDjItLmNhcGFiaWxpdGllcy5uZXR3b3JraW5nLmh0dHAudjFhbHBoYS5LZXlUeXBlEhIKCnB1YmxpY19rZXkYAiABKAkqOwoHS2V5VHlwZRIYChRLRVlfVFlQRV9VTlNQRUNJRklFRBAAEhYKEktFWV9UWVBFX0VDRFNBX0VWTRABMpIBCgRIVFRQEmgKB1RyaWdnZXISLC5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5odHRwLnYxYWxwaGEuQ29uZmlnGi0uY2FwYWJpbGl0aWVzLm5ldHdvcmtpbmcuaHR0cC52MWFscGhhLlBheWxvYWQwARoggrUYHAgBEhhodHRwLXRyaWdnZXJAMS4wLjAtYWxwaGFC6wEKKGNvbS5jYXBhYmlsaXRpZXMubmV0d29ya2luZy5odHRwLnYxYWxwaGFCDFRyaWdnZXJQcm90b1ABogIDQ05IqgIkQ2FwYWJpbGl0aWVzLk5ldHdvcmtpbmcuSHR0cC5WMWFscGhhygIkQ2FwYWJpbGl0aWVzXE5ldHdvcmtpbmdcSHR0cFxWMWFscGhh4gIwQ2FwYWJpbGl0aWVzXE5ldHdvcmtpbmdcSHR0cFxWMWFscGhhXEdQQk1ldGFkYXRh6gInQ2FwYWJpbGl0aWVzOjpOZXR3b3JraW5nOjpIdHRwOjpWMWFscGhhYgZwcm90bzM", [file_tools_generator_v1alpha_cre_metadata]);
+var ConfigSchema = /* @__PURE__ */ messageDesc(file_capabilities_networking_http_v1alpha_trigger, 0);
+var PayloadSchema = /* @__PURE__ */ messageDesc(file_capabilities_networking_http_v1alpha_trigger, 1);
+var KeyType;
+(function(KeyType2) {
+  KeyType2[KeyType2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
+  KeyType2[KeyType2["ECDSA_EVM"] = 1] = "ECDSA_EVM";
+})(KeyType || (KeyType = {}));
+
+class HTTPCapability {
+  static CAPABILITY_ID = "http-trigger@1.0.0-alpha";
+  static CAPABILITY_NAME = "http-trigger";
+  static CAPABILITY_VERSION = "1.0.0-alpha";
+  trigger(config) {
+    const capabilityId = HTTPCapability.CAPABILITY_ID;
+    return new HTTPTrigger(config, capabilityId, "Trigger");
+  }
+}
+
+class HTTPTrigger {
+  _capabilityId;
+  _method;
+  config;
+  constructor(config, _capabilityId, _method) {
+    this._capabilityId = _capabilityId;
+    this._method = _method;
+    this.config = config.$typeName ? config : fromJson(ConfigSchema, config);
+  }
+  capabilityId() {
+    return this._capabilityId;
+  }
+  method() {
+    return this._method;
+  }
+  outputSchema() {
+    return PayloadSchema;
+  }
+  configAsAny() {
+    return anyPack(ConfigSchema, this.config);
+  }
+  adapt(rawOutput) {
+    return rawOutput;
+  }
+}
+var file_capabilities_scheduler_cron_v1_trigger = /* @__PURE__ */ fileDesc("CixjYXBhYmlsaXRpZXMvc2NoZWR1bGVyL2Nyb24vdjEvdHJpZ2dlci5wcm90bxIeY2FwYWJpbGl0aWVzLnNjaGVkdWxlci5jcm9uLnYxIhoKBkNvbmZpZxIQCghzY2hlZHVsZRgBIAEoCSJHCgdQYXlsb2FkEjwKGHNjaGVkdWxlZF9leGVjdXRpb25fdGltZRgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiNQoNTGVnYWN5UGF5bG9hZBIgChhzY2hlZHVsZWRfZXhlY3V0aW9uX3RpbWUYASABKAk6AhgBMvUBCgRDcm9uElwKB1RyaWdnZXISJi5jYXBhYmlsaXRpZXMuc2NoZWR1bGVyLmNyb24udjEuQ29uZmlnGicuY2FwYWJpbGl0aWVzLnNjaGVkdWxlci5jcm9uLnYxLlBheWxvYWQwARJzCg1MZWdhY3lUcmlnZ2VyEiYuY2FwYWJpbGl0aWVzLnNjaGVkdWxlci5jcm9uLnYxLkNvbmZpZxotLmNhcGFiaWxpdGllcy5zY2hlZHVsZXIuY3Jvbi52MS5MZWdhY3lQYXlsb2FkIgmIAgGKtRgCCAEwARoagrUYFggBEhJjcm9uLXRyaWdnZXJAMS4wLjBCzQEKImNvbS5jYXBhYmlsaXRpZXMuc2NoZWR1bGVyLmNyb24udjFCDFRyaWdnZXJQcm90b1ABogIDQ1NDqgIeQ2FwYWJpbGl0aWVzLlNjaGVkdWxlci5Dcm9uLlYxygIeQ2FwYWJpbGl0aWVzXFNjaGVkdWxlclxDcm9uXFYx4gIqQ2FwYWJpbGl0aWVzXFNjaGVkdWxlclxDcm9uXFYxXEdQQk1ldGFkYXRh6gIhQ2FwYWJpbGl0aWVzOjpTY2hlZHVsZXI6OkNyb246OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_tools_generator_v1alpha_cre_metadata]);
+var ConfigSchema2 = /* @__PURE__ */ messageDesc(file_capabilities_scheduler_cron_v1_trigger, 0);
+var PayloadSchema2 = /* @__PURE__ */ messageDesc(file_capabilities_scheduler_cron_v1_trigger, 1);
+
+class CronCapability {
+  static CAPABILITY_ID = "cron-trigger@1.0.0";
+  static CAPABILITY_NAME = "cron-trigger";
+  static CAPABILITY_VERSION = "1.0.0";
+  trigger(config) {
+    const capabilityId = CronCapability.CAPABILITY_ID;
+    return new CronTrigger(config, capabilityId, "Trigger");
+  }
+}
+
+class CronTrigger {
+  _capabilityId;
+  _method;
+  config;
+  constructor(config, _capabilityId, _method) {
+    this._capabilityId = _capabilityId;
+    this._method = _method;
+    this.config = config.$typeName ? config : fromJson(ConfigSchema2, config);
+  }
+  capabilityId() {
+    return this._capabilityId;
+  }
+  method() {
+    return this._method;
+  }
+  outputSchema() {
+    return PayloadSchema2;
+  }
+  configAsAny() {
+    return anyPack(ConfigSchema2, this.config);
+  }
+  adapt(rawOutput) {
+    return rawOutput;
+  }
+}
+var lookup = [];
+var revLookup = [];
+var code = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+for (i = 0, len = code.length;i < len; ++i)
+  lookup[i] = code[i], revLookup[code.charCodeAt(i)] = i;
+var i;
+var len;
+revLookup[45] = 62;
+revLookup[95] = 63;
+function getLens(b64) {
+  var len2 = b64.length;
+  if (len2 % 4 > 0)
+    throw Error("Invalid string. Length must be a multiple of 4");
+  var validLen = b64.indexOf("=");
+  if (validLen === -1)
+    validLen = len2;
+  var placeHoldersLen = validLen === len2 ? 0 : 4 - validLen % 4;
+  return [validLen, placeHoldersLen];
+}
+function _byteLength(validLen, placeHoldersLen) {
+  return (validLen + placeHoldersLen) * 3 / 4 - placeHoldersLen;
+}
+function toByteArray(b64) {
+  var tmp, lens = getLens(b64), validLen = lens[0], placeHoldersLen = lens[1], arr = new Uint8Array(_byteLength(validLen, placeHoldersLen)), curByte = 0, len2 = placeHoldersLen > 0 ? validLen - 4 : validLen, i2;
+  for (i2 = 0;i2 < len2; i2 += 4)
+    tmp = revLookup[b64.charCodeAt(i2)] << 18 | revLookup[b64.charCodeAt(i2 + 1)] << 12 | revLookup[b64.charCodeAt(i2 + 2)] << 6 | revLookup[b64.charCodeAt(i2 + 3)], arr[curByte++] = tmp >> 16 & 255, arr[curByte++] = tmp >> 8 & 255, arr[curByte++] = tmp & 255;
+  if (placeHoldersLen === 2)
+    tmp = revLookup[b64.charCodeAt(i2)] << 2 | revLookup[b64.charCodeAt(i2 + 1)] >> 4, arr[curByte++] = tmp & 255;
+  if (placeHoldersLen === 1)
+    tmp = revLookup[b64.charCodeAt(i2)] << 10 | revLookup[b64.charCodeAt(i2 + 1)] << 4 | revLookup[b64.charCodeAt(i2 + 2)] >> 2, arr[curByte++] = tmp >> 8 & 255, arr[curByte++] = tmp & 255;
+  return arr;
+}
+function tripletToBase64(num) {
+  return lookup[num >> 18 & 63] + lookup[num >> 12 & 63] + lookup[num >> 6 & 63] + lookup[num & 63];
+}
+function encodeChunk(uint8, start, end) {
+  var tmp, output = [];
+  for (var i2 = start;i2 < end; i2 += 3)
+    tmp = (uint8[i2] << 16 & 16711680) + (uint8[i2 + 1] << 8 & 65280) + (uint8[i2 + 2] & 255), output.push(tripletToBase64(tmp));
+  return output.join("");
+}
+function fromByteArray(uint8) {
+  var tmp, len2 = uint8.length, extraBytes = len2 % 3, parts = [], maxChunkLength = 16383;
+  for (var i2 = 0, len22 = len2 - extraBytes;i2 < len22; i2 += maxChunkLength)
+    parts.push(encodeChunk(uint8, i2, i2 + maxChunkLength > len22 ? len22 : i2 + maxChunkLength));
+  if (extraBytes === 1)
+    tmp = uint8[len2 - 1], parts.push(lookup[tmp >> 2] + lookup[tmp << 4 & 63] + "==");
+  else if (extraBytes === 2)
+    tmp = (uint8[len2 - 2] << 8) + uint8[len2 - 1], parts.push(lookup[tmp >> 10] + lookup[tmp >> 4 & 63] + lookup[tmp << 2 & 63] + "=");
+  return parts.join("");
+}
+function read(buffer, offset, isLE2, mLen, nBytes) {
+  var e, m, eLen = nBytes * 8 - mLen - 1, eMax = (1 << eLen) - 1, eBias = eMax >> 1, nBits = -7, i2 = isLE2 ? nBytes - 1 : 0, d = isLE2 ? -1 : 1, s = buffer[offset + i2];
+  i2 += d, e = s & (1 << -nBits) - 1, s >>= -nBits, nBits += eLen;
+  for (;nBits > 0; e = e * 256 + buffer[offset + i2], i2 += d, nBits -= 8)
+    ;
+  m = e & (1 << -nBits) - 1, e >>= -nBits, nBits += mLen;
+  for (;nBits > 0; m = m * 256 + buffer[offset + i2], i2 += d, nBits -= 8)
+    ;
+  if (e === 0)
+    e = 1 - eBias;
+  else if (e === eMax)
+    return m ? NaN : (s ? -1 : 1) * (1 / 0);
+  else
+    m = m + Math.pow(2, mLen), e = e - eBias;
+  return (s ? -1 : 1) * m * Math.pow(2, e - mLen);
+}
+function write(buffer, value, offset, isLE2, mLen, nBytes) {
+  var e, m, c, eLen = nBytes * 8 - mLen - 1, eMax = (1 << eLen) - 1, eBias = eMax >> 1, rt = mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0, i2 = isLE2 ? 0 : nBytes - 1, d = isLE2 ? 1 : -1, s = value < 0 || value === 0 && 1 / value < 0 ? 1 : 0;
+  if (value = Math.abs(value), isNaN(value) || value === 1 / 0)
+    m = isNaN(value) ? 1 : 0, e = eMax;
+  else {
+    if (e = Math.floor(Math.log(value) / Math.LN2), value * (c = Math.pow(2, -e)) < 1)
+      e--, c *= 2;
+    if (e + eBias >= 1)
+      value += rt / c;
+    else
+      value += rt * Math.pow(2, 1 - eBias);
+    if (value * c >= 2)
+      e++, c /= 2;
+    if (e + eBias >= eMax)
+      m = 0, e = eMax;
+    else if (e + eBias >= 1)
+      m = (value * c - 1) * Math.pow(2, mLen), e = e + eBias;
+    else
+      m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen), e = 0;
+  }
+  for (;mLen >= 8; buffer[offset + i2] = m & 255, i2 += d, m /= 256, mLen -= 8)
+    ;
+  e = e << mLen | m, eLen += mLen;
+  for (;eLen > 0; buffer[offset + i2] = e & 255, i2 += d, e /= 256, eLen -= 8)
+    ;
+  buffer[offset + i2 - d] |= s * 128;
+}
+var customInspectSymbol = typeof Symbol === "function" && typeof Symbol.for === "function" ? Symbol.for("nodejs.util.inspect.custom") : null;
+var INSPECT_MAX_BYTES = 50;
+var kMaxLength = 2147483647;
+var btoa = globalThis.btoa;
+var atob2 = globalThis.atob;
+var File = globalThis.File;
+var Blob = globalThis.Blob;
+function createBuffer(length) {
+  if (length > kMaxLength)
+    throw RangeError('The value "' + length + '" is invalid for option "size"');
+  let buf = new Uint8Array(length);
+  return Object.setPrototypeOf(buf, Buffer2.prototype), buf;
+}
+function E(sym, getMessage, Base) {
+  return class extends Base {
+    constructor() {
+      super();
+      Object.defineProperty(this, "message", { value: getMessage.apply(this, arguments), writable: true, configurable: true }), this.name = `${this.name} [${sym}]`, this.stack, delete this.name;
+    }
+    get code() {
+      return sym;
+    }
+    set code(value) {
+      Object.defineProperty(this, "code", { configurable: true, enumerable: true, value, writable: true });
+    }
+    toString() {
+      return `${this.name} [${sym}]: ${this.message}`;
+    }
+  };
+}
+var ERR_BUFFER_OUT_OF_BOUNDS = E("ERR_BUFFER_OUT_OF_BOUNDS", function(name) {
+  if (name)
+    return `${name} is outside of buffer bounds`;
+  return "Attempt to access memory outside buffer bounds";
+}, RangeError);
+var ERR_INVALID_ARG_TYPE = E("ERR_INVALID_ARG_TYPE", function(name, actual) {
+  return `The "${name}" argument must be of type number. Received type ${typeof actual}`;
+}, TypeError);
+var ERR_OUT_OF_RANGE = E("ERR_OUT_OF_RANGE", function(str, range, input) {
+  let msg = `The value of "${str}" is out of range.`, received = input;
+  if (Number.isInteger(input) && Math.abs(input) > 4294967296)
+    received = addNumericalSeparator(String(input));
+  else if (typeof input === "bigint") {
+    if (received = String(input), input > BigInt(2) ** BigInt(32) || input < -(BigInt(2) ** BigInt(32)))
+      received = addNumericalSeparator(received);
+    received += "n";
+  }
+  return msg += ` It must be ${range}. Received ${received}`, msg;
+}, RangeError);
+function Buffer2(arg, encodingOrOffset, length) {
+  if (typeof arg === "number") {
+    if (typeof encodingOrOffset === "string")
+      throw TypeError('The "string" argument must be of type string. Received type number');
+    return allocUnsafe(arg);
+  }
+  return from(arg, encodingOrOffset, length);
+}
+Object.defineProperty(Buffer2.prototype, "parent", { enumerable: true, get: function() {
+  if (!Buffer2.isBuffer(this))
+    return;
+  return this.buffer;
+} });
+Object.defineProperty(Buffer2.prototype, "offset", { enumerable: true, get: function() {
+  if (!Buffer2.isBuffer(this))
+    return;
+  return this.byteOffset;
+} });
+Buffer2.poolSize = 8192;
+function from(value, encodingOrOffset, length) {
+  if (typeof value === "string")
+    return fromString(value, encodingOrOffset);
+  if (ArrayBuffer.isView(value))
+    return fromArrayView(value);
+  if (value == null)
+    throw TypeError("The first argument must be one of type string, Buffer, ArrayBuffer, Array, or Array-like Object. Received type " + typeof value);
+  if (isInstance(value, ArrayBuffer) || value && isInstance(value.buffer, ArrayBuffer))
+    return fromArrayBuffer(value, encodingOrOffset, length);
+  if (typeof SharedArrayBuffer < "u" && (isInstance(value, SharedArrayBuffer) || value && isInstance(value.buffer, SharedArrayBuffer)))
+    return fromArrayBuffer(value, encodingOrOffset, length);
+  if (typeof value === "number")
+    throw TypeError('The "value" argument must not be of type number. Received type number');
+  let valueOf = value.valueOf && value.valueOf();
+  if (valueOf != null && valueOf !== value)
+    return Buffer2.from(valueOf, encodingOrOffset, length);
+  let b = fromObject(value);
+  if (b)
+    return b;
+  if (typeof Symbol < "u" && Symbol.toPrimitive != null && typeof value[Symbol.toPrimitive] === "function")
+    return Buffer2.from(value[Symbol.toPrimitive]("string"), encodingOrOffset, length);
+  throw TypeError("The first argument must be one of type string, Buffer, ArrayBuffer, Array, or Array-like Object. Received type " + typeof value);
+}
+Buffer2.from = function(value, encodingOrOffset, length) {
+  return from(value, encodingOrOffset, length);
+};
+Object.setPrototypeOf(Buffer2.prototype, Uint8Array.prototype);
+Object.setPrototypeOf(Buffer2, Uint8Array);
+function assertSize(size2) {
+  if (typeof size2 !== "number")
+    throw TypeError('"size" argument must be of type number');
+  else if (size2 < 0)
+    throw RangeError('The value "' + size2 + '" is invalid for option "size"');
+}
+function alloc(size2, fill, encoding) {
+  if (assertSize(size2), size2 <= 0)
+    return createBuffer(size2);
+  if (fill !== undefined)
+    return typeof encoding === "string" ? createBuffer(size2).fill(fill, encoding) : createBuffer(size2).fill(fill);
+  return createBuffer(size2);
+}
+Buffer2.alloc = function(size2, fill, encoding) {
+  return alloc(size2, fill, encoding);
+};
+function allocUnsafe(size2) {
+  return assertSize(size2), createBuffer(size2 < 0 ? 0 : checked(size2) | 0);
+}
+Buffer2.allocUnsafe = function(size2) {
+  return allocUnsafe(size2);
+};
+Buffer2.allocUnsafeSlow = function(size2) {
+  return allocUnsafe(size2);
+};
+function fromString(string, encoding) {
+  if (typeof encoding !== "string" || encoding === "")
+    encoding = "utf8";
+  if (!Buffer2.isEncoding(encoding))
+    throw TypeError("Unknown encoding: " + encoding);
+  let length = byteLength(string, encoding) | 0, buf = createBuffer(length), actual = buf.write(string, encoding);
+  if (actual !== length)
+    buf = buf.slice(0, actual);
+  return buf;
+}
+function fromArrayLike(array) {
+  let length = array.length < 0 ? 0 : checked(array.length) | 0, buf = createBuffer(length);
+  for (let i2 = 0;i2 < length; i2 += 1)
+    buf[i2] = array[i2] & 255;
+  return buf;
+}
+function fromArrayView(arrayView) {
+  if (isInstance(arrayView, Uint8Array)) {
+    let copy = new Uint8Array(arrayView);
+    return fromArrayBuffer(copy.buffer, copy.byteOffset, copy.byteLength);
+  }
+  return fromArrayLike(arrayView);
+}
+function fromArrayBuffer(array, byteOffset, length) {
+  if (byteOffset < 0 || array.byteLength < byteOffset)
+    throw RangeError('"offset" is outside of buffer bounds');
+  if (array.byteLength < byteOffset + (length || 0))
+    throw RangeError('"length" is outside of buffer bounds');
+  let buf;
+  if (byteOffset === undefined && length === undefined)
+    buf = new Uint8Array(array);
+  else if (length === undefined)
+    buf = new Uint8Array(array, byteOffset);
+  else
+    buf = new Uint8Array(array, byteOffset, length);
+  return Object.setPrototypeOf(buf, Buffer2.prototype), buf;
+}
+function fromObject(obj) {
+  if (Buffer2.isBuffer(obj)) {
+    let len2 = checked(obj.length) | 0, buf = createBuffer(len2);
+    if (buf.length === 0)
+      return buf;
+    return obj.copy(buf, 0, 0, len2), buf;
+  }
+  if (obj.length !== undefined) {
+    if (typeof obj.length !== "number" || Number.isNaN(obj.length))
+      return createBuffer(0);
+    return fromArrayLike(obj);
+  }
+  if (obj.type === "Buffer" && Array.isArray(obj.data))
+    return fromArrayLike(obj.data);
+}
+function checked(length) {
+  if (length >= kMaxLength)
+    throw RangeError("Attempt to allocate Buffer larger than maximum size: 0x" + kMaxLength.toString(16) + " bytes");
+  return length | 0;
+}
+Buffer2.isBuffer = function(b) {
+  return b != null && b._isBuffer === true && b !== Buffer2.prototype;
+};
+Buffer2.compare = function(a, b) {
+  if (isInstance(a, Uint8Array))
+    a = Buffer2.from(a, a.offset, a.byteLength);
+  if (isInstance(b, Uint8Array))
+    b = Buffer2.from(b, b.offset, b.byteLength);
+  if (!Buffer2.isBuffer(a) || !Buffer2.isBuffer(b))
+    throw TypeError('The "buf1", "buf2" arguments must be one of type Buffer or Uint8Array');
+  if (a === b)
+    return 0;
+  let x = a.length, y = b.length;
+  for (let i2 = 0, len2 = Math.min(x, y);i2 < len2; ++i2)
+    if (a[i2] !== b[i2]) {
+      x = a[i2], y = b[i2];
+      break;
+    }
+  if (x < y)
+    return -1;
+  if (y < x)
+    return 1;
+  return 0;
+};
+Buffer2.isEncoding = function(encoding) {
+  switch (String(encoding).toLowerCase()) {
+    case "hex":
+    case "utf8":
+    case "utf-8":
+    case "ascii":
+    case "latin1":
+    case "binary":
+    case "base64":
+    case "ucs2":
+    case "ucs-2":
+    case "utf16le":
+    case "utf-16le":
+      return true;
+    default:
+      return false;
+  }
+};
+Buffer2.concat = function(list, length) {
+  if (!Array.isArray(list))
+    throw TypeError('"list" argument must be an Array of Buffers');
+  if (list.length === 0)
+    return Buffer2.alloc(0);
+  let i2;
+  if (length === undefined) {
+    length = 0;
+    for (i2 = 0;i2 < list.length; ++i2)
+      length += list[i2].length;
+  }
+  let buffer = Buffer2.allocUnsafe(length), pos = 0;
+  for (i2 = 0;i2 < list.length; ++i2) {
+    let buf = list[i2];
+    if (isInstance(buf, Uint8Array))
+      if (pos + buf.length > buffer.length) {
+        if (!Buffer2.isBuffer(buf))
+          buf = Buffer2.from(buf);
+        buf.copy(buffer, pos);
+      } else
+        Uint8Array.prototype.set.call(buffer, buf, pos);
+    else if (!Buffer2.isBuffer(buf))
+      throw TypeError('"list" argument must be an Array of Buffers');
+    else
+      buf.copy(buffer, pos);
+    pos += buf.length;
+  }
+  return buffer;
+};
+function byteLength(string, encoding) {
+  if (Buffer2.isBuffer(string))
+    return string.length;
+  if (ArrayBuffer.isView(string) || isInstance(string, ArrayBuffer))
+    return string.byteLength;
+  if (typeof string !== "string")
+    throw TypeError('The "string" argument must be one of type string, Buffer, or ArrayBuffer. Received type ' + typeof string);
+  let len2 = string.length, mustMatch = arguments.length > 2 && arguments[2] === true;
+  if (!mustMatch && len2 === 0)
+    return 0;
+  let loweredCase = false;
+  for (;; )
+    switch (encoding) {
+      case "ascii":
+      case "latin1":
+      case "binary":
+        return len2;
+      case "utf8":
+      case "utf-8":
+        return utf8ToBytes(string).length;
+      case "ucs2":
+      case "ucs-2":
+      case "utf16le":
+      case "utf-16le":
+        return len2 * 2;
+      case "hex":
+        return len2 >>> 1;
+      case "base64":
+        return base64ToBytes(string).length;
+      default:
+        if (loweredCase)
+          return mustMatch ? -1 : utf8ToBytes(string).length;
+        encoding = ("" + encoding).toLowerCase(), loweredCase = true;
+    }
+}
+Buffer2.byteLength = byteLength;
+function slowToString(encoding, start, end) {
+  let loweredCase = false;
+  if (start === undefined || start < 0)
+    start = 0;
+  if (start > this.length)
+    return "";
+  if (end === undefined || end > this.length)
+    end = this.length;
+  if (end <= 0)
+    return "";
+  if (end >>>= 0, start >>>= 0, end <= start)
+    return "";
+  if (!encoding)
+    encoding = "utf8";
+  while (true)
+    switch (encoding) {
+      case "hex":
+        return hexSlice(this, start, end);
+      case "utf8":
+      case "utf-8":
+        return utf8Slice(this, start, end);
+      case "ascii":
+        return asciiSlice(this, start, end);
+      case "latin1":
+      case "binary":
+        return latin1Slice(this, start, end);
+      case "base64":
+        return base64Slice(this, start, end);
+      case "ucs2":
+      case "ucs-2":
+      case "utf16le":
+      case "utf-16le":
+        return utf16leSlice(this, start, end);
+      default:
+        if (loweredCase)
+          throw TypeError("Unknown encoding: " + encoding);
+        encoding = (encoding + "").toLowerCase(), loweredCase = true;
+    }
+}
+Buffer2.prototype._isBuffer = true;
+function swap(b, n, m) {
+  let i2 = b[n];
+  b[n] = b[m], b[m] = i2;
+}
+Buffer2.prototype.swap16 = function() {
+  let len2 = this.length;
+  if (len2 % 2 !== 0)
+    throw RangeError("Buffer size must be a multiple of 16-bits");
+  for (let i2 = 0;i2 < len2; i2 += 2)
+    swap(this, i2, i2 + 1);
+  return this;
+};
+Buffer2.prototype.swap32 = function() {
+  let len2 = this.length;
+  if (len2 % 4 !== 0)
+    throw RangeError("Buffer size must be a multiple of 32-bits");
+  for (let i2 = 0;i2 < len2; i2 += 4)
+    swap(this, i2, i2 + 3), swap(this, i2 + 1, i2 + 2);
+  return this;
+};
+Buffer2.prototype.swap64 = function() {
+  let len2 = this.length;
+  if (len2 % 8 !== 0)
+    throw RangeError("Buffer size must be a multiple of 64-bits");
+  for (let i2 = 0;i2 < len2; i2 += 8)
+    swap(this, i2, i2 + 7), swap(this, i2 + 1, i2 + 6), swap(this, i2 + 2, i2 + 5), swap(this, i2 + 3, i2 + 4);
+  return this;
+};
+Buffer2.prototype.toString = function() {
+  let length = this.length;
+  if (length === 0)
+    return "";
+  if (arguments.length === 0)
+    return utf8Slice(this, 0, length);
+  return slowToString.apply(this, arguments);
+};
+Buffer2.prototype.toLocaleString = Buffer2.prototype.toString;
+Buffer2.prototype.equals = function(b) {
+  if (!Buffer2.isBuffer(b))
+    throw TypeError("Argument must be a Buffer");
+  if (this === b)
+    return true;
+  return Buffer2.compare(this, b) === 0;
+};
+Buffer2.prototype.inspect = function() {
+  let str = "", max = INSPECT_MAX_BYTES;
+  if (str = this.toString("hex", 0, max).replace(/(.{2})/g, "$1 ").trim(), this.length > max)
+    str += " ... ";
+  return "<Buffer " + str + ">";
+};
+if (customInspectSymbol)
+  Buffer2.prototype[customInspectSymbol] = Buffer2.prototype.inspect;
+Buffer2.prototype.compare = function(target, start, end, thisStart, thisEnd) {
+  if (isInstance(target, Uint8Array))
+    target = Buffer2.from(target, target.offset, target.byteLength);
+  if (!Buffer2.isBuffer(target))
+    throw TypeError('The "target" argument must be one of type Buffer or Uint8Array. Received type ' + typeof target);
+  if (start === undefined)
+    start = 0;
+  if (end === undefined)
+    end = target ? target.length : 0;
+  if (thisStart === undefined)
+    thisStart = 0;
+  if (thisEnd === undefined)
+    thisEnd = this.length;
+  if (start < 0 || end > target.length || thisStart < 0 || thisEnd > this.length)
+    throw RangeError("out of range index");
+  if (thisStart >= thisEnd && start >= end)
+    return 0;
+  if (thisStart >= thisEnd)
+    return -1;
+  if (start >= end)
+    return 1;
+  if (start >>>= 0, end >>>= 0, thisStart >>>= 0, thisEnd >>>= 0, this === target)
+    return 0;
+  let x = thisEnd - thisStart, y = end - start, len2 = Math.min(x, y), thisCopy = this.slice(thisStart, thisEnd), targetCopy = target.slice(start, end);
+  for (let i2 = 0;i2 < len2; ++i2)
+    if (thisCopy[i2] !== targetCopy[i2]) {
+      x = thisCopy[i2], y = targetCopy[i2];
+      break;
+    }
+  if (x < y)
+    return -1;
+  if (y < x)
+    return 1;
+  return 0;
+};
+function bidirectionalIndexOf(buffer, val, byteOffset, encoding, dir) {
+  if (buffer.length === 0)
+    return -1;
+  if (typeof byteOffset === "string")
+    encoding = byteOffset, byteOffset = 0;
+  else if (byteOffset > 2147483647)
+    byteOffset = 2147483647;
+  else if (byteOffset < -2147483648)
+    byteOffset = -2147483648;
+  if (byteOffset = +byteOffset, Number.isNaN(byteOffset))
+    byteOffset = dir ? 0 : buffer.length - 1;
+  if (byteOffset < 0)
+    byteOffset = buffer.length + byteOffset;
+  if (byteOffset >= buffer.length)
+    if (dir)
+      return -1;
+    else
+      byteOffset = buffer.length - 1;
+  else if (byteOffset < 0)
+    if (dir)
+      byteOffset = 0;
+    else
+      return -1;
+  if (typeof val === "string")
+    val = Buffer2.from(val, encoding);
+  if (Buffer2.isBuffer(val)) {
+    if (val.length === 0)
+      return -1;
+    return arrayIndexOf(buffer, val, byteOffset, encoding, dir);
+  } else if (typeof val === "number") {
+    if (val = val & 255, typeof Uint8Array.prototype.indexOf === "function")
+      if (dir)
+        return Uint8Array.prototype.indexOf.call(buffer, val, byteOffset);
+      else
+        return Uint8Array.prototype.lastIndexOf.call(buffer, val, byteOffset);
+    return arrayIndexOf(buffer, [val], byteOffset, encoding, dir);
+  }
+  throw TypeError("val must be string, number or Buffer");
+}
+function arrayIndexOf(arr, val, byteOffset, encoding, dir) {
+  let indexSize = 1, arrLength = arr.length, valLength = val.length;
+  if (encoding !== undefined) {
+    if (encoding = String(encoding).toLowerCase(), encoding === "ucs2" || encoding === "ucs-2" || encoding === "utf16le" || encoding === "utf-16le") {
+      if (arr.length < 2 || val.length < 2)
+        return -1;
+      indexSize = 2, arrLength /= 2, valLength /= 2, byteOffset /= 2;
+    }
+  }
+  function read2(buf, i3) {
+    if (indexSize === 1)
+      return buf[i3];
+    else
+      return buf.readUInt16BE(i3 * indexSize);
+  }
+  let i2;
+  if (dir) {
+    let foundIndex = -1;
+    for (i2 = byteOffset;i2 < arrLength; i2++)
+      if (read2(arr, i2) === read2(val, foundIndex === -1 ? 0 : i2 - foundIndex)) {
+        if (foundIndex === -1)
+          foundIndex = i2;
+        if (i2 - foundIndex + 1 === valLength)
+          return foundIndex * indexSize;
+      } else {
+        if (foundIndex !== -1)
+          i2 -= i2 - foundIndex;
+        foundIndex = -1;
+      }
+  } else {
+    if (byteOffset + valLength > arrLength)
+      byteOffset = arrLength - valLength;
+    for (i2 = byteOffset;i2 >= 0; i2--) {
+      let found = true;
+      for (let j = 0;j < valLength; j++)
+        if (read2(arr, i2 + j) !== read2(val, j)) {
+          found = false;
+          break;
+        }
+      if (found)
+        return i2;
+    }
+  }
+  return -1;
+}
+Buffer2.prototype.includes = function(val, byteOffset, encoding) {
+  return this.indexOf(val, byteOffset, encoding) !== -1;
+};
+Buffer2.prototype.indexOf = function(val, byteOffset, encoding) {
+  return bidirectionalIndexOf(this, val, byteOffset, encoding, true);
+};
+Buffer2.prototype.lastIndexOf = function(val, byteOffset, encoding) {
+  return bidirectionalIndexOf(this, val, byteOffset, encoding, false);
+};
+function hexWrite(buf, string, offset, length) {
+  offset = Number(offset) || 0;
+  let remaining = buf.length - offset;
+  if (!length)
+    length = remaining;
+  else if (length = Number(length), length > remaining)
+    length = remaining;
+  let strLen = string.length;
+  if (length > strLen / 2)
+    length = strLen / 2;
+  let i2;
+  for (i2 = 0;i2 < length; ++i2) {
+    let parsed = parseInt(string.substr(i2 * 2, 2), 16);
+    if (Number.isNaN(parsed))
+      return i2;
+    buf[offset + i2] = parsed;
+  }
+  return i2;
+}
+function utf8Write(buf, string, offset, length) {
+  return blitBuffer(utf8ToBytes(string, buf.length - offset), buf, offset, length);
+}
+function asciiWrite(buf, string, offset, length) {
+  return blitBuffer(asciiToBytes(string), buf, offset, length);
+}
+function base64Write(buf, string, offset, length) {
+  return blitBuffer(base64ToBytes(string), buf, offset, length);
+}
+function ucs2Write(buf, string, offset, length) {
+  return blitBuffer(utf16leToBytes(string, buf.length - offset), buf, offset, length);
+}
+Buffer2.prototype.write = function(string, offset, length, encoding) {
+  if (offset === undefined)
+    encoding = "utf8", length = this.length, offset = 0;
+  else if (length === undefined && typeof offset === "string")
+    encoding = offset, length = this.length, offset = 0;
+  else if (isFinite(offset))
+    if (offset = offset >>> 0, isFinite(length)) {
+      if (length = length >>> 0, encoding === undefined)
+        encoding = "utf8";
+    } else
+      encoding = length, length = undefined;
+  else
+    throw Error("Buffer.write(string, encoding, offset[, length]) is no longer supported");
+  let remaining = this.length - offset;
+  if (length === undefined || length > remaining)
+    length = remaining;
+  if (string.length > 0 && (length < 0 || offset < 0) || offset > this.length)
+    throw RangeError("Attempt to write outside buffer bounds");
+  if (!encoding)
+    encoding = "utf8";
+  let loweredCase = false;
+  for (;; )
+    switch (encoding) {
+      case "hex":
+        return hexWrite(this, string, offset, length);
+      case "utf8":
+      case "utf-8":
+        return utf8Write(this, string, offset, length);
+      case "ascii":
+      case "latin1":
+      case "binary":
+        return asciiWrite(this, string, offset, length);
+      case "base64":
+        return base64Write(this, string, offset, length);
+      case "ucs2":
+      case "ucs-2":
+      case "utf16le":
+      case "utf-16le":
+        return ucs2Write(this, string, offset, length);
+      default:
+        if (loweredCase)
+          throw TypeError("Unknown encoding: " + encoding);
+        encoding = ("" + encoding).toLowerCase(), loweredCase = true;
+    }
+};
+Buffer2.prototype.toJSON = function() {
+  return { type: "Buffer", data: Array.prototype.slice.call(this._arr || this, 0) };
+};
+function base64Slice(buf, start, end) {
+  if (start === 0 && end === buf.length)
+    return fromByteArray(buf);
+  else
+    return fromByteArray(buf.slice(start, end));
+}
+function utf8Slice(buf, start, end) {
+  end = Math.min(buf.length, end);
+  let res = [], i2 = start;
+  while (i2 < end) {
+    let firstByte = buf[i2], codePoint = null, bytesPerSequence = firstByte > 239 ? 4 : firstByte > 223 ? 3 : firstByte > 191 ? 2 : 1;
+    if (i2 + bytesPerSequence <= end) {
+      let secondByte, thirdByte, fourthByte, tempCodePoint;
+      switch (bytesPerSequence) {
+        case 1:
+          if (firstByte < 128)
+            codePoint = firstByte;
+          break;
+        case 2:
+          if (secondByte = buf[i2 + 1], (secondByte & 192) === 128) {
+            if (tempCodePoint = (firstByte & 31) << 6 | secondByte & 63, tempCodePoint > 127)
+              codePoint = tempCodePoint;
+          }
+          break;
+        case 3:
+          if (secondByte = buf[i2 + 1], thirdByte = buf[i2 + 2], (secondByte & 192) === 128 && (thirdByte & 192) === 128) {
+            if (tempCodePoint = (firstByte & 15) << 12 | (secondByte & 63) << 6 | thirdByte & 63, tempCodePoint > 2047 && (tempCodePoint < 55296 || tempCodePoint > 57343))
+              codePoint = tempCodePoint;
+          }
+          break;
+        case 4:
+          if (secondByte = buf[i2 + 1], thirdByte = buf[i2 + 2], fourthByte = buf[i2 + 3], (secondByte & 192) === 128 && (thirdByte & 192) === 128 && (fourthByte & 192) === 128) {
+            if (tempCodePoint = (firstByte & 15) << 18 | (secondByte & 63) << 12 | (thirdByte & 63) << 6 | fourthByte & 63, tempCodePoint > 65535 && tempCodePoint < 1114112)
+              codePoint = tempCodePoint;
+          }
+      }
+    }
+    if (codePoint === null)
+      codePoint = 65533, bytesPerSequence = 1;
+    else if (codePoint > 65535)
+      codePoint -= 65536, res.push(codePoint >>> 10 & 1023 | 55296), codePoint = 56320 | codePoint & 1023;
+    res.push(codePoint), i2 += bytesPerSequence;
+  }
+  return decodeCodePointsArray(res);
+}
+var MAX_ARGUMENTS_LENGTH = 4096;
+function decodeCodePointsArray(codePoints) {
+  let len2 = codePoints.length;
+  if (len2 <= MAX_ARGUMENTS_LENGTH)
+    return String.fromCharCode.apply(String, codePoints);
+  let res = "", i2 = 0;
+  while (i2 < len2)
+    res += String.fromCharCode.apply(String, codePoints.slice(i2, i2 += MAX_ARGUMENTS_LENGTH));
+  return res;
+}
+function asciiSlice(buf, start, end) {
+  let ret = "";
+  end = Math.min(buf.length, end);
+  for (let i2 = start;i2 < end; ++i2)
+    ret += String.fromCharCode(buf[i2] & 127);
+  return ret;
+}
+function latin1Slice(buf, start, end) {
+  let ret = "";
+  end = Math.min(buf.length, end);
+  for (let i2 = start;i2 < end; ++i2)
+    ret += String.fromCharCode(buf[i2]);
+  return ret;
+}
+function hexSlice(buf, start, end) {
+  let len2 = buf.length;
+  if (!start || start < 0)
+    start = 0;
+  if (!end || end < 0 || end > len2)
+    end = len2;
+  let out = "";
+  for (let i2 = start;i2 < end; ++i2)
+    out += hexSliceLookupTable[buf[i2]];
+  return out;
+}
+function utf16leSlice(buf, start, end) {
+  let bytes = buf.slice(start, end), res = "";
+  for (let i2 = 0;i2 < bytes.length - 1; i2 += 2)
+    res += String.fromCharCode(bytes[i2] + bytes[i2 + 1] * 256);
+  return res;
+}
+Buffer2.prototype.slice = function(start, end) {
+  let len2 = this.length;
+  if (start = ~~start, end = end === undefined ? len2 : ~~end, start < 0) {
+    if (start += len2, start < 0)
+      start = 0;
+  } else if (start > len2)
+    start = len2;
+  if (end < 0) {
+    if (end += len2, end < 0)
+      end = 0;
+  } else if (end > len2)
+    end = len2;
+  if (end < start)
+    end = start;
+  let newBuf = this.subarray(start, end);
+  return Object.setPrototypeOf(newBuf, Buffer2.prototype), newBuf;
+};
+function checkOffset(offset, ext, length) {
+  if (offset % 1 !== 0 || offset < 0)
+    throw RangeError("offset is not uint");
+  if (offset + ext > length)
+    throw RangeError("Trying to access beyond buffer length");
+}
+Buffer2.prototype.readUintLE = Buffer2.prototype.readUIntLE = function(offset, byteLength2, noAssert) {
+  if (offset = offset >>> 0, byteLength2 = byteLength2 >>> 0, !noAssert)
+    checkOffset(offset, byteLength2, this.length);
+  let val = this[offset], mul = 1, i2 = 0;
+  while (++i2 < byteLength2 && (mul *= 256))
+    val += this[offset + i2] * mul;
+  return val;
+};
+Buffer2.prototype.readUintBE = Buffer2.prototype.readUIntBE = function(offset, byteLength2, noAssert) {
+  if (offset = offset >>> 0, byteLength2 = byteLength2 >>> 0, !noAssert)
+    checkOffset(offset, byteLength2, this.length);
+  let val = this[offset + --byteLength2], mul = 1;
+  while (byteLength2 > 0 && (mul *= 256))
+    val += this[offset + --byteLength2] * mul;
+  return val;
+};
+Buffer2.prototype.readUint8 = Buffer2.prototype.readUInt8 = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 1, this.length);
+  return this[offset];
+};
+Buffer2.prototype.readUint16LE = Buffer2.prototype.readUInt16LE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 2, this.length);
+  return this[offset] | this[offset + 1] << 8;
+};
+Buffer2.prototype.readUint16BE = Buffer2.prototype.readUInt16BE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 2, this.length);
+  return this[offset] << 8 | this[offset + 1];
+};
+Buffer2.prototype.readUint32LE = Buffer2.prototype.readUInt32LE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 4, this.length);
+  return (this[offset] | this[offset + 1] << 8 | this[offset + 2] << 16) + this[offset + 3] * 16777216;
+};
+Buffer2.prototype.readUint32BE = Buffer2.prototype.readUInt32BE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 4, this.length);
+  return this[offset] * 16777216 + (this[offset + 1] << 16 | this[offset + 2] << 8 | this[offset + 3]);
+};
+Buffer2.prototype.readBigUInt64LE = defineBigIntMethod(function(offset) {
+  offset = offset >>> 0, validateNumber(offset, "offset");
+  let first = this[offset], last = this[offset + 7];
+  if (first === undefined || last === undefined)
+    boundsError(offset, this.length - 8);
+  let lo = first + this[++offset] * 256 + this[++offset] * 65536 + this[++offset] * 16777216, hi = this[++offset] + this[++offset] * 256 + this[++offset] * 65536 + last * 16777216;
+  return BigInt(lo) + (BigInt(hi) << BigInt(32));
+});
+Buffer2.prototype.readBigUInt64BE = defineBigIntMethod(function(offset) {
+  offset = offset >>> 0, validateNumber(offset, "offset");
+  let first = this[offset], last = this[offset + 7];
+  if (first === undefined || last === undefined)
+    boundsError(offset, this.length - 8);
+  let hi = first * 16777216 + this[++offset] * 65536 + this[++offset] * 256 + this[++offset], lo = this[++offset] * 16777216 + this[++offset] * 65536 + this[++offset] * 256 + last;
+  return (BigInt(hi) << BigInt(32)) + BigInt(lo);
+});
+Buffer2.prototype.readIntLE = function(offset, byteLength2, noAssert) {
+  if (offset = offset >>> 0, byteLength2 = byteLength2 >>> 0, !noAssert)
+    checkOffset(offset, byteLength2, this.length);
+  let val = this[offset], mul = 1, i2 = 0;
+  while (++i2 < byteLength2 && (mul *= 256))
+    val += this[offset + i2] * mul;
+  if (mul *= 128, val >= mul)
+    val -= Math.pow(2, 8 * byteLength2);
+  return val;
+};
+Buffer2.prototype.readIntBE = function(offset, byteLength2, noAssert) {
+  if (offset = offset >>> 0, byteLength2 = byteLength2 >>> 0, !noAssert)
+    checkOffset(offset, byteLength2, this.length);
+  let i2 = byteLength2, mul = 1, val = this[offset + --i2];
+  while (i2 > 0 && (mul *= 256))
+    val += this[offset + --i2] * mul;
+  if (mul *= 128, val >= mul)
+    val -= Math.pow(2, 8 * byteLength2);
+  return val;
+};
+Buffer2.prototype.readInt8 = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 1, this.length);
+  if (!(this[offset] & 128))
+    return this[offset];
+  return (255 - this[offset] + 1) * -1;
+};
+Buffer2.prototype.readInt16LE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 2, this.length);
+  let val = this[offset] | this[offset + 1] << 8;
+  return val & 32768 ? val | 4294901760 : val;
+};
+Buffer2.prototype.readInt16BE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 2, this.length);
+  let val = this[offset + 1] | this[offset] << 8;
+  return val & 32768 ? val | 4294901760 : val;
+};
+Buffer2.prototype.readInt32LE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 4, this.length);
+  return this[offset] | this[offset + 1] << 8 | this[offset + 2] << 16 | this[offset + 3] << 24;
+};
+Buffer2.prototype.readInt32BE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 4, this.length);
+  return this[offset] << 24 | this[offset + 1] << 16 | this[offset + 2] << 8 | this[offset + 3];
+};
+Buffer2.prototype.readBigInt64LE = defineBigIntMethod(function(offset) {
+  offset = offset >>> 0, validateNumber(offset, "offset");
+  let first = this[offset], last = this[offset + 7];
+  if (first === undefined || last === undefined)
+    boundsError(offset, this.length - 8);
+  let val = this[offset + 4] + this[offset + 5] * 256 + this[offset + 6] * 65536 + (last << 24);
+  return (BigInt(val) << BigInt(32)) + BigInt(first + this[++offset] * 256 + this[++offset] * 65536 + this[++offset] * 16777216);
+});
+Buffer2.prototype.readBigInt64BE = defineBigIntMethod(function(offset) {
+  offset = offset >>> 0, validateNumber(offset, "offset");
+  let first = this[offset], last = this[offset + 7];
+  if (first === undefined || last === undefined)
+    boundsError(offset, this.length - 8);
+  let val = (first << 24) + this[++offset] * 65536 + this[++offset] * 256 + this[++offset];
+  return (BigInt(val) << BigInt(32)) + BigInt(this[++offset] * 16777216 + this[++offset] * 65536 + this[++offset] * 256 + last);
+});
+Buffer2.prototype.readFloatLE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 4, this.length);
+  return read(this, offset, true, 23, 4);
+};
+Buffer2.prototype.readFloatBE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 4, this.length);
+  return read(this, offset, false, 23, 4);
+};
+Buffer2.prototype.readDoubleLE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 8, this.length);
+  return read(this, offset, true, 52, 8);
+};
+Buffer2.prototype.readDoubleBE = function(offset, noAssert) {
+  if (offset = offset >>> 0, !noAssert)
+    checkOffset(offset, 8, this.length);
+  return read(this, offset, false, 52, 8);
+};
+function checkInt(buf, value, offset, ext, max, min) {
+  if (!Buffer2.isBuffer(buf))
+    throw TypeError('"buffer" argument must be a Buffer instance');
+  if (value > max || value < min)
+    throw RangeError('"value" argument is out of bounds');
+  if (offset + ext > buf.length)
+    throw RangeError("Index out of range");
+}
+Buffer2.prototype.writeUintLE = Buffer2.prototype.writeUIntLE = function(value, offset, byteLength2, noAssert) {
+  if (value = +value, offset = offset >>> 0, byteLength2 = byteLength2 >>> 0, !noAssert) {
+    let maxBytes = Math.pow(2, 8 * byteLength2) - 1;
+    checkInt(this, value, offset, byteLength2, maxBytes, 0);
+  }
+  let mul = 1, i2 = 0;
+  this[offset] = value & 255;
+  while (++i2 < byteLength2 && (mul *= 256))
+    this[offset + i2] = value / mul & 255;
+  return offset + byteLength2;
+};
+Buffer2.prototype.writeUintBE = Buffer2.prototype.writeUIntBE = function(value, offset, byteLength2, noAssert) {
+  if (value = +value, offset = offset >>> 0, byteLength2 = byteLength2 >>> 0, !noAssert) {
+    let maxBytes = Math.pow(2, 8 * byteLength2) - 1;
+    checkInt(this, value, offset, byteLength2, maxBytes, 0);
+  }
+  let i2 = byteLength2 - 1, mul = 1;
+  this[offset + i2] = value & 255;
+  while (--i2 >= 0 && (mul *= 256))
+    this[offset + i2] = value / mul & 255;
+  return offset + byteLength2;
+};
+Buffer2.prototype.writeUint8 = Buffer2.prototype.writeUInt8 = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 1, 255, 0);
+  return this[offset] = value & 255, offset + 1;
+};
+Buffer2.prototype.writeUint16LE = Buffer2.prototype.writeUInt16LE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 2, 65535, 0);
+  return this[offset] = value & 255, this[offset + 1] = value >>> 8, offset + 2;
+};
+Buffer2.prototype.writeUint16BE = Buffer2.prototype.writeUInt16BE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 2, 65535, 0);
+  return this[offset] = value >>> 8, this[offset + 1] = value & 255, offset + 2;
+};
+Buffer2.prototype.writeUint32LE = Buffer2.prototype.writeUInt32LE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 4, 4294967295, 0);
+  return this[offset + 3] = value >>> 24, this[offset + 2] = value >>> 16, this[offset + 1] = value >>> 8, this[offset] = value & 255, offset + 4;
+};
+Buffer2.prototype.writeUint32BE = Buffer2.prototype.writeUInt32BE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 4, 4294967295, 0);
+  return this[offset] = value >>> 24, this[offset + 1] = value >>> 16, this[offset + 2] = value >>> 8, this[offset + 3] = value & 255, offset + 4;
+};
+function wrtBigUInt64LE(buf, value, offset, min, max) {
+  checkIntBI(value, min, max, buf, offset, 7);
+  let lo = Number(value & BigInt(4294967295));
+  buf[offset++] = lo, lo = lo >> 8, buf[offset++] = lo, lo = lo >> 8, buf[offset++] = lo, lo = lo >> 8, buf[offset++] = lo;
+  let hi = Number(value >> BigInt(32) & BigInt(4294967295));
+  return buf[offset++] = hi, hi = hi >> 8, buf[offset++] = hi, hi = hi >> 8, buf[offset++] = hi, hi = hi >> 8, buf[offset++] = hi, offset;
+}
+function wrtBigUInt64BE(buf, value, offset, min, max) {
+  checkIntBI(value, min, max, buf, offset, 7);
+  let lo = Number(value & BigInt(4294967295));
+  buf[offset + 7] = lo, lo = lo >> 8, buf[offset + 6] = lo, lo = lo >> 8, buf[offset + 5] = lo, lo = lo >> 8, buf[offset + 4] = lo;
+  let hi = Number(value >> BigInt(32) & BigInt(4294967295));
+  return buf[offset + 3] = hi, hi = hi >> 8, buf[offset + 2] = hi, hi = hi >> 8, buf[offset + 1] = hi, hi = hi >> 8, buf[offset] = hi, offset + 8;
+}
+Buffer2.prototype.writeBigUInt64LE = defineBigIntMethod(function(value, offset = 0) {
+  return wrtBigUInt64LE(this, value, offset, BigInt(0), BigInt("0xffffffffffffffff"));
+});
+Buffer2.prototype.writeBigUInt64BE = defineBigIntMethod(function(value, offset = 0) {
+  return wrtBigUInt64BE(this, value, offset, BigInt(0), BigInt("0xffffffffffffffff"));
+});
+Buffer2.prototype.writeIntLE = function(value, offset, byteLength2, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert) {
+    let limit = Math.pow(2, 8 * byteLength2 - 1);
+    checkInt(this, value, offset, byteLength2, limit - 1, -limit);
+  }
+  let i2 = 0, mul = 1, sub = 0;
+  this[offset] = value & 255;
+  while (++i2 < byteLength2 && (mul *= 256)) {
+    if (value < 0 && sub === 0 && this[offset + i2 - 1] !== 0)
+      sub = 1;
+    this[offset + i2] = (value / mul >> 0) - sub & 255;
+  }
+  return offset + byteLength2;
+};
+Buffer2.prototype.writeIntBE = function(value, offset, byteLength2, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert) {
+    let limit = Math.pow(2, 8 * byteLength2 - 1);
+    checkInt(this, value, offset, byteLength2, limit - 1, -limit);
+  }
+  let i2 = byteLength2 - 1, mul = 1, sub = 0;
+  this[offset + i2] = value & 255;
+  while (--i2 >= 0 && (mul *= 256)) {
+    if (value < 0 && sub === 0 && this[offset + i2 + 1] !== 0)
+      sub = 1;
+    this[offset + i2] = (value / mul >> 0) - sub & 255;
+  }
+  return offset + byteLength2;
+};
+Buffer2.prototype.writeInt8 = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 1, 127, -128);
+  if (value < 0)
+    value = 255 + value + 1;
+  return this[offset] = value & 255, offset + 1;
+};
+Buffer2.prototype.writeInt16LE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 2, 32767, -32768);
+  return this[offset] = value & 255, this[offset + 1] = value >>> 8, offset + 2;
+};
+Buffer2.prototype.writeInt16BE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 2, 32767, -32768);
+  return this[offset] = value >>> 8, this[offset + 1] = value & 255, offset + 2;
+};
+Buffer2.prototype.writeInt32LE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 4, 2147483647, -2147483648);
+  return this[offset] = value & 255, this[offset + 1] = value >>> 8, this[offset + 2] = value >>> 16, this[offset + 3] = value >>> 24, offset + 4;
+};
+Buffer2.prototype.writeInt32BE = function(value, offset, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkInt(this, value, offset, 4, 2147483647, -2147483648);
+  if (value < 0)
+    value = 4294967295 + value + 1;
+  return this[offset] = value >>> 24, this[offset + 1] = value >>> 16, this[offset + 2] = value >>> 8, this[offset + 3] = value & 255, offset + 4;
+};
+Buffer2.prototype.writeBigInt64LE = defineBigIntMethod(function(value, offset = 0) {
+  return wrtBigUInt64LE(this, value, offset, -BigInt("0x8000000000000000"), BigInt("0x7fffffffffffffff"));
+});
+Buffer2.prototype.writeBigInt64BE = defineBigIntMethod(function(value, offset = 0) {
+  return wrtBigUInt64BE(this, value, offset, -BigInt("0x8000000000000000"), BigInt("0x7fffffffffffffff"));
+});
+function checkIEEE754(buf, value, offset, ext, max, min) {
+  if (offset + ext > buf.length)
+    throw RangeError("Index out of range");
+  if (offset < 0)
+    throw RangeError("Index out of range");
+}
+function writeFloat(buf, value, offset, littleEndian, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkIEEE754(buf, value, offset, 4, 340282346638528860000000000000000000000, -340282346638528860000000000000000000000);
+  return write(buf, value, offset, littleEndian, 23, 4), offset + 4;
+}
+Buffer2.prototype.writeFloatLE = function(value, offset, noAssert) {
+  return writeFloat(this, value, offset, true, noAssert);
+};
+Buffer2.prototype.writeFloatBE = function(value, offset, noAssert) {
+  return writeFloat(this, value, offset, false, noAssert);
+};
+function writeDouble(buf, value, offset, littleEndian, noAssert) {
+  if (value = +value, offset = offset >>> 0, !noAssert)
+    checkIEEE754(buf, value, offset, 8, 179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000);
+  return write(buf, value, offset, littleEndian, 52, 8), offset + 8;
+}
+Buffer2.prototype.writeDoubleLE = function(value, offset, noAssert) {
+  return writeDouble(this, value, offset, true, noAssert);
+};
+Buffer2.prototype.writeDoubleBE = function(value, offset, noAssert) {
+  return writeDouble(this, value, offset, false, noAssert);
+};
+Buffer2.prototype.copy = function(target, targetStart, start, end) {
+  if (!Buffer2.isBuffer(target))
+    throw TypeError("argument should be a Buffer");
+  if (!start)
+    start = 0;
+  if (!end && end !== 0)
+    end = this.length;
+  if (targetStart >= target.length)
+    targetStart = target.length;
+  if (!targetStart)
+    targetStart = 0;
+  if (end > 0 && end < start)
+    end = start;
+  if (end === start)
+    return 0;
+  if (target.length === 0 || this.length === 0)
+    return 0;
+  if (targetStart < 0)
+    throw RangeError("targetStart out of bounds");
+  if (start < 0 || start >= this.length)
+    throw RangeError("Index out of range");
+  if (end < 0)
+    throw RangeError("sourceEnd out of bounds");
+  if (end > this.length)
+    end = this.length;
+  if (target.length - targetStart < end - start)
+    end = target.length - targetStart + start;
+  let len2 = end - start;
+  if (this === target && typeof Uint8Array.prototype.copyWithin === "function")
+    this.copyWithin(targetStart, start, end);
+  else
+    Uint8Array.prototype.set.call(target, this.subarray(start, end), targetStart);
+  return len2;
+};
+Buffer2.prototype.fill = function(val, start, end, encoding) {
+  if (typeof val === "string") {
+    if (typeof start === "string")
+      encoding = start, start = 0, end = this.length;
+    else if (typeof end === "string")
+      encoding = end, end = this.length;
+    if (encoding !== undefined && typeof encoding !== "string")
+      throw TypeError("encoding must be a string");
+    if (typeof encoding === "string" && !Buffer2.isEncoding(encoding))
+      throw TypeError("Unknown encoding: " + encoding);
+    if (val.length === 1) {
+      let code2 = val.charCodeAt(0);
+      if (encoding === "utf8" && code2 < 128 || encoding === "latin1")
+        val = code2;
+    }
+  } else if (typeof val === "number")
+    val = val & 255;
+  else if (typeof val === "boolean")
+    val = Number(val);
+  if (start < 0 || this.length < start || this.length < end)
+    throw RangeError("Out of range index");
+  if (end <= start)
+    return this;
+  if (start = start >>> 0, end = end === undefined ? this.length : end >>> 0, !val)
+    val = 0;
+  let i2;
+  if (typeof val === "number")
+    for (i2 = start;i2 < end; ++i2)
+      this[i2] = val;
+  else {
+    let bytes = Buffer2.isBuffer(val) ? val : Buffer2.from(val, encoding), len2 = bytes.length;
+    if (len2 === 0)
+      throw TypeError('The value "' + val + '" is invalid for argument "value"');
+    for (i2 = 0;i2 < end - start; ++i2)
+      this[i2 + start] = bytes[i2 % len2];
+  }
+  return this;
+};
+function addNumericalSeparator(val) {
+  let res = "", i2 = val.length, start = val[0] === "-" ? 1 : 0;
+  for (;i2 >= start + 4; i2 -= 3)
+    res = `_${val.slice(i2 - 3, i2)}${res}`;
+  return `${val.slice(0, i2)}${res}`;
+}
+function checkBounds(buf, offset, byteLength2) {
+  if (validateNumber(offset, "offset"), buf[offset] === undefined || buf[offset + byteLength2] === undefined)
+    boundsError(offset, buf.length - (byteLength2 + 1));
+}
+function checkIntBI(value, min, max, buf, offset, byteLength2) {
+  if (value > max || value < min) {
+    let n = typeof min === "bigint" ? "n" : "", range;
+    if (byteLength2 > 3)
+      if (min === 0 || min === BigInt(0))
+        range = `>= 0${n} and < 2${n} ** ${(byteLength2 + 1) * 8}${n}`;
+      else
+        range = `>= -(2${n} ** ${(byteLength2 + 1) * 8 - 1}${n}) and < 2 ** ${(byteLength2 + 1) * 8 - 1}${n}`;
+    else
+      range = `>= ${min}${n} and <= ${max}${n}`;
+    throw new ERR_OUT_OF_RANGE("value", range, value);
+  }
+  checkBounds(buf, offset, byteLength2);
+}
+function validateNumber(value, name) {
+  if (typeof value !== "number")
+    throw new ERR_INVALID_ARG_TYPE(name, "number", value);
+}
+function boundsError(value, length, type) {
+  if (Math.floor(value) !== value)
+    throw validateNumber(value, type), new ERR_OUT_OF_RANGE(type || "offset", "an integer", value);
+  if (length < 0)
+    throw new ERR_BUFFER_OUT_OF_BOUNDS;
+  throw new ERR_OUT_OF_RANGE(type || "offset", `>= ${type ? 1 : 0} and <= ${length}`, value);
+}
+var INVALID_BASE64_RE = /[^+/0-9A-Za-z-_]/g;
+function base64clean(str) {
+  if (str = str.split("=")[0], str = str.trim().replace(INVALID_BASE64_RE, ""), str.length < 2)
+    return "";
+  while (str.length % 4 !== 0)
+    str = str + "=";
+  return str;
+}
+function utf8ToBytes(string, units) {
+  units = units || 1 / 0;
+  let codePoint, length = string.length, leadSurrogate = null, bytes = [];
+  for (let i2 = 0;i2 < length; ++i2) {
+    if (codePoint = string.charCodeAt(i2), codePoint > 55295 && codePoint < 57344) {
+      if (!leadSurrogate) {
+        if (codePoint > 56319) {
+          if ((units -= 3) > -1)
+            bytes.push(239, 191, 189);
+          continue;
+        } else if (i2 + 1 === length) {
+          if ((units -= 3) > -1)
+            bytes.push(239, 191, 189);
+          continue;
+        }
+        leadSurrogate = codePoint;
+        continue;
+      }
+      if (codePoint < 56320) {
+        if ((units -= 3) > -1)
+          bytes.push(239, 191, 189);
+        leadSurrogate = codePoint;
+        continue;
+      }
+      codePoint = (leadSurrogate - 55296 << 10 | codePoint - 56320) + 65536;
+    } else if (leadSurrogate) {
+      if ((units -= 3) > -1)
+        bytes.push(239, 191, 189);
+    }
+    if (leadSurrogate = null, codePoint < 128) {
+      if ((units -= 1) < 0)
+        break;
+      bytes.push(codePoint);
+    } else if (codePoint < 2048) {
+      if ((units -= 2) < 0)
+        break;
+      bytes.push(codePoint >> 6 | 192, codePoint & 63 | 128);
+    } else if (codePoint < 65536) {
+      if ((units -= 3) < 0)
+        break;
+      bytes.push(codePoint >> 12 | 224, codePoint >> 6 & 63 | 128, codePoint & 63 | 128);
+    } else if (codePoint < 1114112) {
+      if ((units -= 4) < 0)
+        break;
+      bytes.push(codePoint >> 18 | 240, codePoint >> 12 & 63 | 128, codePoint >> 6 & 63 | 128, codePoint & 63 | 128);
+    } else
+      throw Error("Invalid code point");
+  }
+  return bytes;
+}
+function asciiToBytes(str) {
+  let byteArray = [];
+  for (let i2 = 0;i2 < str.length; ++i2)
+    byteArray.push(str.charCodeAt(i2) & 255);
+  return byteArray;
+}
+function utf16leToBytes(str, units) {
+  let c, hi, lo, byteArray = [];
+  for (let i2 = 0;i2 < str.length; ++i2) {
+    if ((units -= 2) < 0)
+      break;
+    c = str.charCodeAt(i2), hi = c >> 8, lo = c % 256, byteArray.push(lo), byteArray.push(hi);
+  }
+  return byteArray;
+}
+function base64ToBytes(str) {
+  return toByteArray(base64clean(str));
+}
+function blitBuffer(src, dst, offset, length) {
+  let i2;
+  for (i2 = 0;i2 < length; ++i2) {
+    if (i2 + offset >= dst.length || i2 >= src.length)
+      break;
+    dst[i2 + offset] = src[i2];
+  }
+  return i2;
+}
+function isInstance(obj, type) {
+  return obj instanceof type || obj != null && obj.constructor != null && obj.constructor.name != null && obj.constructor.name === type.name;
+}
+var hexSliceLookupTable = function() {
+  let table = Array(256);
+  for (let i2 = 0;i2 < 16; ++i2) {
+    let i16 = i2 * 16;
+    for (let j = 0;j < 16; ++j)
+      table[i16 + j] = "0123456789abcdef"[i2] + "0123456789abcdef"[j];
+  }
+  return table;
+}();
+function defineBigIntMethod(fn) {
+  return typeof BigInt > "u" ? BufferBigIntNotDefined : fn;
+}
+function BufferBigIntNotDefined() {
+  throw Error("BigInt not supported");
+}
+function notimpl(name) {
+  return () => {
+    throw Error(name + " is not implemented for node:buffer browser polyfill");
+  };
+}
+var resolveObjectURL = notimpl("resolveObjectURL");
+var isUtf8 = notimpl("isUtf8");
+var transcode = notimpl("transcode");
+var prepareRuntime = () => {
+  globalThis.Buffer = Buffer2;
+};
+var handler = (trigger, fn) => ({
+  trigger,
+  fn
+});
+prepareRuntime();
+var cre = {
+  capabilities: {
+    CronCapability,
+    HTTPCapability,
+    ConfidentialHTTPClient: ClientCapability2,
+    HTTPClient: ClientCapability3,
+    EVMClient: ClientCapability
+  },
+  handler
+};
+var LAST_FINALIZED_BLOCK_NUMBER = {
+  absVal: Buffer.from([3]).toString("base64"),
+  sign: "-1"
+};
+var LATEST_BLOCK_NUMBER = {
+  absVal: Buffer.from([2]).toString("base64"),
+  sign: "-1"
+};
+var encodeCallMsg = (payload) => ({
+  from: hexToBase64(payload.from),
+  to: hexToBase64(payload.to),
+  data: hexToBase64(payload.data)
+});
+var EVM_DEFAULT_REPORT_ENCODER = {
+  encoderName: "evm",
+  signingAlgo: "ecdsa",
+  hashingAlgo: "keccak256"
+};
+var prepareReportRequest = (hexEncodedPayload, reportEncoder = EVM_DEFAULT_REPORT_ENCODER) => ({
+  encodedPayload: hexToBase64(hexEncodedPayload),
+  ...reportEncoder
+});
+function sendReport(runtime, report, fn) {
+  const rawReport = report.x_generatedCodeOnly_unwrap();
+  const request = fn(rawReport);
+  return this.sendRequest(runtime, request);
+}
+function sendRequesterSendReport(report, fn) {
+  const rawReport = report.x_generatedCodeOnly_unwrap();
+  const request = fn(rawReport);
+  return this.sendRequest(request);
+}
+ClientCapability3.prototype.sendReport = sendReport;
+SendRequester.prototype.sendReport = sendRequesterSendReport;
+var network = {
+  chainId: "1",
+  chainSelector: {
+    name: "aptos-mainnet",
+    selector: 4741433654826277614n
+  },
+  chainFamily: "aptos",
+  networkType: "mainnet"
+};
+var aptos_mainnet_default = network;
+var network2 = {
+  chainId: "16661",
+  chainSelector: {
+    name: "0g-mainnet",
+    selector: 4426351306075016396n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var _0g_mainnet_default = network2;
+var network3 = {
+  chainId: "2741",
+  chainSelector: {
+    name: "abstract-mainnet",
+    selector: 3577778157919314504n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var abstract_mainnet_default = network3;
+var network4 = {
+  chainId: "33139",
+  chainSelector: {
+    name: "apechain-mainnet",
+    selector: 14894068710063348487n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var apechain_mainnet_default = network4;
+var network5 = {
+  chainId: "463",
+  chainSelector: {
+    name: "areon-mainnet",
+    selector: 1939936305787790600n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var areon_mainnet_default = network5;
+var network6 = {
+  chainId: "43114",
+  chainSelector: {
+    name: "avalanche-mainnet",
+    selector: 6433500567565415381n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var avalanche_mainnet_default = network6;
+var network7 = {
+  chainId: "432204",
+  chainSelector: {
+    name: "avalanche-subnet-dexalot-mainnet",
+    selector: 5463201557265485081n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var avalanche_subnet_dexalot_mainnet_default = network7;
+var network8 = {
+  chainId: "80094",
+  chainSelector: {
+    name: "berachain-mainnet",
+    selector: 1294465214383781161n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var berachain_mainnet_default = network8;
+var network9 = {
+  chainId: "56",
+  chainSelector: {
+    name: "binance_smart_chain-mainnet",
+    selector: 11344663589394136015n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var binance_smart_chain_mainnet_default = network9;
+var network10 = {
+  chainId: "204",
+  chainSelector: {
+    name: "binance_smart_chain-mainnet-opbnb-1",
+    selector: 465944652040885897n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var binance_smart_chain_mainnet_opbnb_1_default = network10;
+var network11 = {
+  chainId: "1907",
+  chainSelector: {
+    name: "bitcichain-mainnet",
+    selector: 4874388048629246000n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bitcichain_mainnet_default = network11;
+var network12 = {
+  chainId: "200901",
+  chainSelector: {
+    name: "bitcoin-mainnet-bitlayer-1",
+    selector: 7937294810946806131n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bitcoin_mainnet_bitlayer_1_default = network12;
+var network13 = {
+  chainId: "60808",
+  chainSelector: {
+    name: "bitcoin-mainnet-bob-1",
+    selector: 3849287863852499584n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bitcoin_mainnet_bob_1_default = network13;
+var network14 = {
+  chainId: "3637",
+  chainSelector: {
+    name: "bitcoin-mainnet-botanix",
+    selector: 4560701533377838164n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bitcoin_mainnet_botanix_default = network14;
+var network15 = {
+  chainId: "223",
+  chainSelector: {
+    name: "bitcoin-mainnet-bsquared-1",
+    selector: 5406759801798337480n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bitcoin_mainnet_bsquared_1_default = network15;
+var network16 = {
+  chainId: "4200",
+  chainSelector: {
+    name: "bitcoin-merlin-mainnet",
+    selector: 241851231317828981n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bitcoin_merlin_mainnet_default = network16;
+var network17 = {
+  chainId: "964",
+  chainSelector: {
+    name: "bittensor-mainnet",
+    selector: 2135107236357186872n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bittensor_mainnet_default = network17;
+var network18 = {
+  chainId: "199",
+  chainSelector: {
+    name: "bittorrent_chain-mainnet",
+    selector: 3776006016387883143n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var bittorrent_chain_mainnet_default = network18;
+var network19 = {
+  chainId: "42220",
+  chainSelector: {
+    name: "celo-mainnet",
+    selector: 1346049177634351622n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var celo_mainnet_default = network19;
+var network20 = {
+  chainId: "81224",
+  chainSelector: {
+    name: "codex-mainnet",
+    selector: 9478124434908827753n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var codex_mainnet_default = network20;
+var network21 = {
+  chainId: "52",
+  chainSelector: {
+    name: "coinex_smart_chain-mainnet",
+    selector: 1761333065194157300n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var coinex_smart_chain_mainnet_default = network21;
+var network22 = {
+  chainId: "1030",
+  chainSelector: {
+    name: "conflux-mainnet",
+    selector: 3358365939762719202n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var conflux_mainnet_default = network22;
+var network23 = {
+  chainId: "1116",
+  chainSelector: {
+    name: "core-mainnet",
+    selector: 1224752112135636129n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var core_mainnet_default = network23;
+var network24 = {
+  chainId: "21000000",
+  chainSelector: {
+    name: "corn-mainnet",
+    selector: 9043146809313071210n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var corn_mainnet_default = network24;
+var network25 = {
+  chainId: "25",
+  chainSelector: {
+    name: "cronos-mainnet",
+    selector: 1456215246176062136n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var cronos_mainnet_default = network25;
+var network26 = {
+  chainId: "388",
+  chainSelector: {
+    name: "cronos-zkevm-mainnet",
+    selector: 8788096068760390840n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var cronos_zkevm_mainnet_default = network26;
+var network27 = {
+  chainId: "1",
+  chainSelector: {
+    name: "ethereum-mainnet",
+    selector: 5009297550715157269n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_default = network27;
+var network28 = {
+  chainId: "42161",
+  chainSelector: {
+    name: "ethereum-mainnet-arbitrum-1",
+    selector: 4949039107694359620n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_arbitrum_1_default = network28;
+var network29 = {
+  chainId: "12324",
+  chainSelector: {
+    name: "ethereum-mainnet-arbitrum-1-l3x-1",
+    selector: 3162193654116181371n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_arbitrum_1_l3x_1_default = network29;
+var network30 = {
+  chainId: "978670",
+  chainSelector: {
+    name: "ethereum-mainnet-arbitrum-1-treasure-1",
+    selector: 1010349088906777999n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_arbitrum_1_treasure_1_default = network30;
+var network31 = {
+  chainId: "3776",
+  chainSelector: {
+    name: "ethereum-mainnet-astar-zkevm-1",
+    selector: 1540201334317828111n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_astar_zkevm_1_default = network31;
+var network32 = {
+  chainId: "8453",
+  chainSelector: {
+    name: "ethereum-mainnet-base-1",
+    selector: 15971525489660198786n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_base_1_default = network32;
+var network33 = {
+  chainId: "81457",
+  chainSelector: {
+    name: "ethereum-mainnet-blast-1",
+    selector: 4411394078118774322n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_blast_1_default = network33;
+var network34 = {
+  chainId: "177",
+  chainSelector: {
+    name: "ethereum-mainnet-hashkey-1",
+    selector: 7613811247471741961n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_hashkey_1_default = network34;
+var network35 = {
+  chainId: "13371",
+  chainSelector: {
+    name: "ethereum-mainnet-immutable-zkevm-1",
+    selector: 1237925231416731909n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_immutable_zkevm_1_default = network35;
+var network36 = {
+  chainId: "57073",
+  chainSelector: {
+    name: "ethereum-mainnet-ink-1",
+    selector: 3461204551265785888n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_ink_1_default = network36;
+var network37 = {
+  chainId: "255",
+  chainSelector: {
+    name: "ethereum-mainnet-kroma-1",
+    selector: 3719320017875267166n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_kroma_1_default = network37;
+var network38 = {
+  chainId: "59144",
+  chainSelector: {
+    name: "ethereum-mainnet-linea-1",
+    selector: 4627098889531055414n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_linea_1_default = network38;
+var network39 = {
+  chainId: "5000",
+  chainSelector: {
+    name: "ethereum-mainnet-mantle-1",
+    selector: 1556008542357238666n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_mantle_1_default = network39;
+var network40 = {
+  chainId: "1088",
+  chainSelector: {
+    name: "ethereum-mainnet-metis-1",
+    selector: 8805746078405598895n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_metis_1_default = network40;
+var network41 = {
+  chainId: "34443",
+  chainSelector: {
+    name: "ethereum-mainnet-mode-1",
+    selector: 7264351850409363825n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_mode_1_default = network41;
+var network42 = {
+  chainId: "10",
+  chainSelector: {
+    name: "ethereum-mainnet-optimism-1",
+    selector: 3734403246176062136n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_optimism_1_default = network42;
+var network43 = {
+  chainId: "1101",
+  chainSelector: {
+    name: "ethereum-mainnet-polygon-zkevm-1",
+    selector: 4348158687435793198n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_polygon_zkevm_1_default = network43;
+var network44 = {
+  chainId: "534352",
+  chainSelector: {
+    name: "ethereum-mainnet-scroll-1",
+    selector: 13204309965629103672n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_scroll_1_default = network44;
+var network45 = {
+  chainId: "167000",
+  chainSelector: {
+    name: "ethereum-mainnet-taiko-1",
+    selector: 16468599424800719238n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_taiko_1_default = network45;
+var network46 = {
+  chainId: "130",
+  chainSelector: {
+    name: "ethereum-mainnet-unichain-1",
+    selector: 1923510103922296319n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_unichain_1_default = network46;
+var network47 = {
+  chainId: "480",
+  chainSelector: {
+    name: "ethereum-mainnet-worldchain-1",
+    selector: 2049429975587534727n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_worldchain_1_default = network47;
+var network48 = {
+  chainId: "196",
+  chainSelector: {
+    name: "ethereum-mainnet-xlayer-1",
+    selector: 3016212468291539606n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_xlayer_1_default = network48;
+var network49 = {
+  chainId: "48900",
+  chainSelector: {
+    name: "ethereum-mainnet-zircuit-1",
+    selector: 17198166215261833993n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_zircuit_1_default = network49;
+var network50 = {
+  chainId: "324",
+  chainSelector: {
+    name: "ethereum-mainnet-zksync-1",
+    selector: 1562403441176082196n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ethereum_mainnet_zksync_1_default = network50;
+var network51 = {
+  chainId: "42793",
+  chainSelector: {
+    name: "etherlink-mainnet",
+    selector: 13624601974233774587n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var etherlink_mainnet_default = network51;
+var network52 = {
+  chainId: "250",
+  chainSelector: {
+    name: "fantom-mainnet",
+    selector: 3768048213127883732n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var fantom_mainnet_default = network52;
+var network53 = {
+  chainId: "314",
+  chainSelector: {
+    name: "filecoin-mainnet",
+    selector: 4561443241176882990n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var filecoin_mainnet_default = network53;
+var network54 = {
+  chainId: "252",
+  chainSelector: {
+    name: "fraxtal-mainnet",
+    selector: 1462016016387883143n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var fraxtal_mainnet_default = network54;
+var network55 = {
+  chainId: "100",
+  chainSelector: {
+    name: "gnosis_chain-mainnet",
+    selector: 465200170687744372n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var gnosis_chain_mainnet_default = network55;
+var network56 = {
+  chainId: "295",
+  chainSelector: {
+    name: "hedera-mainnet",
+    selector: 3229138320728879060n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var hedera_mainnet_default = network56;
+var network57 = {
+  chainId: "43111",
+  chainSelector: {
+    name: "hemi-mainnet",
+    selector: 1804312132722180201n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var hemi_mainnet_default = network57;
+var network58 = {
+  chainId: "999",
+  chainSelector: {
+    name: "hyperliquid-mainnet",
+    selector: 2442541497099098535n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var hyperliquid_mainnet_default = network58;
+var network59 = {
+  chainId: "678",
+  chainSelector: {
+    name: "janction-mainnet",
+    selector: 9107126442626377432n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var janction_mainnet_default = network59;
+var network60 = {
+  chainId: "8217",
+  chainSelector: {
+    name: "kaia-mainnet",
+    selector: 9813823125703490621n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var kaia_mainnet_default = network60;
+var network61 = {
+  chainId: "2222",
+  chainSelector: {
+    name: "kava-mainnet",
+    selector: 7550000543357438061n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var kava_mainnet_default = network61;
+var network62 = {
+  chainId: "1285",
+  chainSelector: {
+    name: "kusama-mainnet-moonriver",
+    selector: 1355020143337428062n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var kusama_mainnet_moonriver_default = network62;
+var network63 = {
+  chainId: "232",
+  chainSelector: {
+    name: "lens-mainnet",
+    selector: 5608378062013572713n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var lens_mainnet_default = network63;
+var network64 = {
+  chainId: "1135",
+  chainSelector: {
+    name: "lisk-mainnet",
+    selector: 15293031020466096408n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var lisk_mainnet_default = network64;
+var network65 = {
+  chainId: "51888",
+  chainSelector: {
+    name: "memento-mainnet",
+    selector: 6473245816409426016n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var memento_mainnet_default = network65;
+var network66 = {
+  chainId: "1750",
+  chainSelector: {
+    name: "metal-mainnet",
+    selector: 13447077090413146373n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var metal_mainnet_default = network66;
+var network67 = {
+  chainId: "228",
+  chainSelector: {
+    name: "mind-mainnet",
+    selector: 11690709103138290329n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var mind_mainnet_default = network67;
+var network68 = {
+  chainId: "185",
+  chainSelector: {
+    name: "mint-mainnet",
+    selector: 17164792800244661392n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var mint_mainnet_default = network68;
+var network69 = {
+  chainId: "143",
+  chainSelector: {
+    name: "monad-mainnet",
+    selector: 8481857512324358265n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var monad_mainnet_default = network69;
+var network70 = {
+  chainId: "2818",
+  chainSelector: {
+    name: "morph-mainnet",
+    selector: 18164309074156128038n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var morph_mainnet_default = network70;
+var network71 = {
+  chainId: "397",
+  chainSelector: {
+    name: "near-mainnet",
+    selector: 2039744413822257700n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var near_mainnet_default = network71;
+var network72 = {
+  chainId: "259",
+  chainSelector: {
+    name: "neonlink-mainnet",
+    selector: 8239338020728974000n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var neonlink_mainnet_default = network72;
+var network73 = {
+  chainId: "47763",
+  chainSelector: {
+    name: "neox-mainnet",
+    selector: 7222032299962346917n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var neox_mainnet_default = network73;
+var network74 = {
+  chainId: "68414",
+  chainSelector: {
+    name: "nexon-mainnet-henesys",
+    selector: 12657445206920369324n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var nexon_mainnet_henesys_default = network74;
+var network75 = {
+  chainId: "60118",
+  chainSelector: {
+    name: "nexon-mainnet-lith",
+    selector: 15758750456714168963n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var nexon_mainnet_lith_default = network75;
+var network76 = {
+  chainId: "807424",
+  chainSelector: {
+    name: "nexon-qa",
+    selector: 14632960069656270105n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var nexon_qa_default = network76;
+var network77 = {
+  chainId: "847799",
+  chainSelector: {
+    name: "nexon-stage",
+    selector: 5556806327594153475n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var nexon_stage_default = network77;
+var network78 = {
+  chainId: "6900",
+  chainSelector: {
+    name: "nibiru-mainnet",
+    selector: 17349189558768828726n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var nibiru_mainnet_default = network78;
+var network79 = {
+  chainId: "9745",
+  chainSelector: {
+    name: "plasma-mainnet",
+    selector: 9335212494177455608n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var plasma_mainnet_default = network79;
+var network80 = {
+  chainId: "98866",
+  chainSelector: {
+    name: "plume-mainnet",
+    selector: 17912061998839310979n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var plume_mainnet_default = network80;
+var network81 = {
+  chainId: "592",
+  chainSelector: {
+    name: "polkadot-mainnet-astar",
+    selector: 6422105447186081193n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var polkadot_mainnet_astar_default = network81;
+var network82 = {
+  chainId: "2031",
+  chainSelector: {
+    name: "polkadot-mainnet-centrifuge",
+    selector: 8175830712062617656n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var polkadot_mainnet_centrifuge_default = network82;
+var network83 = {
+  chainId: "46",
+  chainSelector: {
+    name: "polkadot-mainnet-darwinia",
+    selector: 8866418665544333000n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var polkadot_mainnet_darwinia_default = network83;
+var network84 = {
+  chainId: "1284",
+  chainSelector: {
+    name: "polkadot-mainnet-moonbeam",
+    selector: 1252863800116739621n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var polkadot_mainnet_moonbeam_default = network84;
+var network85 = {
+  chainId: "137",
+  chainSelector: {
+    name: "polygon-mainnet",
+    selector: 4051577828743386545n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var polygon_mainnet_default = network85;
+var network86 = {
+  chainId: "747474",
+  chainSelector: {
+    name: "polygon-mainnet-katana",
+    selector: 2459028469735686113n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var polygon_mainnet_katana_default = network86;
+var network87 = {
+  chainId: "2020",
+  chainSelector: {
+    name: "ronin-mainnet",
+    selector: 6916147374840168594n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var ronin_mainnet_default = network87;
+var network88 = {
+  chainId: "30",
+  chainSelector: {
+    name: "rootstock-mainnet",
+    selector: 11964252391146578476n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var rootstock_mainnet_default = network88;
+var network89 = {
+  chainId: "1329",
+  chainSelector: {
+    name: "sei-mainnet",
+    selector: 9027416829622342829n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var sei_mainnet_default = network89;
+var network90 = {
+  chainId: "109",
+  chainSelector: {
+    name: "shibarium-mainnet",
+    selector: 3993510008929295315n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var shibarium_mainnet_default = network90;
+var network91 = {
+  chainId: "1868",
+  chainSelector: {
+    name: "soneium-mainnet",
+    selector: 12505351618335765396n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var soneium_mainnet_default = network91;
+var network92 = {
+  chainId: "146",
+  chainSelector: {
+    name: "sonic-mainnet",
+    selector: 1673871237479749969n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var sonic_mainnet_default = network92;
+var network93 = {
+  chainId: "5330",
+  chainSelector: {
+    name: "superseed-mainnet",
+    selector: 470401360549526817n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var superseed_mainnet_default = network93;
+var network94 = {
+  chainId: "239",
+  chainSelector: {
+    name: "tac-mainnet",
+    selector: 5936861837188149645n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var tac_mainnet_default = network94;
+var network95 = {
+  chainId: "40",
+  chainSelector: {
+    name: "telos-evm-mainnet",
+    selector: 1477345371608778000n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var telos_evm_mainnet_default = network95;
+var network96 = {
+  chainId: "61166",
+  chainSelector: {
+    name: "treasure-mainnet",
+    selector: 5214452172935136222n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var treasure_mainnet_default = network96;
+var network97 = {
+  chainId: "728126428",
+  chainSelector: {
+    name: "tron-mainnet-evm",
+    selector: 1546563616611573946n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var tron_mainnet_evm_default = network97;
+var network98 = {
+  chainId: "106",
+  chainSelector: {
+    name: "velas-mainnet",
+    selector: 374210358663784372n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var velas_mainnet_default = network98;
+var network99 = {
+  chainId: "1111",
+  chainSelector: {
+    name: "wemix-mainnet",
+    selector: 5142893604156789321n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var wemix_mainnet_default = network99;
+var network100 = {
+  chainId: "50",
+  chainSelector: {
+    name: "xdc-mainnet",
+    selector: 17673274061779414707n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var xdc_mainnet_default = network100;
+var network101 = {
+  chainId: "7000",
+  chainSelector: {
+    name: "zetachain-mainnet",
+    selector: 10817664450262215148n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var zetachain_mainnet_default = network101;
+var network102 = {
+  chainId: "810180",
+  chainSelector: {
+    name: "zklink_nova-mainnet",
+    selector: 4350319965322101699n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var zklink_nova_mainnet_default = network102;
+var network103 = {
+  chainId: "7777777",
+  chainSelector: {
+    name: "zora-mainnet",
+    selector: 3555797439612589184n
+  },
+  chainFamily: "evm",
+  networkType: "mainnet"
+};
+var zora_mainnet_default = network103;
+var network104 = {
+  chainId: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  chainSelector: {
+    name: "solana-mainnet",
+    selector: 124615329519749607n
+  },
+  chainFamily: "solana",
+  networkType: "mainnet"
+};
+var solana_mainnet_default = network104;
+var network105 = {
+  chainId: "1",
+  chainSelector: {
+    name: "sui-mainnet",
+    selector: 17529533435026248318n
+  },
+  chainFamily: "sui",
+  networkType: "mainnet"
+};
+var sui_mainnet_default = network105;
+var network106 = {
+  chainId: "-239",
+  chainSelector: {
+    name: "ton-mainnet",
+    selector: 16448340667252469081n
+  },
+  chainFamily: "ton",
+  networkType: "mainnet"
+};
+var ton_mainnet_default = network106;
+var network107 = {
+  chainId: "728126428",
+  chainSelector: {
+    name: "tron-mainnet",
+    selector: 1546563616611573945n
+  },
+  chainFamily: "tron",
+  networkType: "mainnet"
+};
+var tron_mainnet_default = network107;
+var network108 = {
+  chainId: "4",
+  chainSelector: {
+    name: "aptos-localnet",
+    selector: 4457093679053095497n
+  },
+  chainFamily: "aptos",
+  networkType: "testnet"
+};
+var aptos_localnet_default = network108;
+var network109 = {
+  chainId: "2",
+  chainSelector: {
+    name: "aptos-testnet",
+    selector: 743186221051783445n
+  },
+  chainFamily: "aptos",
+  networkType: "testnet"
+};
+var aptos_testnet_default = network109;
+var network110 = {
+  chainId: "16601",
+  chainSelector: {
+    name: "0g-testnet-galileo",
+    selector: 2131427466778448014n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var _0g_testnet_galileo_default = network110;
+var network111 = {
+  chainId: "16600",
+  chainSelector: {
+    name: "0g-testnet-newton",
+    selector: 16088006396410204581n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var _0g_testnet_newton_default = network111;
+var network112 = {
+  chainId: "11124",
+  chainSelector: {
+    name: "abstract-testnet",
+    selector: 16235373811196386733n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var abstract_testnet_default = network112;
+var network113 = {
+  chainId: "31337",
+  chainSelector: {
+    name: "anvil-devnet",
+    selector: 7759470850252068959n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var anvil_devnet_default = network113;
+var network114 = {
+  chainId: "33111",
+  chainSelector: {
+    name: "apechain-testnet-curtis",
+    selector: 9900119385908781505n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var apechain_testnet_curtis_default = network114;
+var network115 = {
+  chainId: "462",
+  chainSelector: {
+    name: "areon-testnet",
+    selector: 7317911323415911000n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var areon_testnet_default = network115;
+var network116 = {
+  chainId: "432201",
+  chainSelector: {
+    name: "avalanche-subnet-dexalot-testnet",
+    selector: 1458281248224512906n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var avalanche_subnet_dexalot_testnet_default = network116;
+var network117 = {
+  chainId: "43113",
+  chainSelector: {
+    name: "avalanche-testnet-fuji",
+    selector: 14767482510784806043n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var avalanche_testnet_fuji_default = network117;
+var network118 = {
+  chainId: "595581",
+  chainSelector: {
+    name: "avalanche-testnet-nexon",
+    selector: 7837562506228496256n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var avalanche_testnet_nexon_default = network118;
+var network119 = {
+  chainId: "80085",
+  chainSelector: {
+    name: "berachain-testnet-artio",
+    selector: 12336603543561911511n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var berachain_testnet_artio_default = network119;
+var network120 = {
+  chainId: "80084",
+  chainSelector: {
+    name: "berachain-testnet-bartio",
+    selector: 8999465244383784164n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var berachain_testnet_bartio_default = network120;
+var network121 = {
+  chainId: "80069",
+  chainSelector: {
+    name: "berachain-testnet-bepolia",
+    selector: 7728255861635209484n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var berachain_testnet_bepolia_default = network121;
+var network122 = {
+  chainId: "97",
+  chainSelector: {
+    name: "binance_smart_chain-testnet",
+    selector: 13264668187771770619n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var binance_smart_chain_testnet_default = network122;
+var network123 = {
+  chainId: "5611",
+  chainSelector: {
+    name: "binance_smart_chain-testnet-opbnb-1",
+    selector: 13274425992935471758n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var binance_smart_chain_testnet_opbnb_1_default = network123;
+var network124 = {
+  chainId: "1908",
+  chainSelector: {
+    name: "bitcichain-testnet",
+    selector: 4888058894222120000n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bitcichain_testnet_default = network124;
+var network125 = {
+  chainId: "200810",
+  chainSelector: {
+    name: "bitcoin-testnet-bitlayer-1",
+    selector: 3789623672476206327n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bitcoin_testnet_bitlayer_1_default = network125;
+var network126 = {
+  chainId: "3636",
+  chainSelector: {
+    name: "bitcoin-testnet-botanix",
+    selector: 1467223411771711614n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bitcoin_testnet_botanix_default = network126;
+var network127 = {
+  chainId: "1123",
+  chainSelector: {
+    name: "bitcoin-testnet-bsquared-1",
+    selector: 1948510578179542068n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bitcoin_testnet_bsquared_1_default = network127;
+var network128 = {
+  chainId: "686868",
+  chainSelector: {
+    name: "bitcoin-testnet-merlin",
+    selector: 5269261765892944301n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bitcoin_testnet_merlin_default = network128;
+var network129 = {
+  chainId: "31",
+  chainSelector: {
+    name: "bitcoin-testnet-rootstock",
+    selector: 8953668971247136127n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bitcoin_testnet_rootstock_default = network129;
+var network130 = {
+  chainId: "808813",
+  chainSelector: {
+    name: "bitcoin-testnet-sepolia-bob-1",
+    selector: 5535534526963509396n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bitcoin_testnet_sepolia_bob_1_default = network130;
+var network131 = {
+  chainId: "945",
+  chainSelector: {
+    name: "bittensor-testnet",
+    selector: 2177900824115119161n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bittensor_testnet_default = network131;
+var network132 = {
+  chainId: "1029",
+  chainSelector: {
+    name: "bittorrent_chain-testnet",
+    selector: 4459371029167934217n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var bittorrent_chain_testnet_default = network132;
+var network133 = {
+  chainId: "44787",
+  chainSelector: {
+    name: "celo-testnet-alfajores",
+    selector: 3552045678561919002n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var celo_testnet_alfajores_default = network133;
+var network134 = {
+  chainId: "812242",
+  chainSelector: {
+    name: "codex-testnet",
+    selector: 7225665875429174318n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var codex_testnet_default = network134;
+var network135 = {
+  chainId: "53",
+  chainSelector: {
+    name: "coinex_smart_chain-testnet",
+    selector: 8955032871639343000n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var coinex_smart_chain_testnet_default = network135;
+var network136 = {
+  chainId: "1114",
+  chainSelector: {
+    name: "core-testnet",
+    selector: 4264732132125536123n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var core_testnet_default = network136;
+var network137 = {
+  chainId: "338",
+  chainSelector: {
+    name: "cronos-testnet",
+    selector: 2995292832068775165n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var cronos_testnet_default = network137;
+var network138 = {
+  chainId: "282",
+  chainSelector: {
+    name: "cronos-testnet-zkevm-1",
+    selector: 3842103497652714138n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var cronos_testnet_zkevm_1_default = network138;
+var network139 = {
+  chainId: "240",
+  chainSelector: {
+    name: "cronos-zkevm-testnet-sepolia",
+    selector: 16487132492576884721n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var cronos_zkevm_testnet_sepolia_default = network139;
+var network140 = {
+  chainId: "2025",
+  chainSelector: {
+    name: "dtcc-testnet-andesite",
+    selector: 15513093881969820114n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var dtcc_testnet_andesite_default = network140;
+var network141 = {
+  chainId: "421613",
+  chainSelector: {
+    name: "ethereum-testnet-goerli-arbitrum-1",
+    selector: 6101244977088475029n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_goerli_arbitrum_1_default = network141;
+var network142 = {
+  chainId: "84531",
+  chainSelector: {
+    name: "ethereum-testnet-goerli-base-1",
+    selector: 5790810961207155433n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_goerli_base_1_default = network142;
+var network143 = {
+  chainId: "59140",
+  chainSelector: {
+    name: "ethereum-testnet-goerli-linea-1",
+    selector: 1355246678561316402n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_goerli_linea_1_default = network143;
+var network144 = {
+  chainId: "5001",
+  chainSelector: {
+    name: "ethereum-testnet-goerli-mantle-1",
+    selector: 4168263376276232250n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_goerli_mantle_1_default = network144;
+var network145 = {
+  chainId: "420",
+  chainSelector: {
+    name: "ethereum-testnet-goerli-optimism-1",
+    selector: 2664363617261496610n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_goerli_optimism_1_default = network145;
+var network146 = {
+  chainId: "1442",
+  chainSelector: {
+    name: "ethereum-testnet-goerli-polygon-zkevm-1",
+    selector: 11059667695644972511n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_goerli_polygon_zkevm_1_default = network146;
+var network147 = {
+  chainId: "280",
+  chainSelector: {
+    name: "ethereum-testnet-goerli-zksync-1",
+    selector: 6802309497652714138n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_goerli_zksync_1_default = network147;
+var network148 = {
+  chainId: "17000",
+  chainSelector: {
+    name: "ethereum-testnet-holesky",
+    selector: 7717148896336251131n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_holesky_default = network148;
+var network149 = {
+  chainId: "2522",
+  chainSelector: {
+    name: "ethereum-testnet-holesky-fraxtal-1",
+    selector: 8901520481741771655n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_holesky_fraxtal_1_default = network149;
+var network150 = {
+  chainId: "2810",
+  chainSelector: {
+    name: "ethereum-testnet-holesky-morph-1",
+    selector: 8304510386741731151n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_holesky_morph_1_default = network150;
+var network151 = {
+  chainId: "167009",
+  chainSelector: {
+    name: "ethereum-testnet-holesky-taiko-1",
+    selector: 7248756420937879088n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_holesky_taiko_1_default = network151;
+var network152 = {
+  chainId: "11155111",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia",
+    selector: 16015286601757825753n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_default = network152;
+var network153 = {
+  chainId: "421614",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-arbitrum-1",
+    selector: 3478487238524512106n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_arbitrum_1_default = network153;
+var network154 = {
+  chainId: "12325",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-arbitrum-1-l3x-1",
+    selector: 3486622437121596122n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_arbitrum_1_l3x_1_default = network154;
+var network155 = {
+  chainId: "978657",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-arbitrum-1-treasure-1",
+    selector: 10443705513486043421n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_arbitrum_1_treasure_1_default = network155;
+var network156 = {
+  chainId: "84532",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-base-1",
+    selector: 10344971235874465080n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_base_1_default = network156;
+var network157 = {
+  chainId: "168587773",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-blast-1",
+    selector: 2027362563942762617n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_blast_1_default = network157;
+var network158 = {
+  chainId: "21000001",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-corn-1",
+    selector: 1467427327723633929n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_corn_1_default = network158;
+var network159 = {
+  chainId: "133",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-hashkey-1",
+    selector: 4356164186791070119n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_hashkey_1_default = network159;
+var network160 = {
+  chainId: "13473",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-immutable-zkevm-1",
+    selector: 4526165231216331901n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_immutable_zkevm_1_default = network160;
+var network161 = {
+  chainId: "2358",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-kroma-1",
+    selector: 5990477251245693094n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_kroma_1_default = network161;
+var network162 = {
+  chainId: "37111",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-lens-1",
+    selector: 6827576821754315911n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_lens_1_default = network162;
+var network163 = {
+  chainId: "59141",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-linea-1",
+    selector: 5719461335882077547n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_linea_1_default = network163;
+var network164 = {
+  chainId: "4202",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-lisk-1",
+    selector: 5298399861320400553n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_lisk_1_default = network164;
+var network165 = {
+  chainId: "5003",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-mantle-1",
+    selector: 8236463271206331221n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_mantle_1_default = network165;
+var network166 = {
+  chainId: "59902",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-metis-1",
+    selector: 3777822886988675105n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_metis_1_default = network166;
+var network167 = {
+  chainId: "919",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-mode-1",
+    selector: 829525985033418733n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_mode_1_default = network167;
+var network168 = {
+  chainId: "11155420",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-optimism-1",
+    selector: 5224473277236331295n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_optimism_1_default = network168;
+var network169 = {
+  chainId: "717160",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-polygon-validium-1",
+    selector: 4418231248214522936n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_polygon_validium_1_default = network169;
+var network170 = {
+  chainId: "2442",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-polygon-zkevm-1",
+    selector: 1654667687261492630n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_polygon_zkevm_1_default = network170;
+var network171 = {
+  chainId: "534351",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-scroll-1",
+    selector: 2279865765895943307n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_scroll_1_default = network171;
+var network172 = {
+  chainId: "1946",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-soneium-1",
+    selector: 686603546605904534n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_soneium_1_default = network172;
+var network173 = {
+  chainId: "1301",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-unichain-1",
+    selector: 14135854469784514356n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_unichain_1_default = network173;
+var network174 = {
+  chainId: "4801",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-worldchain-1",
+    selector: 5299555114858065850n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_worldchain_1_default = network174;
+var network175 = {
+  chainId: "195",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-xlayer-1",
+    selector: 2066098519157881736n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_xlayer_1_default = network175;
+var network176 = {
+  chainId: "48899",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-zircuit-1",
+    selector: 4562743618362911021n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_zircuit_1_default = network176;
+var network177 = {
+  chainId: "300",
+  chainSelector: {
+    name: "ethereum-testnet-sepolia-zksync-1",
+    selector: 6898391096552792247n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ethereum_testnet_sepolia_zksync_1_default = network177;
+var network178 = {
+  chainId: "128123",
+  chainSelector: {
+    name: "etherlink-testnet",
+    selector: 1910019406958449359n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var etherlink_testnet_default = network178;
+var network179 = {
+  chainId: "4002",
+  chainSelector: {
+    name: "fantom-testnet",
+    selector: 4905564228793744293n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var fantom_testnet_default = network179;
+var network180 = {
+  chainId: "31415926",
+  chainSelector: {
+    name: "filecoin-testnet",
+    selector: 7060342227814389000n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var filecoin_testnet_default = network180;
+var network181 = {
+  chainId: "1337",
+  chainSelector: {
+    name: "geth-testnet",
+    selector: 3379446385462418246n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var geth_testnet_default = network181;
+var network182 = {
+  chainId: "10200",
+  chainSelector: {
+    name: "gnosis_chain-testnet-chiado",
+    selector: 8871595565390010547n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var gnosis_chain_testnet_chiado_default = network182;
+var network183 = {
+  chainId: "296",
+  chainSelector: {
+    name: "hedera-testnet",
+    selector: 222782988166878823n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var hedera_testnet_default = network183;
+var network184 = {
+  chainId: "743111",
+  chainSelector: {
+    name: "hemi-testnet-sepolia",
+    selector: 16126893759944359622n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var hemi_testnet_sepolia_default = network184;
+var network185 = {
+  chainId: "998",
+  chainSelector: {
+    name: "hyperliquid-testnet",
+    selector: 4286062357653186312n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var hyperliquid_testnet_default = network185;
+var network186 = {
+  chainId: "763373",
+  chainSelector: {
+    name: "ink-testnet-sepolia",
+    selector: 9763904284804119144n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ink_testnet_sepolia_default = network186;
+var network187 = {
+  chainId: "679",
+  chainSelector: {
+    name: "janction-testnet-sepolia",
+    selector: 5059197667603797935n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var janction_testnet_sepolia_default = network187;
+var network188 = {
+  chainId: "2019775",
+  chainSelector: {
+    name: "jovay-testnet",
+    selector: 945045181441419236n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var jovay_testnet_default = network188;
+var network189 = {
+  chainId: "1001",
+  chainSelector: {
+    name: "kaia-testnet-kairos",
+    selector: 2624132734533621656n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var kaia_testnet_kairos_default = network189;
+var network190 = {
+  chainId: "2221",
+  chainSelector: {
+    name: "kava-testnet",
+    selector: 2110537777356199208n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var kava_testnet_default = network190;
+var network191 = {
+  chainId: "6342",
+  chainSelector: {
+    name: "megaeth-testnet",
+    selector: 2443239559770384419n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var megaeth_testnet_default = network191;
+var network192 = {
+  chainId: "2129",
+  chainSelector: {
+    name: "memento-testnet",
+    selector: 12168171414969487009n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var memento_testnet_default = network192;
+var network193 = {
+  chainId: "1740",
+  chainSelector: {
+    name: "metal-testnet",
+    selector: 6286293440461807648n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var metal_testnet_default = network193;
+var network194 = {
+  chainId: "192940",
+  chainSelector: {
+    name: "mind-testnet",
+    selector: 7189150270347329685n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var mind_testnet_default = network194;
+var network195 = {
+  chainId: "1687",
+  chainSelector: {
+    name: "mint-testnet",
+    selector: 10749384167430721561n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var mint_testnet_default = network195;
+var network196 = {
+  chainId: "10143",
+  chainSelector: {
+    name: "monad-testnet",
+    selector: 2183018362218727504n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var monad_testnet_default = network196;
+var network197 = {
+  chainId: "398",
+  chainSelector: {
+    name: "near-testnet",
+    selector: 5061593697262339000n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var near_testnet_default = network197;
+var network198 = {
+  chainId: "9559",
+  chainSelector: {
+    name: "neonlink-testnet",
+    selector: 1113014352258747600n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var neonlink_testnet_default = network198;
+var network199 = {
+  chainId: "12227332",
+  chainSelector: {
+    name: "neox-testnet-t4",
+    selector: 2217764097022649312n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var neox_testnet_t4_default = network199;
+var network200 = {
+  chainId: "5668",
+  chainSelector: {
+    name: "nexon-dev",
+    selector: 8911150974185440581n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var nexon_dev_default = network200;
+var network201 = {
+  chainId: "6930",
+  chainSelector: {
+    name: "nibiru-testnet",
+    selector: 305104239123120457n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var nibiru_testnet_default = network201;
+var network202 = {
+  chainId: "9000",
+  chainSelector: {
+    name: "ondo-testnet",
+    selector: 344208382356656551n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ondo_testnet_default = network202;
+var network203 = {
+  chainId: "688688",
+  chainSelector: {
+    name: "pharos-testnet",
+    selector: 4012524741200567430n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var pharos_testnet_default = network203;
+var network204 = {
+  chainId: "9746",
+  chainSelector: {
+    name: "plasma-testnet",
+    selector: 3967220077692964309n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var plasma_testnet_default = network204;
+var network205 = {
+  chainId: "98864",
+  chainSelector: {
+    name: "plume-devnet",
+    selector: 3743020999916460931n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var plume_devnet_default = network205;
+var network206 = {
+  chainId: "161221135",
+  chainSelector: {
+    name: "plume-testnet",
+    selector: 14684575664602284776n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var plume_testnet_default = network206;
+var network207 = {
+  chainId: "98867",
+  chainSelector: {
+    name: "plume-testnet-sepolia",
+    selector: 13874588925447303949n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var plume_testnet_sepolia_default = network207;
+var network208 = {
+  chainId: "81",
+  chainSelector: {
+    name: "polkadot-testnet-astar-shibuya",
+    selector: 6955638871347136141n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var polkadot_testnet_astar_shibuya_default = network208;
+var network209 = {
+  chainId: "2088",
+  chainSelector: {
+    name: "polkadot-testnet-centrifuge-altair",
+    selector: 2333097300889804761n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var polkadot_testnet_centrifuge_altair_default = network209;
+var network210 = {
+  chainId: "45",
+  chainSelector: {
+    name: "polkadot-testnet-darwinia-pangoro",
+    selector: 4340886533089894000n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var polkadot_testnet_darwinia_pangoro_default = network210;
+var network211 = {
+  chainId: "1287",
+  chainSelector: {
+    name: "polkadot-testnet-moonbeam-moonbase",
+    selector: 5361632739113536121n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var polkadot_testnet_moonbeam_moonbase_default = network211;
+var network212 = {
+  chainId: "80002",
+  chainSelector: {
+    name: "polygon-testnet-amoy",
+    selector: 16281711391670634445n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var polygon_testnet_amoy_default = network212;
+var network213 = {
+  chainId: "80001",
+  chainSelector: {
+    name: "polygon-testnet-mumbai",
+    selector: 12532609583862916517n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var polygon_testnet_mumbai_default = network213;
+var network214 = {
+  chainId: "129399",
+  chainSelector: {
+    name: "polygon-testnet-tatara",
+    selector: 9090863410735740267n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var polygon_testnet_tatara_default = network214;
+var network215 = {
+  chainId: "2024",
+  chainSelector: {
+    name: "private-testnet-andesite",
+    selector: 6915682381028791124n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var private_testnet_andesite_default = network215;
+var network216 = {
+  chainId: "2023",
+  chainSelector: {
+    name: "private-testnet-granite",
+    selector: 3260900564719373474n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var private_testnet_granite_default = network216;
+var network217 = {
+  chainId: "424242",
+  chainSelector: {
+    name: "private-testnet-mica",
+    selector: 4489326297382772450n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var private_testnet_mica_default = network217;
+var network218 = {
+  chainId: "682",
+  chainSelector: {
+    name: "private-testnet-obsidian",
+    selector: 6260932437388305511n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var private_testnet_obsidian_default = network218;
+var network219 = {
+  chainId: "45439",
+  chainSelector: {
+    name: "private-testnet-opala",
+    selector: 8446413392851542429n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var private_testnet_opala_default = network219;
+var network220 = {
+  chainId: "2021",
+  chainSelector: {
+    name: "ronin-testnet-saigon",
+    selector: 13116810400804392105n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var ronin_testnet_saigon_default = network220;
+var network221 = {
+  chainId: "1328",
+  chainSelector: {
+    name: "sei-testnet-atlantic",
+    selector: 1216300075444106652n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var sei_testnet_atlantic_default = network221;
+var network222 = {
+  chainId: "157",
+  chainSelector: {
+    name: "shibarium-testnet-puppynet",
+    selector: 17833296867764334567n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var shibarium_testnet_puppynet_default = network222;
+var network223 = {
+  chainId: "57054",
+  chainSelector: {
+    name: "sonic-testnet-blaze",
+    selector: 3676871237479449268n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var sonic_testnet_blaze_default = network223;
+var network224 = {
+  chainId: "1513",
+  chainSelector: {
+    name: "story-testnet",
+    selector: 4237030917318060427n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var story_testnet_default = network224;
+var network225 = {
+  chainId: "53302",
+  chainSelector: {
+    name: "superseed-testnet",
+    selector: 13694007683517087973n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var superseed_testnet_default = network225;
+var network226 = {
+  chainId: "2391",
+  chainSelector: {
+    name: "tac-testnet",
+    selector: 9488606126177218005n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var tac_testnet_default = network226;
+var network227 = {
+  chainId: "41",
+  chainSelector: {
+    name: "telos-evm-testnet",
+    selector: 729797994450396300n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var telos_evm_testnet_default = network227;
+var network228 = {
+  chainId: "978658",
+  chainSelector: {
+    name: "treasure-testnet-topaz",
+    selector: 3676916124122457866n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var treasure_testnet_topaz_default = network228;
+var network229 = {
+  chainId: "3360022319",
+  chainSelector: {
+    name: "tron-devnet-evm",
+    selector: 13231703482326770600n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var tron_devnet_evm_default = network229;
+var network230 = {
+  chainId: "3448148188",
+  chainSelector: {
+    name: "tron-testnet-nile-evm",
+    selector: 2052925811360307749n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var tron_testnet_nile_evm_default = network230;
+var network231 = {
+  chainId: "2494104990",
+  chainSelector: {
+    name: "tron-testnet-shasta-evm",
+    selector: 13231703482326770598n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var tron_testnet_shasta_evm_default = network231;
+var network232 = {
+  chainId: "111",
+  chainSelector: {
+    name: "velas-testnet",
+    selector: 572210378683744374n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var velas_testnet_default = network232;
+var network233 = {
+  chainId: "1112",
+  chainSelector: {
+    name: "wemix-testnet",
+    selector: 9284632837123596123n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var wemix_testnet_default = network233;
+var network234 = {
+  chainId: "51",
+  chainSelector: {
+    name: "xdc-testnet",
+    selector: 3017758115101368649n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var xdc_testnet_default = network234;
+var network235 = {
+  chainId: "80087",
+  chainSelector: {
+    name: "zero-g-testnet-galileo",
+    selector: 2285225387454015855n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var zero_g_testnet_galileo_default = network235;
+var network236 = {
+  chainId: "48898",
+  chainSelector: {
+    name: "zircuit-testnet-garfield",
+    selector: 13781831279385219069n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var zircuit_testnet_garfield_default = network236;
+var network237 = {
+  chainId: "810181",
+  chainSelector: {
+    name: "zklink_nova-testnet",
+    selector: 5837261596322416298n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var zklink_nova_testnet_default = network237;
+var network238 = {
+  chainId: "999999999",
+  chainSelector: {
+    name: "zora-testnet",
+    selector: 16244020411108056671n
+  },
+  chainFamily: "evm",
+  networkType: "testnet"
+};
+var zora_testnet_default = network238;
+var network239 = {
+  chainId: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  chainSelector: {
+    name: "solana-devnet",
+    selector: 16423721717087811551n
+  },
+  chainFamily: "solana",
+  networkType: "testnet"
+};
+var solana_devnet_default = network239;
+var network240 = {
+  chainId: "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY",
+  chainSelector: {
+    name: "solana-testnet",
+    selector: 6302590918974934319n
+  },
+  chainFamily: "solana",
+  networkType: "testnet"
+};
+var solana_testnet_default = network240;
+var network241 = {
+  chainId: "4",
+  chainSelector: {
+    name: "sui-localnet",
+    selector: 18395503381733958356n
+  },
+  chainFamily: "sui",
+  networkType: "testnet"
+};
+var sui_localnet_default = network241;
+var network242 = {
+  chainId: "2",
+  chainSelector: {
+    name: "sui-testnet",
+    selector: 9762610643973837292n
+  },
+  chainFamily: "sui",
+  networkType: "testnet"
+};
+var sui_testnet_default = network242;
+var network243 = {
+  chainId: "-217",
+  chainSelector: {
+    name: "ton-localnet",
+    selector: 13879075125137744094n
+  },
+  chainFamily: "ton",
+  networkType: "testnet"
+};
+var ton_localnet_default = network243;
+var network244 = {
+  chainId: "-3",
+  chainSelector: {
+    name: "ton-testnet",
+    selector: 1399300952838017768n
+  },
+  chainFamily: "ton",
+  networkType: "testnet"
+};
+var ton_testnet_default = network244;
+var network245 = {
+  chainId: "3360022319",
+  chainSelector: {
+    name: "tron-devnet",
+    selector: 13231703482326770599n
+  },
+  chainFamily: "tron",
+  networkType: "testnet"
+};
+var tron_devnet_default = network245;
+var network246 = {
+  chainId: "3448148188",
+  chainSelector: {
+    name: "tron-testnet-nile",
+    selector: 2052925811360307740n
+  },
+  chainFamily: "tron",
+  networkType: "testnet"
+};
+var tron_testnet_nile_default = network246;
+var network247 = {
+  chainId: "2494104990",
+  chainSelector: {
+    name: "tron-testnet-shasta",
+    selector: 13231703482326770597n
+  },
+  chainFamily: "tron",
+  networkType: "testnet"
+};
+var tron_testnet_shasta_default = network247;
+var mainnetBySelector = new Map([
+  [5009297550715157269n, ethereum_mainnet_default],
+  [3734403246176062136n, ethereum_mainnet_optimism_1_default],
+  [1456215246176062136n, cronos_mainnet_default],
+  [11964252391146578476n, rootstock_mainnet_default],
+  [1477345371608778000n, telos_evm_mainnet_default],
+  [8866418665544333000n, polkadot_mainnet_darwinia_default],
+  [17673274061779414707n, xdc_mainnet_default],
+  [1761333065194157300n, coinex_smart_chain_mainnet_default],
+  [11344663589394136015n, binance_smart_chain_mainnet_default],
+  [465200170687744372n, gnosis_chain_mainnet_default],
+  [374210358663784372n, velas_mainnet_default],
+  [3993510008929295315n, shibarium_mainnet_default],
+  [1923510103922296319n, ethereum_mainnet_unichain_1_default],
+  [4051577828743386545n, polygon_mainnet_default],
+  [8481857512324358265n, monad_mainnet_default],
+  [1673871237479749969n, sonic_mainnet_default],
+  [7613811247471741961n, ethereum_mainnet_hashkey_1_default],
+  [17164792800244661392n, mint_mainnet_default],
+  [3016212468291539606n, ethereum_mainnet_xlayer_1_default],
+  [3776006016387883143n, bittorrent_chain_mainnet_default],
+  [465944652040885897n, binance_smart_chain_mainnet_opbnb_1_default],
+  [5406759801798337480n, bitcoin_mainnet_bsquared_1_default],
+  [11690709103138290329n, mind_mainnet_default],
+  [5608378062013572713n, lens_mainnet_default],
+  [5936861837188149645n, tac_mainnet_default],
+  [3768048213127883732n, fantom_mainnet_default],
+  [1462016016387883143n, fraxtal_mainnet_default],
+  [3719320017875267166n, ethereum_mainnet_kroma_1_default],
+  [8239338020728974000n, neonlink_mainnet_default],
+  [3229138320728879060n, hedera_mainnet_default],
+  [4561443241176882990n, filecoin_mainnet_default],
+  [1562403441176082196n, ethereum_mainnet_zksync_1_default],
+  [8788096068760390840n, cronos_zkevm_mainnet_default],
+  [2039744413822257700n, near_mainnet_default],
+  [1939936305787790600n, areon_mainnet_default],
+  [2049429975587534727n, ethereum_mainnet_worldchain_1_default],
+  [6422105447186081193n, polkadot_mainnet_astar_default],
+  [9107126442626377432n, janction_mainnet_default],
+  [2135107236357186872n, bittensor_mainnet_default],
+  [2442541497099098535n, hyperliquid_mainnet_default],
+  [3358365939762719202n, conflux_mainnet_default],
+  [8805746078405598895n, ethereum_mainnet_metis_1_default],
+  [4348158687435793198n, ethereum_mainnet_polygon_zkevm_1_default],
+  [5142893604156789321n, wemix_mainnet_default],
+  [1224752112135636129n, core_mainnet_default],
+  [15293031020466096408n, lisk_mainnet_default],
+  [1252863800116739621n, polkadot_mainnet_moonbeam_default],
+  [1355020143337428062n, kusama_mainnet_moonriver_default],
+  [9027416829622342829n, sei_mainnet_default],
+  [13447077090413146373n, metal_mainnet_default],
+  [12505351618335765396n, soneium_mainnet_default],
+  [4874388048629246000n, bitcichain_mainnet_default],
+  [6916147374840168594n, ronin_mainnet_default],
+  [8175830712062617656n, polkadot_mainnet_centrifuge_default],
+  [7550000543357438061n, kava_mainnet_default],
+  [3577778157919314504n, abstract_mainnet_default],
+  [18164309074156128038n, morph_mainnet_default],
+  [4560701533377838164n, bitcoin_mainnet_botanix_default],
+  [1540201334317828111n, ethereum_mainnet_astar_zkevm_1_default],
+  [241851231317828981n, bitcoin_merlin_mainnet_default],
+  [1556008542357238666n, ethereum_mainnet_mantle_1_default],
+  [470401360549526817n, superseed_mainnet_default],
+  [17349189558768828726n, nibiru_mainnet_default],
+  [10817664450262215148n, zetachain_mainnet_default],
+  [9813823125703490621n, kaia_mainnet_default],
+  [15971525489660198786n, ethereum_mainnet_base_1_default],
+  [9335212494177455608n, plasma_mainnet_default],
+  [3162193654116181371n, ethereum_mainnet_arbitrum_1_l3x_1_default],
+  [1237925231416731909n, ethereum_mainnet_immutable_zkevm_1_default],
+  [4426351306075016396n, _0g_mainnet_default],
+  [14894068710063348487n, apechain_mainnet_default],
+  [7264351850409363825n, ethereum_mainnet_mode_1_default],
+  [4949039107694359620n, ethereum_mainnet_arbitrum_1_default],
+  [1346049177634351622n, celo_mainnet_default],
+  [13624601974233774587n, etherlink_mainnet_default],
+  [1804312132722180201n, hemi_mainnet_default],
+  [6433500567565415381n, avalanche_mainnet_default],
+  [7222032299962346917n, neox_mainnet_default],
+  [17198166215261833993n, ethereum_mainnet_zircuit_1_default],
+  [6473245816409426016n, memento_mainnet_default],
+  [3461204551265785888n, ethereum_mainnet_ink_1_default],
+  [4627098889531055414n, ethereum_mainnet_linea_1_default],
+  [15758750456714168963n, nexon_mainnet_lith_default],
+  [3849287863852499584n, bitcoin_mainnet_bob_1_default],
+  [5214452172935136222n, treasure_mainnet_default],
+  [12657445206920369324n, nexon_mainnet_henesys_default],
+  [1294465214383781161n, berachain_mainnet_default],
+  [9478124434908827753n, codex_mainnet_default],
+  [4411394078118774322n, ethereum_mainnet_blast_1_default],
+  [17912061998839310979n, plume_mainnet_default],
+  [16468599424800719238n, ethereum_mainnet_taiko_1_default],
+  [7937294810946806131n, bitcoin_mainnet_bitlayer_1_default],
+  [5463201557265485081n, avalanche_subnet_dexalot_mainnet_default],
+  [13204309965629103672n, ethereum_mainnet_scroll_1_default],
+  [2459028469735686113n, polygon_mainnet_katana_default],
+  [14632960069656270105n, nexon_qa_default],
+  [4350319965322101699n, zklink_nova_mainnet_default],
+  [5556806327594153475n, nexon_stage_default],
+  [1010349088906777999n, ethereum_mainnet_arbitrum_1_treasure_1_default],
+  [3555797439612589184n, zora_mainnet_default],
+  [9043146809313071210n, corn_mainnet_default],
+  [1546563616611573946n, tron_mainnet_evm_default],
+  [124615329519749607n, solana_mainnet_default],
+  [4741433654826277614n, aptos_mainnet_default],
+  [17529533435026248318n, sui_mainnet_default],
+  [16448340667252469081n, ton_mainnet_default],
+  [1546563616611573945n, tron_mainnet_default]
+]);
+var testnetBySelector = new Map([
+  [8953668971247136127n, bitcoin_testnet_rootstock_default],
+  [729797994450396300n, telos_evm_testnet_default],
+  [4340886533089894000n, polkadot_testnet_darwinia_pangoro_default],
+  [3017758115101368649n, xdc_testnet_default],
+  [8955032871639343000n, coinex_smart_chain_testnet_default],
+  [6955638871347136141n, polkadot_testnet_astar_shibuya_default],
+  [13264668187771770619n, binance_smart_chain_testnet_default],
+  [572210378683744374n, velas_testnet_default],
+  [4356164186791070119n, ethereum_testnet_sepolia_hashkey_1_default],
+  [17833296867764334567n, shibarium_testnet_puppynet_default],
+  [2066098519157881736n, ethereum_testnet_sepolia_xlayer_1_default],
+  [16487132492576884721n, cronos_zkevm_testnet_sepolia_default],
+  [6802309497652714138n, ethereum_testnet_goerli_zksync_1_default],
+  [3842103497652714138n, cronos_testnet_zkevm_1_default],
+  [222782988166878823n, hedera_testnet_default],
+  [6898391096552792247n, ethereum_testnet_sepolia_zksync_1_default],
+  [2995292832068775165n, cronos_testnet_default],
+  [5061593697262339000n, near_testnet_default],
+  [2664363617261496610n, ethereum_testnet_goerli_optimism_1_default],
+  [7317911323415911000n, areon_testnet_default],
+  [5059197667603797935n, janction_testnet_sepolia_default],
+  [6260932437388305511n, private_testnet_obsidian_default],
+  [829525985033418733n, ethereum_testnet_sepolia_mode_1_default],
+  [2177900824115119161n, bittensor_testnet_default],
+  [4286062357653186312n, hyperliquid_testnet_default],
+  [2624132734533621656n, kaia_testnet_kairos_default],
+  [4459371029167934217n, bittorrent_chain_testnet_default],
+  [9284632837123596123n, wemix_testnet_default],
+  [4264732132125536123n, core_testnet_default],
+  [1948510578179542068n, bitcoin_testnet_bsquared_1_default],
+  [5361632739113536121n, polkadot_testnet_moonbeam_moonbase_default],
+  [14135854469784514356n, ethereum_testnet_sepolia_unichain_1_default],
+  [1216300075444106652n, sei_testnet_atlantic_default],
+  [3379446385462418246n, geth_testnet_default],
+  [11059667695644972511n, ethereum_testnet_goerli_polygon_zkevm_1_default],
+  [4237030917318060427n, story_testnet_default],
+  [10749384167430721561n, mint_testnet_default],
+  [6286293440461807648n, metal_testnet_default],
+  [4888058894222120000n, bitcichain_testnet_default],
+  [686603546605904534n, ethereum_testnet_sepolia_soneium_1_default],
+  [13116810400804392105n, ronin_testnet_saigon_default],
+  [3260900564719373474n, private_testnet_granite_default],
+  [6915682381028791124n, private_testnet_andesite_default],
+  [15513093881969820114n, dtcc_testnet_andesite_default],
+  [2333097300889804761n, polkadot_testnet_centrifuge_altair_default],
+  [12168171414969487009n, memento_testnet_default],
+  [2110537777356199208n, kava_testnet_default],
+  [5990477251245693094n, ethereum_testnet_sepolia_kroma_1_default],
+  [9488606126177218005n, tac_testnet_default],
+  [1654667687261492630n, ethereum_testnet_sepolia_polygon_zkevm_1_default],
+  [8901520481741771655n, ethereum_testnet_holesky_fraxtal_1_default],
+  [8304510386741731151n, ethereum_testnet_holesky_morph_1_default],
+  [1467223411771711614n, bitcoin_testnet_botanix_default],
+  [4905564228793744293n, fantom_testnet_default],
+  [5298399861320400553n, ethereum_testnet_sepolia_lisk_1_default],
+  [5299555114858065850n, ethereum_testnet_sepolia_worldchain_1_default],
+  [4168263376276232250n, ethereum_testnet_goerli_mantle_1_default],
+  [8236463271206331221n, ethereum_testnet_sepolia_mantle_1_default],
+  [13274425992935471758n, binance_smart_chain_testnet_opbnb_1_default],
+  [8911150974185440581n, nexon_dev_default],
+  [2443239559770384419n, megaeth_testnet_default],
+  [305104239123120457n, nibiru_testnet_default],
+  [344208382356656551n, ondo_testnet_default],
+  [1113014352258747600n, neonlink_testnet_default],
+  [3967220077692964309n, plasma_testnet_default],
+  [2183018362218727504n, monad_testnet_default],
+  [8871595565390010547n, gnosis_chain_testnet_chiado_default],
+  [16235373811196386733n, abstract_testnet_default],
+  [3486622437121596122n, ethereum_testnet_sepolia_arbitrum_1_l3x_1_default],
+  [4526165231216331901n, ethereum_testnet_sepolia_immutable_zkevm_1_default],
+  [16088006396410204581n, _0g_testnet_newton_default],
+  [2131427466778448014n, _0g_testnet_galileo_default],
+  [7717148896336251131n, ethereum_testnet_holesky_default],
+  [7759470850252068959n, anvil_devnet_default],
+  [9900119385908781505n, apechain_testnet_curtis_default],
+  [6827576821754315911n, ethereum_testnet_sepolia_lens_1_default],
+  [14767482510784806043n, avalanche_testnet_fuji_default],
+  [3552045678561919002n, celo_testnet_alfajores_default],
+  [8446413392851542429n, private_testnet_opala_default],
+  [13781831279385219069n, zircuit_testnet_garfield_default],
+  [4562743618362911021n, ethereum_testnet_sepolia_zircuit_1_default],
+  [13694007683517087973n, superseed_testnet_default],
+  [3676871237479449268n, sonic_testnet_blaze_default],
+  [1355246678561316402n, ethereum_testnet_goerli_linea_1_default],
+  [5719461335882077547n, ethereum_testnet_sepolia_linea_1_default],
+  [3777822886988675105n, ethereum_testnet_sepolia_metis_1_default],
+  [12532609583862916517n, polygon_testnet_mumbai_default],
+  [16281711391670634445n, polygon_testnet_amoy_default],
+  [7728255861635209484n, berachain_testnet_bepolia_default],
+  [8999465244383784164n, berachain_testnet_bartio_default],
+  [12336603543561911511n, berachain_testnet_artio_default],
+  [2285225387454015855n, zero_g_testnet_galileo_default],
+  [5790810961207155433n, ethereum_testnet_goerli_base_1_default],
+  [10344971235874465080n, ethereum_testnet_sepolia_base_1_default],
+  [3743020999916460931n, plume_devnet_default],
+  [13874588925447303949n, plume_testnet_sepolia_default],
+  [1910019406958449359n, etherlink_testnet_default],
+  [9090863410735740267n, polygon_testnet_tatara_default],
+  [7248756420937879088n, ethereum_testnet_holesky_taiko_1_default],
+  [7189150270347329685n, mind_testnet_default],
+  [3789623672476206327n, bitcoin_testnet_bitlayer_1_default],
+  [6101244977088475029n, ethereum_testnet_goerli_arbitrum_1_default],
+  [3478487238524512106n, ethereum_testnet_sepolia_arbitrum_1_default],
+  [4489326297382772450n, private_testnet_mica_default],
+  [1458281248224512906n, avalanche_subnet_dexalot_testnet_default],
+  [2279865765895943307n, ethereum_testnet_sepolia_scroll_1_default],
+  [7837562506228496256n, avalanche_testnet_nexon_default],
+  [5269261765892944301n, bitcoin_testnet_merlin_default],
+  [4012524741200567430n, pharos_testnet_default],
+  [4418231248214522936n, ethereum_testnet_sepolia_polygon_validium_1_default],
+  [16126893759944359622n, hemi_testnet_sepolia_default],
+  [9763904284804119144n, ink_testnet_sepolia_default],
+  [5535534526963509396n, bitcoin_testnet_sepolia_bob_1_default],
+  [5837261596322416298n, zklink_nova_testnet_default],
+  [7225665875429174318n, codex_testnet_default],
+  [10443705513486043421n, ethereum_testnet_sepolia_arbitrum_1_treasure_1_default],
+  [3676916124122457866n, treasure_testnet_topaz_default],
+  [945045181441419236n, jovay_testnet_default],
+  [16015286601757825753n, ethereum_testnet_sepolia_default],
+  [5224473277236331295n, ethereum_testnet_sepolia_optimism_1_default],
+  [2217764097022649312n, neox_testnet_t4_default],
+  [1467427327723633929n, ethereum_testnet_sepolia_corn_1_default],
+  [7060342227814389000n, filecoin_testnet_default],
+  [14684575664602284776n, plume_testnet_default],
+  [2027362563942762617n, ethereum_testnet_sepolia_blast_1_default],
+  [16244020411108056671n, zora_testnet_default],
+  [13231703482326770598n, tron_testnet_shasta_evm_default],
+  [13231703482326770600n, tron_devnet_evm_default],
+  [2052925811360307749n, tron_testnet_nile_evm_default],
+  [6302590918974934319n, solana_testnet_default],
+  [16423721717087811551n, solana_devnet_default],
+  [743186221051783445n, aptos_testnet_default],
+  [4457093679053095497n, aptos_localnet_default],
+  [9762610643973837292n, sui_testnet_default],
+  [18395503381733958356n, sui_localnet_default],
+  [1399300952838017768n, ton_testnet_default],
+  [13879075125137744094n, ton_localnet_default],
+  [13231703482326770597n, tron_testnet_shasta_default],
+  [13231703482326770599n, tron_devnet_default],
+  [2052925811360307740n, tron_testnet_nile_default]
+]);
+var mainnetByName = new Map([
+  ["ethereum-mainnet", ethereum_mainnet_default],
+  ["ethereum-mainnet-optimism-1", ethereum_mainnet_optimism_1_default],
+  ["cronos-mainnet", cronos_mainnet_default],
+  ["rootstock-mainnet", rootstock_mainnet_default],
+  ["telos-evm-mainnet", telos_evm_mainnet_default],
+  ["polkadot-mainnet-darwinia", polkadot_mainnet_darwinia_default],
+  ["xdc-mainnet", xdc_mainnet_default],
+  ["coinex_smart_chain-mainnet", coinex_smart_chain_mainnet_default],
+  ["binance_smart_chain-mainnet", binance_smart_chain_mainnet_default],
+  ["gnosis_chain-mainnet", gnosis_chain_mainnet_default],
+  ["velas-mainnet", velas_mainnet_default],
+  ["shibarium-mainnet", shibarium_mainnet_default],
+  ["ethereum-mainnet-unichain-1", ethereum_mainnet_unichain_1_default],
+  ["polygon-mainnet", polygon_mainnet_default],
+  ["monad-mainnet", monad_mainnet_default],
+  ["sonic-mainnet", sonic_mainnet_default],
+  ["ethereum-mainnet-hashkey-1", ethereum_mainnet_hashkey_1_default],
+  ["mint-mainnet", mint_mainnet_default],
+  ["ethereum-mainnet-xlayer-1", ethereum_mainnet_xlayer_1_default],
+  ["bittorrent_chain-mainnet", bittorrent_chain_mainnet_default],
+  ["binance_smart_chain-mainnet-opbnb-1", binance_smart_chain_mainnet_opbnb_1_default],
+  ["bitcoin-mainnet-bsquared-1", bitcoin_mainnet_bsquared_1_default],
+  ["mind-mainnet", mind_mainnet_default],
+  ["lens-mainnet", lens_mainnet_default],
+  ["tac-mainnet", tac_mainnet_default],
+  ["fantom-mainnet", fantom_mainnet_default],
+  ["fraxtal-mainnet", fraxtal_mainnet_default],
+  ["ethereum-mainnet-kroma-1", ethereum_mainnet_kroma_1_default],
+  ["neonlink-mainnet", neonlink_mainnet_default],
+  ["hedera-mainnet", hedera_mainnet_default],
+  ["filecoin-mainnet", filecoin_mainnet_default],
+  ["ethereum-mainnet-zksync-1", ethereum_mainnet_zksync_1_default],
+  ["cronos-zkevm-mainnet", cronos_zkevm_mainnet_default],
+  ["near-mainnet", near_mainnet_default],
+  ["areon-mainnet", areon_mainnet_default],
+  ["ethereum-mainnet-worldchain-1", ethereum_mainnet_worldchain_1_default],
+  ["polkadot-mainnet-astar", polkadot_mainnet_astar_default],
+  ["janction-mainnet", janction_mainnet_default],
+  ["bittensor-mainnet", bittensor_mainnet_default],
+  ["hyperliquid-mainnet", hyperliquid_mainnet_default],
+  ["conflux-mainnet", conflux_mainnet_default],
+  ["ethereum-mainnet-metis-1", ethereum_mainnet_metis_1_default],
+  ["ethereum-mainnet-polygon-zkevm-1", ethereum_mainnet_polygon_zkevm_1_default],
+  ["wemix-mainnet", wemix_mainnet_default],
+  ["core-mainnet", core_mainnet_default],
+  ["lisk-mainnet", lisk_mainnet_default],
+  ["polkadot-mainnet-moonbeam", polkadot_mainnet_moonbeam_default],
+  ["kusama-mainnet-moonriver", kusama_mainnet_moonriver_default],
+  ["sei-mainnet", sei_mainnet_default],
+  ["metal-mainnet", metal_mainnet_default],
+  ["soneium-mainnet", soneium_mainnet_default],
+  ["bitcichain-mainnet", bitcichain_mainnet_default],
+  ["ronin-mainnet", ronin_mainnet_default],
+  ["polkadot-mainnet-centrifuge", polkadot_mainnet_centrifuge_default],
+  ["kava-mainnet", kava_mainnet_default],
+  ["abstract-mainnet", abstract_mainnet_default],
+  ["morph-mainnet", morph_mainnet_default],
+  ["bitcoin-mainnet-botanix", bitcoin_mainnet_botanix_default],
+  ["ethereum-mainnet-astar-zkevm-1", ethereum_mainnet_astar_zkevm_1_default],
+  ["bitcoin-merlin-mainnet", bitcoin_merlin_mainnet_default],
+  ["ethereum-mainnet-mantle-1", ethereum_mainnet_mantle_1_default],
+  ["superseed-mainnet", superseed_mainnet_default],
+  ["nibiru-mainnet", nibiru_mainnet_default],
+  ["zetachain-mainnet", zetachain_mainnet_default],
+  ["kaia-mainnet", kaia_mainnet_default],
+  ["ethereum-mainnet-base-1", ethereum_mainnet_base_1_default],
+  ["plasma-mainnet", plasma_mainnet_default],
+  ["ethereum-mainnet-arbitrum-1-l3x-1", ethereum_mainnet_arbitrum_1_l3x_1_default],
+  ["ethereum-mainnet-immutable-zkevm-1", ethereum_mainnet_immutable_zkevm_1_default],
+  ["0g-mainnet", _0g_mainnet_default],
+  ["apechain-mainnet", apechain_mainnet_default],
+  ["ethereum-mainnet-mode-1", ethereum_mainnet_mode_1_default],
+  ["ethereum-mainnet-arbitrum-1", ethereum_mainnet_arbitrum_1_default],
+  ["celo-mainnet", celo_mainnet_default],
+  ["etherlink-mainnet", etherlink_mainnet_default],
+  ["hemi-mainnet", hemi_mainnet_default],
+  ["avalanche-mainnet", avalanche_mainnet_default],
+  ["neox-mainnet", neox_mainnet_default],
+  ["ethereum-mainnet-zircuit-1", ethereum_mainnet_zircuit_1_default],
+  ["memento-mainnet", memento_mainnet_default],
+  ["ethereum-mainnet-ink-1", ethereum_mainnet_ink_1_default],
+  ["ethereum-mainnet-linea-1", ethereum_mainnet_linea_1_default],
+  ["nexon-mainnet-lith", nexon_mainnet_lith_default],
+  ["bitcoin-mainnet-bob-1", bitcoin_mainnet_bob_1_default],
+  ["treasure-mainnet", treasure_mainnet_default],
+  ["nexon-mainnet-henesys", nexon_mainnet_henesys_default],
+  ["berachain-mainnet", berachain_mainnet_default],
+  ["codex-mainnet", codex_mainnet_default],
+  ["ethereum-mainnet-blast-1", ethereum_mainnet_blast_1_default],
+  ["plume-mainnet", plume_mainnet_default],
+  ["ethereum-mainnet-taiko-1", ethereum_mainnet_taiko_1_default],
+  ["bitcoin-mainnet-bitlayer-1", bitcoin_mainnet_bitlayer_1_default],
+  ["avalanche-subnet-dexalot-mainnet", avalanche_subnet_dexalot_mainnet_default],
+  ["ethereum-mainnet-scroll-1", ethereum_mainnet_scroll_1_default],
+  ["polygon-mainnet-katana", polygon_mainnet_katana_default],
+  ["nexon-qa", nexon_qa_default],
+  ["zklink_nova-mainnet", zklink_nova_mainnet_default],
+  ["nexon-stage", nexon_stage_default],
+  ["ethereum-mainnet-arbitrum-1-treasure-1", ethereum_mainnet_arbitrum_1_treasure_1_default],
+  ["zora-mainnet", zora_mainnet_default],
+  ["corn-mainnet", corn_mainnet_default],
+  ["tron-mainnet-evm", tron_mainnet_evm_default],
+  ["solana-mainnet", solana_mainnet_default],
+  ["aptos-mainnet", aptos_mainnet_default],
+  ["sui-mainnet", sui_mainnet_default],
+  ["ton-mainnet", ton_mainnet_default],
+  ["tron-mainnet", tron_mainnet_default]
+]);
+var testnetByName = new Map([
+  ["bitcoin-testnet-rootstock", bitcoin_testnet_rootstock_default],
+  ["telos-evm-testnet", telos_evm_testnet_default],
+  ["polkadot-testnet-darwinia-pangoro", polkadot_testnet_darwinia_pangoro_default],
+  ["xdc-testnet", xdc_testnet_default],
+  ["coinex_smart_chain-testnet", coinex_smart_chain_testnet_default],
+  ["polkadot-testnet-astar-shibuya", polkadot_testnet_astar_shibuya_default],
+  ["binance_smart_chain-testnet", binance_smart_chain_testnet_default],
+  ["velas-testnet", velas_testnet_default],
+  ["ethereum-testnet-sepolia-hashkey-1", ethereum_testnet_sepolia_hashkey_1_default],
+  ["shibarium-testnet-puppynet", shibarium_testnet_puppynet_default],
+  ["ethereum-testnet-sepolia-xlayer-1", ethereum_testnet_sepolia_xlayer_1_default],
+  ["cronos-zkevm-testnet-sepolia", cronos_zkevm_testnet_sepolia_default],
+  ["ethereum-testnet-goerli-zksync-1", ethereum_testnet_goerli_zksync_1_default],
+  ["cronos-testnet-zkevm-1", cronos_testnet_zkevm_1_default],
+  ["hedera-testnet", hedera_testnet_default],
+  ["ethereum-testnet-sepolia-zksync-1", ethereum_testnet_sepolia_zksync_1_default],
+  ["cronos-testnet", cronos_testnet_default],
+  ["near-testnet", near_testnet_default],
+  ["ethereum-testnet-goerli-optimism-1", ethereum_testnet_goerli_optimism_1_default],
+  ["areon-testnet", areon_testnet_default],
+  ["janction-testnet-sepolia", janction_testnet_sepolia_default],
+  ["private-testnet-obsidian", private_testnet_obsidian_default],
+  ["ethereum-testnet-sepolia-mode-1", ethereum_testnet_sepolia_mode_1_default],
+  ["bittensor-testnet", bittensor_testnet_default],
+  ["hyperliquid-testnet", hyperliquid_testnet_default],
+  ["kaia-testnet-kairos", kaia_testnet_kairos_default],
+  ["bittorrent_chain-testnet", bittorrent_chain_testnet_default],
+  ["wemix-testnet", wemix_testnet_default],
+  ["core-testnet", core_testnet_default],
+  ["bitcoin-testnet-bsquared-1", bitcoin_testnet_bsquared_1_default],
+  ["polkadot-testnet-moonbeam-moonbase", polkadot_testnet_moonbeam_moonbase_default],
+  ["ethereum-testnet-sepolia-unichain-1", ethereum_testnet_sepolia_unichain_1_default],
+  ["sei-testnet-atlantic", sei_testnet_atlantic_default],
+  ["geth-testnet", geth_testnet_default],
+  ["ethereum-testnet-goerli-polygon-zkevm-1", ethereum_testnet_goerli_polygon_zkevm_1_default],
+  ["story-testnet", story_testnet_default],
+  ["mint-testnet", mint_testnet_default],
+  ["metal-testnet", metal_testnet_default],
+  ["bitcichain-testnet", bitcichain_testnet_default],
+  ["ethereum-testnet-sepolia-soneium-1", ethereum_testnet_sepolia_soneium_1_default],
+  ["ronin-testnet-saigon", ronin_testnet_saigon_default],
+  ["private-testnet-granite", private_testnet_granite_default],
+  ["private-testnet-andesite", private_testnet_andesite_default],
+  ["dtcc-testnet-andesite", dtcc_testnet_andesite_default],
+  ["polkadot-testnet-centrifuge-altair", polkadot_testnet_centrifuge_altair_default],
+  ["memento-testnet", memento_testnet_default],
+  ["kava-testnet", kava_testnet_default],
+  ["ethereum-testnet-sepolia-kroma-1", ethereum_testnet_sepolia_kroma_1_default],
+  ["tac-testnet", tac_testnet_default],
+  [
+    "ethereum-testnet-sepolia-polygon-zkevm-1",
+    ethereum_testnet_sepolia_polygon_zkevm_1_default
+  ],
+  ["ethereum-testnet-holesky-fraxtal-1", ethereum_testnet_holesky_fraxtal_1_default],
+  ["ethereum-testnet-holesky-morph-1", ethereum_testnet_holesky_morph_1_default],
+  ["bitcoin-testnet-botanix", bitcoin_testnet_botanix_default],
+  ["fantom-testnet", fantom_testnet_default],
+  ["ethereum-testnet-sepolia-lisk-1", ethereum_testnet_sepolia_lisk_1_default],
+  ["ethereum-testnet-sepolia-worldchain-1", ethereum_testnet_sepolia_worldchain_1_default],
+  ["ethereum-testnet-goerli-mantle-1", ethereum_testnet_goerli_mantle_1_default],
+  ["ethereum-testnet-sepolia-mantle-1", ethereum_testnet_sepolia_mantle_1_default],
+  ["binance_smart_chain-testnet-opbnb-1", binance_smart_chain_testnet_opbnb_1_default],
+  ["nexon-dev", nexon_dev_default],
+  ["megaeth-testnet", megaeth_testnet_default],
+  ["nibiru-testnet", nibiru_testnet_default],
+  ["ondo-testnet", ondo_testnet_default],
+  ["neonlink-testnet", neonlink_testnet_default],
+  ["plasma-testnet", plasma_testnet_default],
+  ["monad-testnet", monad_testnet_default],
+  ["gnosis_chain-testnet-chiado", gnosis_chain_testnet_chiado_default],
+  ["abstract-testnet", abstract_testnet_default],
+  [
+    "ethereum-testnet-sepolia-arbitrum-1-l3x-1",
+    ethereum_testnet_sepolia_arbitrum_1_l3x_1_default
+  ],
+  [
+    "ethereum-testnet-sepolia-immutable-zkevm-1",
+    ethereum_testnet_sepolia_immutable_zkevm_1_default
+  ],
+  ["0g-testnet-newton", _0g_testnet_newton_default],
+  ["0g-testnet-galileo", _0g_testnet_galileo_default],
+  ["ethereum-testnet-holesky", ethereum_testnet_holesky_default],
+  ["anvil-devnet", anvil_devnet_default],
+  ["apechain-testnet-curtis", apechain_testnet_curtis_default],
+  ["ethereum-testnet-sepolia-lens-1", ethereum_testnet_sepolia_lens_1_default],
+  ["avalanche-testnet-fuji", avalanche_testnet_fuji_default],
+  ["celo-testnet-alfajores", celo_testnet_alfajores_default],
+  ["private-testnet-opala", private_testnet_opala_default],
+  ["zircuit-testnet-garfield", zircuit_testnet_garfield_default],
+  ["ethereum-testnet-sepolia-zircuit-1", ethereum_testnet_sepolia_zircuit_1_default],
+  ["superseed-testnet", superseed_testnet_default],
+  ["sonic-testnet-blaze", sonic_testnet_blaze_default],
+  ["ethereum-testnet-goerli-linea-1", ethereum_testnet_goerli_linea_1_default],
+  ["ethereum-testnet-sepolia-linea-1", ethereum_testnet_sepolia_linea_1_default],
+  ["ethereum-testnet-sepolia-metis-1", ethereum_testnet_sepolia_metis_1_default],
+  ["polygon-testnet-mumbai", polygon_testnet_mumbai_default],
+  ["polygon-testnet-amoy", polygon_testnet_amoy_default],
+  ["berachain-testnet-bepolia", berachain_testnet_bepolia_default],
+  ["berachain-testnet-bartio", berachain_testnet_bartio_default],
+  ["berachain-testnet-artio", berachain_testnet_artio_default],
+  ["zero-g-testnet-galileo", zero_g_testnet_galileo_default],
+  ["ethereum-testnet-goerli-base-1", ethereum_testnet_goerli_base_1_default],
+  ["ethereum-testnet-sepolia-base-1", ethereum_testnet_sepolia_base_1_default],
+  ["plume-devnet", plume_devnet_default],
+  ["plume-testnet-sepolia", plume_testnet_sepolia_default],
+  ["etherlink-testnet", etherlink_testnet_default],
+  ["polygon-testnet-tatara", polygon_testnet_tatara_default],
+  ["ethereum-testnet-holesky-taiko-1", ethereum_testnet_holesky_taiko_1_default],
+  ["mind-testnet", mind_testnet_default],
+  ["bitcoin-testnet-bitlayer-1", bitcoin_testnet_bitlayer_1_default],
+  ["ethereum-testnet-goerli-arbitrum-1", ethereum_testnet_goerli_arbitrum_1_default],
+  ["ethereum-testnet-sepolia-arbitrum-1", ethereum_testnet_sepolia_arbitrum_1_default],
+  ["private-testnet-mica", private_testnet_mica_default],
+  ["avalanche-subnet-dexalot-testnet", avalanche_subnet_dexalot_testnet_default],
+  ["ethereum-testnet-sepolia-scroll-1", ethereum_testnet_sepolia_scroll_1_default],
+  ["avalanche-testnet-nexon", avalanche_testnet_nexon_default],
+  ["bitcoin-testnet-merlin", bitcoin_testnet_merlin_default],
+  ["pharos-testnet", pharos_testnet_default],
+  [
+    "ethereum-testnet-sepolia-polygon-validium-1",
+    ethereum_testnet_sepolia_polygon_validium_1_default
+  ],
+  ["hemi-testnet-sepolia", hemi_testnet_sepolia_default],
+  ["ink-testnet-sepolia", ink_testnet_sepolia_default],
+  ["bitcoin-testnet-sepolia-bob-1", bitcoin_testnet_sepolia_bob_1_default],
+  ["zklink_nova-testnet", zklink_nova_testnet_default],
+  ["codex-testnet", codex_testnet_default],
+  [
+    "ethereum-testnet-sepolia-arbitrum-1-treasure-1",
+    ethereum_testnet_sepolia_arbitrum_1_treasure_1_default
+  ],
+  ["treasure-testnet-topaz", treasure_testnet_topaz_default],
+  ["jovay-testnet", jovay_testnet_default],
+  ["ethereum-testnet-sepolia", ethereum_testnet_sepolia_default],
+  ["ethereum-testnet-sepolia-optimism-1", ethereum_testnet_sepolia_optimism_1_default],
+  ["neox-testnet-t4", neox_testnet_t4_default],
+  ["ethereum-testnet-sepolia-corn-1", ethereum_testnet_sepolia_corn_1_default],
+  ["filecoin-testnet", filecoin_testnet_default],
+  ["plume-testnet", plume_testnet_default],
+  ["ethereum-testnet-sepolia-blast-1", ethereum_testnet_sepolia_blast_1_default],
+  ["zora-testnet", zora_testnet_default],
+  ["tron-testnet-shasta-evm", tron_testnet_shasta_evm_default],
+  ["tron-devnet-evm", tron_devnet_evm_default],
+  ["tron-testnet-nile-evm", tron_testnet_nile_evm_default],
+  ["solana-testnet", solana_testnet_default],
+  ["solana-devnet", solana_devnet_default],
+  ["aptos-testnet", aptos_testnet_default],
+  ["aptos-localnet", aptos_localnet_default],
+  ["sui-testnet", sui_testnet_default],
+  ["sui-localnet", sui_localnet_default],
+  ["ton-testnet", ton_testnet_default],
+  ["ton-localnet", ton_localnet_default],
+  ["tron-testnet-shasta", tron_testnet_shasta_default],
+  ["tron-devnet", tron_devnet_default],
+  ["tron-testnet-nile", tron_testnet_nile_default]
+]);
+var mainnetBySelectorByFamily = {
+  evm: new Map([
+    [5009297550715157269n, ethereum_mainnet_default],
+    [3734403246176062136n, ethereum_mainnet_optimism_1_default],
+    [1456215246176062136n, cronos_mainnet_default],
+    [11964252391146578476n, rootstock_mainnet_default],
+    [1477345371608778000n, telos_evm_mainnet_default],
+    [8866418665544333000n, polkadot_mainnet_darwinia_default],
+    [17673274061779414707n, xdc_mainnet_default],
+    [1761333065194157300n, coinex_smart_chain_mainnet_default],
+    [11344663589394136015n, binance_smart_chain_mainnet_default],
+    [465200170687744372n, gnosis_chain_mainnet_default],
+    [374210358663784372n, velas_mainnet_default],
+    [3993510008929295315n, shibarium_mainnet_default],
+    [1923510103922296319n, ethereum_mainnet_unichain_1_default],
+    [4051577828743386545n, polygon_mainnet_default],
+    [8481857512324358265n, monad_mainnet_default],
+    [1673871237479749969n, sonic_mainnet_default],
+    [7613811247471741961n, ethereum_mainnet_hashkey_1_default],
+    [17164792800244661392n, mint_mainnet_default],
+    [3016212468291539606n, ethereum_mainnet_xlayer_1_default],
+    [3776006016387883143n, bittorrent_chain_mainnet_default],
+    [465944652040885897n, binance_smart_chain_mainnet_opbnb_1_default],
+    [5406759801798337480n, bitcoin_mainnet_bsquared_1_default],
+    [11690709103138290329n, mind_mainnet_default],
+    [5608378062013572713n, lens_mainnet_default],
+    [5936861837188149645n, tac_mainnet_default],
+    [3768048213127883732n, fantom_mainnet_default],
+    [1462016016387883143n, fraxtal_mainnet_default],
+    [3719320017875267166n, ethereum_mainnet_kroma_1_default],
+    [8239338020728974000n, neonlink_mainnet_default],
+    [3229138320728879060n, hedera_mainnet_default],
+    [4561443241176882990n, filecoin_mainnet_default],
+    [1562403441176082196n, ethereum_mainnet_zksync_1_default],
+    [8788096068760390840n, cronos_zkevm_mainnet_default],
+    [2039744413822257700n, near_mainnet_default],
+    [1939936305787790600n, areon_mainnet_default],
+    [2049429975587534727n, ethereum_mainnet_worldchain_1_default],
+    [6422105447186081193n, polkadot_mainnet_astar_default],
+    [9107126442626377432n, janction_mainnet_default],
+    [2135107236357186872n, bittensor_mainnet_default],
+    [2442541497099098535n, hyperliquid_mainnet_default],
+    [3358365939762719202n, conflux_mainnet_default],
+    [8805746078405598895n, ethereum_mainnet_metis_1_default],
+    [4348158687435793198n, ethereum_mainnet_polygon_zkevm_1_default],
+    [5142893604156789321n, wemix_mainnet_default],
+    [1224752112135636129n, core_mainnet_default],
+    [15293031020466096408n, lisk_mainnet_default],
+    [1252863800116739621n, polkadot_mainnet_moonbeam_default],
+    [1355020143337428062n, kusama_mainnet_moonriver_default],
+    [9027416829622342829n, sei_mainnet_default],
+    [13447077090413146373n, metal_mainnet_default],
+    [12505351618335765396n, soneium_mainnet_default],
+    [4874388048629246000n, bitcichain_mainnet_default],
+    [6916147374840168594n, ronin_mainnet_default],
+    [8175830712062617656n, polkadot_mainnet_centrifuge_default],
+    [7550000543357438061n, kava_mainnet_default],
+    [3577778157919314504n, abstract_mainnet_default],
+    [18164309074156128038n, morph_mainnet_default],
+    [4560701533377838164n, bitcoin_mainnet_botanix_default],
+    [1540201334317828111n, ethereum_mainnet_astar_zkevm_1_default],
+    [241851231317828981n, bitcoin_merlin_mainnet_default],
+    [1556008542357238666n, ethereum_mainnet_mantle_1_default],
+    [470401360549526817n, superseed_mainnet_default],
+    [17349189558768828726n, nibiru_mainnet_default],
+    [10817664450262215148n, zetachain_mainnet_default],
+    [9813823125703490621n, kaia_mainnet_default],
+    [15971525489660198786n, ethereum_mainnet_base_1_default],
+    [9335212494177455608n, plasma_mainnet_default],
+    [3162193654116181371n, ethereum_mainnet_arbitrum_1_l3x_1_default],
+    [1237925231416731909n, ethereum_mainnet_immutable_zkevm_1_default],
+    [4426351306075016396n, _0g_mainnet_default],
+    [14894068710063348487n, apechain_mainnet_default],
+    [7264351850409363825n, ethereum_mainnet_mode_1_default],
+    [4949039107694359620n, ethereum_mainnet_arbitrum_1_default],
+    [1346049177634351622n, celo_mainnet_default],
+    [13624601974233774587n, etherlink_mainnet_default],
+    [1804312132722180201n, hemi_mainnet_default],
+    [6433500567565415381n, avalanche_mainnet_default],
+    [7222032299962346917n, neox_mainnet_default],
+    [17198166215261833993n, ethereum_mainnet_zircuit_1_default],
+    [6473245816409426016n, memento_mainnet_default],
+    [3461204551265785888n, ethereum_mainnet_ink_1_default],
+    [4627098889531055414n, ethereum_mainnet_linea_1_default],
+    [15758750456714168963n, nexon_mainnet_lith_default],
+    [3849287863852499584n, bitcoin_mainnet_bob_1_default],
+    [5214452172935136222n, treasure_mainnet_default],
+    [12657445206920369324n, nexon_mainnet_henesys_default],
+    [1294465214383781161n, berachain_mainnet_default],
+    [9478124434908827753n, codex_mainnet_default],
+    [4411394078118774322n, ethereum_mainnet_blast_1_default],
+    [17912061998839310979n, plume_mainnet_default],
+    [16468599424800719238n, ethereum_mainnet_taiko_1_default],
+    [7937294810946806131n, bitcoin_mainnet_bitlayer_1_default],
+    [5463201557265485081n, avalanche_subnet_dexalot_mainnet_default],
+    [13204309965629103672n, ethereum_mainnet_scroll_1_default],
+    [2459028469735686113n, polygon_mainnet_katana_default],
+    [14632960069656270105n, nexon_qa_default],
+    [4350319965322101699n, zklink_nova_mainnet_default],
+    [5556806327594153475n, nexon_stage_default],
+    [1010349088906777999n, ethereum_mainnet_arbitrum_1_treasure_1_default],
+    [3555797439612589184n, zora_mainnet_default],
+    [9043146809313071210n, corn_mainnet_default],
+    [1546563616611573946n, tron_mainnet_evm_default]
+  ]),
+  solana: new Map([[124615329519749607n, solana_mainnet_default]]),
+  aptos: new Map([[4741433654826277614n, aptos_mainnet_default]]),
+  sui: new Map([[17529533435026248318n, sui_mainnet_default]]),
+  ton: new Map([[16448340667252469081n, ton_mainnet_default]]),
+  tron: new Map([[1546563616611573945n, tron_mainnet_default]])
+};
+var testnetBySelectorByFamily = {
+  evm: new Map([
+    [8953668971247136127n, bitcoin_testnet_rootstock_default],
+    [729797994450396300n, telos_evm_testnet_default],
+    [4340886533089894000n, polkadot_testnet_darwinia_pangoro_default],
+    [3017758115101368649n, xdc_testnet_default],
+    [8955032871639343000n, coinex_smart_chain_testnet_default],
+    [6955638871347136141n, polkadot_testnet_astar_shibuya_default],
+    [13264668187771770619n, binance_smart_chain_testnet_default],
+    [572210378683744374n, velas_testnet_default],
+    [4356164186791070119n, ethereum_testnet_sepolia_hashkey_1_default],
+    [17833296867764334567n, shibarium_testnet_puppynet_default],
+    [2066098519157881736n, ethereum_testnet_sepolia_xlayer_1_default],
+    [16487132492576884721n, cronos_zkevm_testnet_sepolia_default],
+    [6802309497652714138n, ethereum_testnet_goerli_zksync_1_default],
+    [3842103497652714138n, cronos_testnet_zkevm_1_default],
+    [222782988166878823n, hedera_testnet_default],
+    [6898391096552792247n, ethereum_testnet_sepolia_zksync_1_default],
+    [2995292832068775165n, cronos_testnet_default],
+    [5061593697262339000n, near_testnet_default],
+    [2664363617261496610n, ethereum_testnet_goerli_optimism_1_default],
+    [7317911323415911000n, areon_testnet_default],
+    [5059197667603797935n, janction_testnet_sepolia_default],
+    [6260932437388305511n, private_testnet_obsidian_default],
+    [829525985033418733n, ethereum_testnet_sepolia_mode_1_default],
+    [2177900824115119161n, bittensor_testnet_default],
+    [4286062357653186312n, hyperliquid_testnet_default],
+    [2624132734533621656n, kaia_testnet_kairos_default],
+    [4459371029167934217n, bittorrent_chain_testnet_default],
+    [9284632837123596123n, wemix_testnet_default],
+    [4264732132125536123n, core_testnet_default],
+    [1948510578179542068n, bitcoin_testnet_bsquared_1_default],
+    [5361632739113536121n, polkadot_testnet_moonbeam_moonbase_default],
+    [14135854469784514356n, ethereum_testnet_sepolia_unichain_1_default],
+    [1216300075444106652n, sei_testnet_atlantic_default],
+    [3379446385462418246n, geth_testnet_default],
+    [11059667695644972511n, ethereum_testnet_goerli_polygon_zkevm_1_default],
+    [4237030917318060427n, story_testnet_default],
+    [10749384167430721561n, mint_testnet_default],
+    [6286293440461807648n, metal_testnet_default],
+    [4888058894222120000n, bitcichain_testnet_default],
+    [686603546605904534n, ethereum_testnet_sepolia_soneium_1_default],
+    [13116810400804392105n, ronin_testnet_saigon_default],
+    [3260900564719373474n, private_testnet_granite_default],
+    [6915682381028791124n, private_testnet_andesite_default],
+    [15513093881969820114n, dtcc_testnet_andesite_default],
+    [2333097300889804761n, polkadot_testnet_centrifuge_altair_default],
+    [12168171414969487009n, memento_testnet_default],
+    [2110537777356199208n, kava_testnet_default],
+    [5990477251245693094n, ethereum_testnet_sepolia_kroma_1_default],
+    [9488606126177218005n, tac_testnet_default],
+    [1654667687261492630n, ethereum_testnet_sepolia_polygon_zkevm_1_default],
+    [8901520481741771655n, ethereum_testnet_holesky_fraxtal_1_default],
+    [8304510386741731151n, ethereum_testnet_holesky_morph_1_default],
+    [1467223411771711614n, bitcoin_testnet_botanix_default],
+    [4905564228793744293n, fantom_testnet_default],
+    [5298399861320400553n, ethereum_testnet_sepolia_lisk_1_default],
+    [5299555114858065850n, ethereum_testnet_sepolia_worldchain_1_default],
+    [4168263376276232250n, ethereum_testnet_goerli_mantle_1_default],
+    [8236463271206331221n, ethereum_testnet_sepolia_mantle_1_default],
+    [13274425992935471758n, binance_smart_chain_testnet_opbnb_1_default],
+    [8911150974185440581n, nexon_dev_default],
+    [2443239559770384419n, megaeth_testnet_default],
+    [305104239123120457n, nibiru_testnet_default],
+    [344208382356656551n, ondo_testnet_default],
+    [1113014352258747600n, neonlink_testnet_default],
+    [3967220077692964309n, plasma_testnet_default],
+    [2183018362218727504n, monad_testnet_default],
+    [8871595565390010547n, gnosis_chain_testnet_chiado_default],
+    [16235373811196386733n, abstract_testnet_default],
+    [3486622437121596122n, ethereum_testnet_sepolia_arbitrum_1_l3x_1_default],
+    [4526165231216331901n, ethereum_testnet_sepolia_immutable_zkevm_1_default],
+    [16088006396410204581n, _0g_testnet_newton_default],
+    [2131427466778448014n, _0g_testnet_galileo_default],
+    [7717148896336251131n, ethereum_testnet_holesky_default],
+    [7759470850252068959n, anvil_devnet_default],
+    [9900119385908781505n, apechain_testnet_curtis_default],
+    [6827576821754315911n, ethereum_testnet_sepolia_lens_1_default],
+    [14767482510784806043n, avalanche_testnet_fuji_default],
+    [3552045678561919002n, celo_testnet_alfajores_default],
+    [8446413392851542429n, private_testnet_opala_default],
+    [13781831279385219069n, zircuit_testnet_garfield_default],
+    [4562743618362911021n, ethereum_testnet_sepolia_zircuit_1_default],
+    [13694007683517087973n, superseed_testnet_default],
+    [3676871237479449268n, sonic_testnet_blaze_default],
+    [1355246678561316402n, ethereum_testnet_goerli_linea_1_default],
+    [5719461335882077547n, ethereum_testnet_sepolia_linea_1_default],
+    [3777822886988675105n, ethereum_testnet_sepolia_metis_1_default],
+    [12532609583862916517n, polygon_testnet_mumbai_default],
+    [16281711391670634445n, polygon_testnet_amoy_default],
+    [7728255861635209484n, berachain_testnet_bepolia_default],
+    [8999465244383784164n, berachain_testnet_bartio_default],
+    [12336603543561911511n, berachain_testnet_artio_default],
+    [2285225387454015855n, zero_g_testnet_galileo_default],
+    [5790810961207155433n, ethereum_testnet_goerli_base_1_default],
+    [10344971235874465080n, ethereum_testnet_sepolia_base_1_default],
+    [3743020999916460931n, plume_devnet_default],
+    [13874588925447303949n, plume_testnet_sepolia_default],
+    [1910019406958449359n, etherlink_testnet_default],
+    [9090863410735740267n, polygon_testnet_tatara_default],
+    [7248756420937879088n, ethereum_testnet_holesky_taiko_1_default],
+    [7189150270347329685n, mind_testnet_default],
+    [3789623672476206327n, bitcoin_testnet_bitlayer_1_default],
+    [6101244977088475029n, ethereum_testnet_goerli_arbitrum_1_default],
+    [3478487238524512106n, ethereum_testnet_sepolia_arbitrum_1_default],
+    [4489326297382772450n, private_testnet_mica_default],
+    [1458281248224512906n, avalanche_subnet_dexalot_testnet_default],
+    [2279865765895943307n, ethereum_testnet_sepolia_scroll_1_default],
+    [7837562506228496256n, avalanche_testnet_nexon_default],
+    [5269261765892944301n, bitcoin_testnet_merlin_default],
+    [4012524741200567430n, pharos_testnet_default],
+    [4418231248214522936n, ethereum_testnet_sepolia_polygon_validium_1_default],
+    [16126893759944359622n, hemi_testnet_sepolia_default],
+    [9763904284804119144n, ink_testnet_sepolia_default],
+    [5535534526963509396n, bitcoin_testnet_sepolia_bob_1_default],
+    [5837261596322416298n, zklink_nova_testnet_default],
+    [7225665875429174318n, codex_testnet_default],
+    [10443705513486043421n, ethereum_testnet_sepolia_arbitrum_1_treasure_1_default],
+    [3676916124122457866n, treasure_testnet_topaz_default],
+    [945045181441419236n, jovay_testnet_default],
+    [16015286601757825753n, ethereum_testnet_sepolia_default],
+    [5224473277236331295n, ethereum_testnet_sepolia_optimism_1_default],
+    [2217764097022649312n, neox_testnet_t4_default],
+    [1467427327723633929n, ethereum_testnet_sepolia_corn_1_default],
+    [7060342227814389000n, filecoin_testnet_default],
+    [14684575664602284776n, plume_testnet_default],
+    [2027362563942762617n, ethereum_testnet_sepolia_blast_1_default],
+    [16244020411108056671n, zora_testnet_default],
+    [13231703482326770598n, tron_testnet_shasta_evm_default],
+    [13231703482326770600n, tron_devnet_evm_default],
+    [2052925811360307749n, tron_testnet_nile_evm_default]
+  ]),
+  solana: new Map([
+    [6302590918974934319n, solana_testnet_default],
+    [16423721717087811551n, solana_devnet_default]
+  ]),
+  aptos: new Map([
+    [743186221051783445n, aptos_testnet_default],
+    [4457093679053095497n, aptos_localnet_default]
+  ]),
+  sui: new Map([
+    [9762610643973837292n, sui_testnet_default],
+    [18395503381733958356n, sui_localnet_default]
+  ]),
+  ton: new Map([
+    [1399300952838017768n, ton_testnet_default],
+    [13879075125137744094n, ton_localnet_default]
+  ]),
+  tron: new Map([
+    [13231703482326770597n, tron_testnet_shasta_default],
+    [13231703482326770599n, tron_devnet_default],
+    [2052925811360307740n, tron_testnet_nile_default]
+  ])
+};
+var mainnetByNameByFamily = {
+  evm: new Map([
+    ["ethereum-mainnet", ethereum_mainnet_default],
+    ["ethereum-mainnet-optimism-1", ethereum_mainnet_optimism_1_default],
+    ["cronos-mainnet", cronos_mainnet_default],
+    ["rootstock-mainnet", rootstock_mainnet_default],
+    ["telos-evm-mainnet", telos_evm_mainnet_default],
+    ["polkadot-mainnet-darwinia", polkadot_mainnet_darwinia_default],
+    ["xdc-mainnet", xdc_mainnet_default],
+    ["coinex_smart_chain-mainnet", coinex_smart_chain_mainnet_default],
+    ["binance_smart_chain-mainnet", binance_smart_chain_mainnet_default],
+    ["gnosis_chain-mainnet", gnosis_chain_mainnet_default],
+    ["velas-mainnet", velas_mainnet_default],
+    ["shibarium-mainnet", shibarium_mainnet_default],
+    ["ethereum-mainnet-unichain-1", ethereum_mainnet_unichain_1_default],
+    ["polygon-mainnet", polygon_mainnet_default],
+    ["monad-mainnet", monad_mainnet_default],
+    ["sonic-mainnet", sonic_mainnet_default],
+    ["ethereum-mainnet-hashkey-1", ethereum_mainnet_hashkey_1_default],
+    ["mint-mainnet", mint_mainnet_default],
+    ["ethereum-mainnet-xlayer-1", ethereum_mainnet_xlayer_1_default],
+    ["bittorrent_chain-mainnet", bittorrent_chain_mainnet_default],
+    ["binance_smart_chain-mainnet-opbnb-1", binance_smart_chain_mainnet_opbnb_1_default],
+    ["bitcoin-mainnet-bsquared-1", bitcoin_mainnet_bsquared_1_default],
+    ["mind-mainnet", mind_mainnet_default],
+    ["lens-mainnet", lens_mainnet_default],
+    ["tac-mainnet", tac_mainnet_default],
+    ["fantom-mainnet", fantom_mainnet_default],
+    ["fraxtal-mainnet", fraxtal_mainnet_default],
+    ["ethereum-mainnet-kroma-1", ethereum_mainnet_kroma_1_default],
+    ["neonlink-mainnet", neonlink_mainnet_default],
+    ["hedera-mainnet", hedera_mainnet_default],
+    ["filecoin-mainnet", filecoin_mainnet_default],
+    ["ethereum-mainnet-zksync-1", ethereum_mainnet_zksync_1_default],
+    ["cronos-zkevm-mainnet", cronos_zkevm_mainnet_default],
+    ["near-mainnet", near_mainnet_default],
+    ["areon-mainnet", areon_mainnet_default],
+    ["ethereum-mainnet-worldchain-1", ethereum_mainnet_worldchain_1_default],
+    ["polkadot-mainnet-astar", polkadot_mainnet_astar_default],
+    ["janction-mainnet", janction_mainnet_default],
+    ["bittensor-mainnet", bittensor_mainnet_default],
+    ["hyperliquid-mainnet", hyperliquid_mainnet_default],
+    ["conflux-mainnet", conflux_mainnet_default],
+    ["ethereum-mainnet-metis-1", ethereum_mainnet_metis_1_default],
+    ["ethereum-mainnet-polygon-zkevm-1", ethereum_mainnet_polygon_zkevm_1_default],
+    ["wemix-mainnet", wemix_mainnet_default],
+    ["core-mainnet", core_mainnet_default],
+    ["lisk-mainnet", lisk_mainnet_default],
+    ["polkadot-mainnet-moonbeam", polkadot_mainnet_moonbeam_default],
+    ["kusama-mainnet-moonriver", kusama_mainnet_moonriver_default],
+    ["sei-mainnet", sei_mainnet_default],
+    ["metal-mainnet", metal_mainnet_default],
+    ["soneium-mainnet", soneium_mainnet_default],
+    ["bitcichain-mainnet", bitcichain_mainnet_default],
+    ["ronin-mainnet", ronin_mainnet_default],
+    ["polkadot-mainnet-centrifuge", polkadot_mainnet_centrifuge_default],
+    ["kava-mainnet", kava_mainnet_default],
+    ["abstract-mainnet", abstract_mainnet_default],
+    ["morph-mainnet", morph_mainnet_default],
+    ["bitcoin-mainnet-botanix", bitcoin_mainnet_botanix_default],
+    ["ethereum-mainnet-astar-zkevm-1", ethereum_mainnet_astar_zkevm_1_default],
+    ["bitcoin-merlin-mainnet", bitcoin_merlin_mainnet_default],
+    ["ethereum-mainnet-mantle-1", ethereum_mainnet_mantle_1_default],
+    ["superseed-mainnet", superseed_mainnet_default],
+    ["nibiru-mainnet", nibiru_mainnet_default],
+    ["zetachain-mainnet", zetachain_mainnet_default],
+    ["kaia-mainnet", kaia_mainnet_default],
+    ["ethereum-mainnet-base-1", ethereum_mainnet_base_1_default],
+    ["plasma-mainnet", plasma_mainnet_default],
+    ["ethereum-mainnet-arbitrum-1-l3x-1", ethereum_mainnet_arbitrum_1_l3x_1_default],
+    ["ethereum-mainnet-immutable-zkevm-1", ethereum_mainnet_immutable_zkevm_1_default],
+    ["0g-mainnet", _0g_mainnet_default],
+    ["apechain-mainnet", apechain_mainnet_default],
+    ["ethereum-mainnet-mode-1", ethereum_mainnet_mode_1_default],
+    ["ethereum-mainnet-arbitrum-1", ethereum_mainnet_arbitrum_1_default],
+    ["celo-mainnet", celo_mainnet_default],
+    ["etherlink-mainnet", etherlink_mainnet_default],
+    ["hemi-mainnet", hemi_mainnet_default],
+    ["avalanche-mainnet", avalanche_mainnet_default],
+    ["neox-mainnet", neox_mainnet_default],
+    ["ethereum-mainnet-zircuit-1", ethereum_mainnet_zircuit_1_default],
+    ["memento-mainnet", memento_mainnet_default],
+    ["ethereum-mainnet-ink-1", ethereum_mainnet_ink_1_default],
+    ["ethereum-mainnet-linea-1", ethereum_mainnet_linea_1_default],
+    ["nexon-mainnet-lith", nexon_mainnet_lith_default],
+    ["bitcoin-mainnet-bob-1", bitcoin_mainnet_bob_1_default],
+    ["treasure-mainnet", treasure_mainnet_default],
+    ["nexon-mainnet-henesys", nexon_mainnet_henesys_default],
+    ["berachain-mainnet", berachain_mainnet_default],
+    ["codex-mainnet", codex_mainnet_default],
+    ["ethereum-mainnet-blast-1", ethereum_mainnet_blast_1_default],
+    ["plume-mainnet", plume_mainnet_default],
+    ["ethereum-mainnet-taiko-1", ethereum_mainnet_taiko_1_default],
+    ["bitcoin-mainnet-bitlayer-1", bitcoin_mainnet_bitlayer_1_default],
+    ["avalanche-subnet-dexalot-mainnet", avalanche_subnet_dexalot_mainnet_default],
+    ["ethereum-mainnet-scroll-1", ethereum_mainnet_scroll_1_default],
+    ["polygon-mainnet-katana", polygon_mainnet_katana_default],
+    ["nexon-qa", nexon_qa_default],
+    ["zklink_nova-mainnet", zklink_nova_mainnet_default],
+    ["nexon-stage", nexon_stage_default],
+    ["ethereum-mainnet-arbitrum-1-treasure-1", ethereum_mainnet_arbitrum_1_treasure_1_default],
+    ["zora-mainnet", zora_mainnet_default],
+    ["corn-mainnet", corn_mainnet_default],
+    ["tron-mainnet-evm", tron_mainnet_evm_default]
+  ]),
+  solana: new Map([["solana-mainnet", solana_mainnet_default]]),
+  aptos: new Map([["aptos-mainnet", aptos_mainnet_default]]),
+  sui: new Map([["sui-mainnet", sui_mainnet_default]]),
+  ton: new Map([["ton-mainnet", ton_mainnet_default]]),
+  tron: new Map([["tron-mainnet", tron_mainnet_default]])
+};
+var testnetByNameByFamily = {
+  evm: new Map([
+    ["bitcoin-testnet-rootstock", bitcoin_testnet_rootstock_default],
+    ["telos-evm-testnet", telos_evm_testnet_default],
+    ["polkadot-testnet-darwinia-pangoro", polkadot_testnet_darwinia_pangoro_default],
+    ["xdc-testnet", xdc_testnet_default],
+    ["coinex_smart_chain-testnet", coinex_smart_chain_testnet_default],
+    ["polkadot-testnet-astar-shibuya", polkadot_testnet_astar_shibuya_default],
+    ["binance_smart_chain-testnet", binance_smart_chain_testnet_default],
+    ["velas-testnet", velas_testnet_default],
+    ["ethereum-testnet-sepolia-hashkey-1", ethereum_testnet_sepolia_hashkey_1_default],
+    ["shibarium-testnet-puppynet", shibarium_testnet_puppynet_default],
+    ["ethereum-testnet-sepolia-xlayer-1", ethereum_testnet_sepolia_xlayer_1_default],
+    ["cronos-zkevm-testnet-sepolia", cronos_zkevm_testnet_sepolia_default],
+    ["ethereum-testnet-goerli-zksync-1", ethereum_testnet_goerli_zksync_1_default],
+    ["cronos-testnet-zkevm-1", cronos_testnet_zkevm_1_default],
+    ["hedera-testnet", hedera_testnet_default],
+    ["ethereum-testnet-sepolia-zksync-1", ethereum_testnet_sepolia_zksync_1_default],
+    ["cronos-testnet", cronos_testnet_default],
+    ["near-testnet", near_testnet_default],
+    ["ethereum-testnet-goerli-optimism-1", ethereum_testnet_goerli_optimism_1_default],
+    ["areon-testnet", areon_testnet_default],
+    ["janction-testnet-sepolia", janction_testnet_sepolia_default],
+    ["private-testnet-obsidian", private_testnet_obsidian_default],
+    ["ethereum-testnet-sepolia-mode-1", ethereum_testnet_sepolia_mode_1_default],
+    ["bittensor-testnet", bittensor_testnet_default],
+    ["hyperliquid-testnet", hyperliquid_testnet_default],
+    ["kaia-testnet-kairos", kaia_testnet_kairos_default],
+    ["bittorrent_chain-testnet", bittorrent_chain_testnet_default],
+    ["wemix-testnet", wemix_testnet_default],
+    ["core-testnet", core_testnet_default],
+    ["bitcoin-testnet-bsquared-1", bitcoin_testnet_bsquared_1_default],
+    ["polkadot-testnet-moonbeam-moonbase", polkadot_testnet_moonbeam_moonbase_default],
+    ["ethereum-testnet-sepolia-unichain-1", ethereum_testnet_sepolia_unichain_1_default],
+    ["sei-testnet-atlantic", sei_testnet_atlantic_default],
+    ["geth-testnet", geth_testnet_default],
+    [
+      "ethereum-testnet-goerli-polygon-zkevm-1",
+      ethereum_testnet_goerli_polygon_zkevm_1_default
+    ],
+    ["story-testnet", story_testnet_default],
+    ["mint-testnet", mint_testnet_default],
+    ["metal-testnet", metal_testnet_default],
+    ["bitcichain-testnet", bitcichain_testnet_default],
+    ["ethereum-testnet-sepolia-soneium-1", ethereum_testnet_sepolia_soneium_1_default],
+    ["ronin-testnet-saigon", ronin_testnet_saigon_default],
+    ["private-testnet-granite", private_testnet_granite_default],
+    ["private-testnet-andesite", private_testnet_andesite_default],
+    ["dtcc-testnet-andesite", dtcc_testnet_andesite_default],
+    ["polkadot-testnet-centrifuge-altair", polkadot_testnet_centrifuge_altair_default],
+    ["memento-testnet", memento_testnet_default],
+    ["kava-testnet", kava_testnet_default],
+    ["ethereum-testnet-sepolia-kroma-1", ethereum_testnet_sepolia_kroma_1_default],
+    ["tac-testnet", tac_testnet_default],
+    [
+      "ethereum-testnet-sepolia-polygon-zkevm-1",
+      ethereum_testnet_sepolia_polygon_zkevm_1_default
+    ],
+    ["ethereum-testnet-holesky-fraxtal-1", ethereum_testnet_holesky_fraxtal_1_default],
+    ["ethereum-testnet-holesky-morph-1", ethereum_testnet_holesky_morph_1_default],
+    ["bitcoin-testnet-botanix", bitcoin_testnet_botanix_default],
+    ["fantom-testnet", fantom_testnet_default],
+    ["ethereum-testnet-sepolia-lisk-1", ethereum_testnet_sepolia_lisk_1_default],
+    ["ethereum-testnet-sepolia-worldchain-1", ethereum_testnet_sepolia_worldchain_1_default],
+    ["ethereum-testnet-goerli-mantle-1", ethereum_testnet_goerli_mantle_1_default],
+    ["ethereum-testnet-sepolia-mantle-1", ethereum_testnet_sepolia_mantle_1_default],
+    ["binance_smart_chain-testnet-opbnb-1", binance_smart_chain_testnet_opbnb_1_default],
+    ["nexon-dev", nexon_dev_default],
+    ["megaeth-testnet", megaeth_testnet_default],
+    ["nibiru-testnet", nibiru_testnet_default],
+    ["ondo-testnet", ondo_testnet_default],
+    ["neonlink-testnet", neonlink_testnet_default],
+    ["plasma-testnet", plasma_testnet_default],
+    ["monad-testnet", monad_testnet_default],
+    ["gnosis_chain-testnet-chiado", gnosis_chain_testnet_chiado_default],
+    ["abstract-testnet", abstract_testnet_default],
+    [
+      "ethereum-testnet-sepolia-arbitrum-1-l3x-1",
+      ethereum_testnet_sepolia_arbitrum_1_l3x_1_default
+    ],
+    [
+      "ethereum-testnet-sepolia-immutable-zkevm-1",
+      ethereum_testnet_sepolia_immutable_zkevm_1_default
+    ],
+    ["0g-testnet-newton", _0g_testnet_newton_default],
+    ["0g-testnet-galileo", _0g_testnet_galileo_default],
+    ["ethereum-testnet-holesky", ethereum_testnet_holesky_default],
+    ["anvil-devnet", anvil_devnet_default],
+    ["apechain-testnet-curtis", apechain_testnet_curtis_default],
+    ["ethereum-testnet-sepolia-lens-1", ethereum_testnet_sepolia_lens_1_default],
+    ["avalanche-testnet-fuji", avalanche_testnet_fuji_default],
+    ["celo-testnet-alfajores", celo_testnet_alfajores_default],
+    ["private-testnet-opala", private_testnet_opala_default],
+    ["zircuit-testnet-garfield", zircuit_testnet_garfield_default],
+    ["ethereum-testnet-sepolia-zircuit-1", ethereum_testnet_sepolia_zircuit_1_default],
+    ["superseed-testnet", superseed_testnet_default],
+    ["sonic-testnet-blaze", sonic_testnet_blaze_default],
+    ["ethereum-testnet-goerli-linea-1", ethereum_testnet_goerli_linea_1_default],
+    ["ethereum-testnet-sepolia-linea-1", ethereum_testnet_sepolia_linea_1_default],
+    ["ethereum-testnet-sepolia-metis-1", ethereum_testnet_sepolia_metis_1_default],
+    ["polygon-testnet-mumbai", polygon_testnet_mumbai_default],
+    ["polygon-testnet-amoy", polygon_testnet_amoy_default],
+    ["berachain-testnet-bepolia", berachain_testnet_bepolia_default],
+    ["berachain-testnet-bartio", berachain_testnet_bartio_default],
+    ["berachain-testnet-artio", berachain_testnet_artio_default],
+    ["zero-g-testnet-galileo", zero_g_testnet_galileo_default],
+    ["ethereum-testnet-goerli-base-1", ethereum_testnet_goerli_base_1_default],
+    ["ethereum-testnet-sepolia-base-1", ethereum_testnet_sepolia_base_1_default],
+    ["plume-devnet", plume_devnet_default],
+    ["plume-testnet-sepolia", plume_testnet_sepolia_default],
+    ["etherlink-testnet", etherlink_testnet_default],
+    ["polygon-testnet-tatara", polygon_testnet_tatara_default],
+    ["ethereum-testnet-holesky-taiko-1", ethereum_testnet_holesky_taiko_1_default],
+    ["mind-testnet", mind_testnet_default],
+    ["bitcoin-testnet-bitlayer-1", bitcoin_testnet_bitlayer_1_default],
+    ["ethereum-testnet-goerli-arbitrum-1", ethereum_testnet_goerli_arbitrum_1_default],
+    ["ethereum-testnet-sepolia-arbitrum-1", ethereum_testnet_sepolia_arbitrum_1_default],
+    ["private-testnet-mica", private_testnet_mica_default],
+    ["avalanche-subnet-dexalot-testnet", avalanche_subnet_dexalot_testnet_default],
+    ["ethereum-testnet-sepolia-scroll-1", ethereum_testnet_sepolia_scroll_1_default],
+    ["avalanche-testnet-nexon", avalanche_testnet_nexon_default],
+    ["bitcoin-testnet-merlin", bitcoin_testnet_merlin_default],
+    ["pharos-testnet", pharos_testnet_default],
+    [
+      "ethereum-testnet-sepolia-polygon-validium-1",
+      ethereum_testnet_sepolia_polygon_validium_1_default
+    ],
+    ["hemi-testnet-sepolia", hemi_testnet_sepolia_default],
+    ["ink-testnet-sepolia", ink_testnet_sepolia_default],
+    ["bitcoin-testnet-sepolia-bob-1", bitcoin_testnet_sepolia_bob_1_default],
+    ["zklink_nova-testnet", zklink_nova_testnet_default],
+    ["codex-testnet", codex_testnet_default],
+    [
+      "ethereum-testnet-sepolia-arbitrum-1-treasure-1",
+      ethereum_testnet_sepolia_arbitrum_1_treasure_1_default
+    ],
+    ["treasure-testnet-topaz", treasure_testnet_topaz_default],
+    ["jovay-testnet", jovay_testnet_default],
+    ["ethereum-testnet-sepolia", ethereum_testnet_sepolia_default],
+    ["ethereum-testnet-sepolia-optimism-1", ethereum_testnet_sepolia_optimism_1_default],
+    ["neox-testnet-t4", neox_testnet_t4_default],
+    ["ethereum-testnet-sepolia-corn-1", ethereum_testnet_sepolia_corn_1_default],
+    ["filecoin-testnet", filecoin_testnet_default],
+    ["plume-testnet", plume_testnet_default],
+    ["ethereum-testnet-sepolia-blast-1", ethereum_testnet_sepolia_blast_1_default],
+    ["zora-testnet", zora_testnet_default],
+    ["tron-testnet-shasta-evm", tron_testnet_shasta_evm_default],
+    ["tron-devnet-evm", tron_devnet_evm_default],
+    ["tron-testnet-nile-evm", tron_testnet_nile_evm_default]
+  ]),
+  solana: new Map([
+    ["solana-testnet", solana_testnet_default],
+    ["solana-devnet", solana_devnet_default]
+  ]),
+  aptos: new Map([
+    ["aptos-testnet", aptos_testnet_default],
+    ["aptos-localnet", aptos_localnet_default]
+  ]),
+  sui: new Map([
+    ["sui-testnet", sui_testnet_default],
+    ["sui-localnet", sui_localnet_default]
+  ]),
+  ton: new Map([
+    ["ton-testnet", ton_testnet_default],
+    ["ton-localnet", ton_localnet_default]
+  ]),
+  tron: new Map([
+    ["tron-testnet-shasta", tron_testnet_shasta_default],
+    ["tron-devnet", tron_devnet_default],
+    ["tron-testnet-nile", tron_testnet_nile_default]
+  ])
+};
+
+class NetworkLookup {
+  maps;
+  constructor(maps) {
+    this.maps = maps;
+  }
+  find(options) {
+    const { chainSelector, chainSelectorName, isTestnet, chainFamily } = options;
+    const getBySelector = (map) => {
+      if (chainSelector === undefined)
+        return;
+      return map.get(chainSelector);
+    };
+    if (chainSelector === undefined && !chainSelectorName) {
+      return;
+    }
+    if (chainFamily && chainSelector !== undefined) {
+      if (isTestnet === false) {
+        return getBySelector(this.maps.mainnetBySelectorByFamily[chainFamily]);
+      }
+      if (isTestnet === true) {
+        return getBySelector(this.maps.testnetBySelectorByFamily[chainFamily]);
+      }
+      let network248 = getBySelector(this.maps.testnetBySelectorByFamily[chainFamily]);
+      if (!network248) {
+        network248 = getBySelector(this.maps.mainnetBySelectorByFamily[chainFamily]);
+      }
+      return network248;
+    }
+    if (chainFamily && chainSelectorName) {
+      if (isTestnet === false) {
+        return this.maps.mainnetByNameByFamily[chainFamily].get(chainSelectorName);
+      }
+      if (isTestnet === true) {
+        return this.maps.testnetByNameByFamily[chainFamily].get(chainSelectorName);
+      }
+      let network248 = this.maps.testnetByNameByFamily[chainFamily].get(chainSelectorName);
+      if (!network248) {
+        network248 = this.maps.mainnetByNameByFamily[chainFamily].get(chainSelectorName);
+      }
+      return network248;
+    }
+    if (chainSelector !== undefined) {
+      if (isTestnet === false) {
+        return getBySelector(this.maps.mainnetBySelector);
+      }
+      if (isTestnet === true) {
+        return getBySelector(this.maps.testnetBySelector);
+      }
+      let network248 = getBySelector(this.maps.testnetBySelector);
+      if (!network248) {
+        network248 = getBySelector(this.maps.mainnetBySelector);
+      }
+      return network248;
+    }
+    if (chainSelectorName) {
+      if (isTestnet === false) {
+        return this.maps.mainnetByName.get(chainSelectorName);
+      }
+      if (isTestnet === true) {
+        return this.maps.testnetByName.get(chainSelectorName);
+      }
+      let network248 = this.maps.testnetByName.get(chainSelectorName);
+      if (!network248) {
+        network248 = this.maps.mainnetByName.get(chainSelectorName);
+      }
+      return network248;
+    }
+    return;
+  }
+}
+var defaultLookup = new NetworkLookup({
+  mainnetByName,
+  mainnetByNameByFamily,
+  mainnetBySelector,
+  mainnetBySelectorByFamily,
+  testnetByName,
+  testnetByNameByFamily,
+  testnetBySelector,
+  testnetBySelectorByFamily
+});
+var getNetwork = (options) => defaultLookup.find(options);
+
+class Int64 {
+  static INT64_MIN = -(2n ** 63n);
+  static INT64_MAX = 2n ** 63n - 1n;
+  value;
+  static toInt64Bigint(v) {
+    if (typeof v === "string") {
+      const bi2 = BigInt(v);
+      return Int64.toInt64Bigint(bi2);
+    }
+    if (typeof v === "bigint") {
+      if (v > Int64.INT64_MAX)
+        throw new Error("int64 overflow");
+      else if (v < Int64.INT64_MIN)
+        throw new Error("int64 underflow");
+      return v;
+    }
+    if (!Number.isFinite(v) || !Number.isInteger(v))
+      throw new Error("int64 requires an integer number");
+    const bi = BigInt(v);
+    if (bi > Int64.INT64_MAX)
+      throw new Error("int64 overflow");
+    else if (bi < Int64.INT64_MIN)
+      throw new Error("int64 underflow");
+    return bi;
+  }
+  constructor(v) {
+    this.value = Int64.toInt64Bigint(v);
+  }
+  add(i2, safe = true) {
+    return safe ? new Int64(this.value + i2.value) : new Int64(BigInt.asIntN(64, this.value + i2.value));
+  }
+  sub(i2, safe = true) {
+    return safe ? new Int64(this.value - i2.value) : new Int64(BigInt.asIntN(64, this.value - i2.value));
+  }
+  mul(i2, safe = true) {
+    return safe ? new Int64(this.value * i2.value) : new Int64(BigInt.asIntN(64, this.value * i2.value));
+  }
+  div(i2, safe = true) {
+    return safe ? new Int64(this.value / i2.value) : new Int64(BigInt.asIntN(64, this.value / i2.value));
+  }
+}
+
+class UInt64 {
+  static UINT64_MAX = 2n ** 64n - 1n;
+  value;
+  static toUint64Bigint(v) {
+    if (typeof v === "string") {
+      const bi2 = BigInt(v);
+      return UInt64.toUint64Bigint(bi2);
+    }
+    if (typeof v === "bigint") {
+      if (v > UInt64.UINT64_MAX)
+        throw new Error("uint64 overflow");
+      else if (v < 0n)
+        throw new Error("uint64 underflow");
+      return v;
+    }
+    if (!Number.isFinite(v) || !Number.isInteger(v))
+      throw new Error("uint64 requires an integer number");
+    const bi = BigInt(v);
+    if (bi > UInt64.UINT64_MAX)
+      throw new Error("uint64 overflow");
+    else if (bi < 0n)
+      throw new Error("uint64 underflow");
+    return bi;
+  }
+  constructor(v) {
+    this.value = UInt64.toUint64Bigint(v);
+  }
+  add(i2, safe = true) {
+    return safe ? new UInt64(this.value + i2.value) : new UInt64(BigInt.asUintN(64, this.value + i2.value));
+  }
+  sub(i2, safe = true) {
+    return safe ? new UInt64(this.value - i2.value) : new UInt64(BigInt.asUintN(64, this.value - i2.value));
+  }
+  mul(i2, safe = true) {
+    return safe ? new UInt64(this.value * i2.value) : new UInt64(BigInt.asUintN(64, this.value * i2.value));
+  }
+  div(i2, safe = true) {
+    return safe ? new UInt64(this.value / i2.value) : new UInt64(BigInt.asUintN(64, this.value / i2.value));
+  }
+}
+
+class Decimal {
+  coeffecient;
+  exponent;
+  static parse(s) {
+    const m = /^([+-])?(\d*)(?:\.(\d*))?$/.exec(s.trim());
+    if (!m || m[2] === "" && (m[3] === undefined || m[3] === ""))
+      throw new Error("invalid decimal string");
+    const signStr = m[1] ?? "+";
+    const intPart = m[2] ?? "0";
+    let fracPart = m[3] ?? "";
+    while (fracPart.length > 0 && fracPart[fracPart.length - 1] === "0") {
+      fracPart = fracPart.slice(0, -1);
+    }
+    const exponent = fracPart.length === 0 ? 0 : -fracPart.length;
+    const digits = intPart + fracPart || "0";
+    const coeffecient = BigInt((signStr === "-" ? "-" : "") + digits);
+    return new Decimal(coeffecient, exponent);
+  }
+  constructor(coeffecient, exponent) {
+    this.coeffecient = coeffecient;
+    this.exponent = exponent;
+  }
+}
+
+class Value {
+  value;
+  static from(value) {
+    return new Value(value);
+  }
+  static wrap(value) {
+    return new Value(value);
+  }
+  constructor(value) {
+    if (value instanceof Value) {
+      this.value = value.value;
+    } else if (isValueProto(value)) {
+      this.value = value;
+    } else {
+      this.value = Value.wrapInternal(value);
+    }
+  }
+  proto() {
+    return this.value;
+  }
+  static toUint8Array(input) {
+    return input instanceof Uint8Array ? input : new Uint8Array(input);
+  }
+  static bigintToBytesBE(abs) {
+    if (abs === 0n)
+      return new Uint8Array;
+    let hex = abs.toString(16);
+    if (hex.length % 2 === 1)
+      hex = "0" + hex;
+    const len2 = hex.length / 2;
+    const out = new Uint8Array(len2);
+    for (let i2 = 0;i2 < len2; i2++) {
+      out[i2] = parseInt(hex.slice(i2 * 2, i2 * 2 + 2), 16);
+    }
+    return out;
+  }
+  static bigIntToProtoBigInt(v) {
+    const sign = v === 0n ? 0n : v < 0n ? -1n : 1n;
+    const abs = v < 0n ? -v : v;
+    return create(BigIntSchema, {
+      absVal: Value.bigintToBytesBE(abs),
+      sign
+    });
+  }
+  static toTimestamp(d) {
+    const date = d instanceof Date ? d : new Date(d);
+    return timestampFromDate(date);
+  }
+  static isPlainObject(v) {
+    return typeof v === "object" && v !== null && v.constructor === Object;
+  }
+  static isObject(v) {
+    return typeof v === "object" && v !== null;
+  }
+  static wrapInternal(v) {
+    if (v === null || v === undefined)
+      throw new Error("cannot wrap null/undefined into Value");
+    if (v instanceof Value) {
+      return v.proto();
+    }
+    if (v instanceof Uint8Array)
+      return create(ValueSchema2, { value: { case: "bytesValue", value: v } });
+    if (v instanceof ArrayBuffer)
+      return create(ValueSchema2, {
+        value: { case: "bytesValue", value: Value.toUint8Array(v) }
+      });
+    if (v instanceof Date)
+      return create(ValueSchema2, {
+        value: { case: "timeValue", value: Value.toTimestamp(v) }
+      });
+    if (v instanceof Int64) {
+      return create(ValueSchema2, {
+        value: { case: "int64Value", value: v.value }
+      });
+    }
+    if (v instanceof UInt64) {
+      return create(ValueSchema2, {
+        value: { case: "uint64Value", value: v.value }
+      });
+    }
+    if (v instanceof Decimal) {
+      const decimalProto = create(DecimalSchema, {
+        coefficient: Value.bigIntToProtoBigInt(v.coeffecient),
+        exponent: v.exponent
+      });
+      return create(ValueSchema2, {
+        value: { case: "decimalValue", value: decimalProto }
+      });
+    }
+    switch (typeof v) {
+      case "string":
+        return create(ValueSchema2, {
+          value: { case: "stringValue", value: v }
+        });
+      case "boolean":
+        return create(ValueSchema2, { value: { case: "boolValue", value: v } });
+      case "bigint": {
+        return create(ValueSchema2, {
+          value: { case: "bigintValue", value: Value.bigIntToProtoBigInt(v) }
+        });
+      }
+      case "number": {
+        return create(ValueSchema2, {
+          value: { case: "float64Value", value: v }
+        });
+      }
+      case "object":
+        break;
+      default:
+        throw new Error(`unsupported type: ${typeof v}`);
+    }
+    if (Array.isArray(v)) {
+      const fields2 = v.map(Value.wrapInternal);
+      const list = create(ListSchema, { fields: fields2 });
+      return create(ValueSchema2, { value: { case: "listValue", value: list } });
+    }
+    if (Value.isPlainObject(v)) {
+      const fields2 = {};
+      for (const [k, vv] of Object.entries(v)) {
+        fields2[k] = Value.wrapInternal(vv);
+      }
+      const map = create(MapSchema, { fields: fields2 });
+      return create(ValueSchema2, { value: { case: "mapValue", value: map } });
+    }
+    if (Value.isObject(v) && v.constructor !== Object) {
+      const fields2 = {};
+      for (const [k, vv] of Object.entries(v)) {
+        fields2[k] = Value.wrapInternal(vv);
+      }
+      const map = create(MapSchema, { fields: fields2 });
+      return create(ValueSchema2, { value: { case: "mapValue", value: map } });
+    }
+    throw new Error("unsupported object instance");
+  }
+  unwrap() {
+    return unwrap(this.value);
+  }
+  unwrapToType(options) {
+    const unwrapped = this.unwrap();
+    if ("instance" in options) {
+      if (typeof unwrapped !== typeof options.instance) {
+        throw new Error(`Cannot unwrap to type ${typeof options.instance}`);
+      }
+      return unwrapped;
+    }
+    if (options.schema) {
+      return options.schema.parse(unwrapped);
+    }
+    const obj = options.factory();
+    if (typeof unwrapped === "object" && unwrapped !== null) {
+      Object.assign(obj, unwrapped);
+    } else {
+      throw new Error(`Cannot copy properties from primitive value to object instance. Use a schema instead.`);
+    }
+    return obj;
+  }
+}
+function unwrap(value) {
+  switch (value.value.case) {
+    case "stringValue":
+      return value.value.value;
+    case "boolValue":
+      return value.value.value;
+    case "bytesValue":
+      return value.value.value;
+    case "int64Value":
+      return new Int64(value.value.value);
+    case "uint64Value":
+      return new UInt64(value.value.value);
+    case "float64Value":
+      return value.value.value;
+    case "bigintValue": {
+      const bigIntValue = value.value.value;
+      const absVal = bigIntValue.absVal;
+      const sign = bigIntValue.sign;
+      let result = 0n;
+      for (const byte of absVal) {
+        result = result << 8n | BigInt(byte);
+      }
+      return sign < 0n ? -result : result;
+    }
+    case "timeValue": {
+      return timestampDate(value.value.value);
+    }
+    case "listValue": {
+      const list = value.value.value;
+      return list.fields.map(unwrap);
+    }
+    case "mapValue": {
+      const map = value.value.value;
+      const result = {};
+      for (const [key, val] of Object.entries(map.fields)) {
+        result[key] = unwrap(val);
+      }
+      return result;
+    }
+    case "decimalValue": {
+      const decimal = value.value.value;
+      const coefficient = decimal.coefficient;
+      const exponent = decimal.exponent;
+      if (!coefficient) {
+        return new Decimal(0n, 0);
+      }
+      let coeffBigInt;
+      const absVal = coefficient.absVal;
+      const sign = coefficient.sign;
+      let result = 0n;
+      for (const byte of absVal) {
+        result = result << 8n | BigInt(byte);
+      }
+      coeffBigInt = sign < 0n ? -result : result;
+      return new Decimal(coeffBigInt, exponent);
+    }
+    default:
+      throw new Error(`Unsupported value type: ${value.value.case}`);
+  }
+}
+function isValueProto(value) {
+  return value != null && typeof value.$typeName === "string" && value.$typeName === "values.v1.Value";
+}
+async function standardValidate(schema, input) {
+  let result = schema["~standard"].validate(input);
+  if (result instanceof Promise)
+    result = await result;
+  if (result.issues) {
+    const errorDetails = JSON.stringify(result.issues, null, 2);
+    throw new Error(`Config validation failed. Expectations were not matched:
+
+${errorDetails}`);
+  }
+  return result.value;
+}
+var defaultJsonParser = (config) => JSON.parse(Buffer.from(config).toString());
+var configHandler = async (request, { configParser, configSchema } = {}) => {
+  const config = request.config;
+  const parser = configParser || defaultJsonParser;
+  let intermediateConfig;
+  try {
+    intermediateConfig = parser(config);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to parse configuration: ${error.message}`);
+    } else {
+      throw new Error(`Failed to parse configuration: unknown error`);
+    }
+  }
+  return configSchema ? standardValidate(configSchema, intermediateConfig) : intermediateConfig;
+};
+var exports_external = {};
+__export(exports_external, {
+  void: () => voidType,
+  util: () => util,
+  unknown: () => unknownType,
+  union: () => unionType,
+  undefined: () => undefinedType,
+  tuple: () => tupleType,
+  transformer: () => effectsType,
+  symbol: () => symbolType,
+  string: () => stringType,
+  strictObject: () => strictObjectType,
+  setErrorMap: () => setErrorMap,
+  set: () => setType,
+  record: () => recordType,
+  quotelessJson: () => quotelessJson,
+  promise: () => promiseType,
+  preprocess: () => preprocessType,
+  pipeline: () => pipelineType,
+  ostring: () => ostring,
+  optional: () => optionalType,
+  onumber: () => onumber,
+  oboolean: () => oboolean,
+  objectUtil: () => objectUtil,
+  object: () => objectType,
+  number: () => numberType,
+  nullable: () => nullableType,
+  null: () => nullType,
+  never: () => neverType,
+  nativeEnum: () => nativeEnumType,
+  nan: () => nanType,
+  map: () => mapType,
+  makeIssue: () => makeIssue,
+  literal: () => literalType,
+  lazy: () => lazyType,
+  late: () => late,
+  isValid: () => isValid,
+  isDirty: () => isDirty,
+  isAsync: () => isAsync,
+  isAborted: () => isAborted,
+  intersection: () => intersectionType,
+  instanceof: () => instanceOfType,
+  getParsedType: () => getParsedType,
+  getErrorMap: () => getErrorMap,
+  function: () => functionType,
+  enum: () => enumType,
+  effect: () => effectsType,
+  discriminatedUnion: () => discriminatedUnionType,
+  defaultErrorMap: () => en_default,
+  datetimeRegex: () => datetimeRegex,
+  date: () => dateType,
+  custom: () => custom,
+  coerce: () => coerce,
+  boolean: () => booleanType,
+  bigint: () => bigIntType,
+  array: () => arrayType,
+  any: () => anyType,
+  addIssueToContext: () => addIssueToContext,
+  ZodVoid: () => ZodVoid,
+  ZodUnknown: () => ZodUnknown,
+  ZodUnion: () => ZodUnion,
+  ZodUndefined: () => ZodUndefined,
+  ZodType: () => ZodType,
+  ZodTuple: () => ZodTuple,
+  ZodTransformer: () => ZodEffects,
+  ZodSymbol: () => ZodSymbol,
+  ZodString: () => ZodString,
+  ZodSet: () => ZodSet,
+  ZodSchema: () => ZodType,
+  ZodRecord: () => ZodRecord,
+  ZodReadonly: () => ZodReadonly,
+  ZodPromise: () => ZodPromise,
+  ZodPipeline: () => ZodPipeline,
+  ZodParsedType: () => ZodParsedType,
+  ZodOptional: () => ZodOptional,
+  ZodObject: () => ZodObject,
+  ZodNumber: () => ZodNumber,
+  ZodNullable: () => ZodNullable,
+  ZodNull: () => ZodNull,
+  ZodNever: () => ZodNever,
+  ZodNativeEnum: () => ZodNativeEnum,
+  ZodNaN: () => ZodNaN,
+  ZodMap: () => ZodMap,
+  ZodLiteral: () => ZodLiteral,
+  ZodLazy: () => ZodLazy,
+  ZodIssueCode: () => ZodIssueCode,
+  ZodIntersection: () => ZodIntersection,
+  ZodFunction: () => ZodFunction,
+  ZodFirstPartyTypeKind: () => ZodFirstPartyTypeKind,
+  ZodError: () => ZodError,
+  ZodEnum: () => ZodEnum,
+  ZodEffects: () => ZodEffects,
+  ZodDiscriminatedUnion: () => ZodDiscriminatedUnion,
+  ZodDefault: () => ZodDefault,
+  ZodDate: () => ZodDate,
+  ZodCatch: () => ZodCatch,
+  ZodBranded: () => ZodBranded,
+  ZodBoolean: () => ZodBoolean,
+  ZodBigInt: () => ZodBigInt,
+  ZodArray: () => ZodArray,
+  ZodAny: () => ZodAny,
+  Schema: () => ZodType,
+  ParseStatus: () => ParseStatus,
+  OK: () => OK,
+  NEVER: () => NEVER,
+  INVALID: () => INVALID,
+  EMPTY_PATH: () => EMPTY_PATH,
+  DIRTY: () => DIRTY,
+  BRAND: () => BRAND
+});
+var util;
+(function(util2) {
+  util2.assertEqual = (_) => {};
+  function assertIs(_arg) {}
+  util2.assertIs = assertIs;
+  function assertNever(_x) {
+    throw new Error;
+  }
+  util2.assertNever = assertNever;
+  util2.arrayToEnum = (items) => {
+    const obj = {};
+    for (const item of items) {
+      obj[item] = item;
+    }
+    return obj;
+  };
+  util2.getValidEnumValues = (obj) => {
+    const validKeys = util2.objectKeys(obj).filter((k) => typeof obj[obj[k]] !== "number");
+    const filtered = {};
+    for (const k of validKeys) {
+      filtered[k] = obj[k];
+    }
+    return util2.objectValues(filtered);
+  };
+  util2.objectValues = (obj) => {
+    return util2.objectKeys(obj).map(function(e) {
+      return obj[e];
+    });
+  };
+  util2.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
+    const keys = [];
+    for (const key in object) {
+      if (Object.prototype.hasOwnProperty.call(object, key)) {
+        keys.push(key);
+      }
+    }
+    return keys;
+  };
+  util2.find = (arr, checker) => {
+    for (const item of arr) {
+      if (checker(item))
+        return item;
+    }
+    return;
+  };
+  util2.isInteger = typeof Number.isInteger === "function" ? (val) => Number.isInteger(val) : (val) => typeof val === "number" && Number.isFinite(val) && Math.floor(val) === val;
+  function joinValues(array, separator = " | ") {
+    return array.map((val) => typeof val === "string" ? `'${val}'` : val).join(separator);
+  }
+  util2.joinValues = joinValues;
+  util2.jsonStringifyReplacer = (_, value2) => {
+    if (typeof value2 === "bigint") {
+      return value2.toString();
+    }
+    return value2;
+  };
+})(util || (util = {}));
+var objectUtil;
+(function(objectUtil2) {
+  objectUtil2.mergeShapes = (first, second) => {
+    return {
+      ...first,
+      ...second
+    };
+  };
+})(objectUtil || (objectUtil = {}));
+var ZodParsedType = util.arrayToEnum([
+  "string",
+  "nan",
+  "number",
+  "integer",
+  "float",
+  "boolean",
+  "date",
+  "bigint",
+  "symbol",
+  "function",
+  "undefined",
+  "null",
+  "array",
+  "object",
+  "unknown",
+  "promise",
+  "void",
+  "never",
+  "map",
+  "set"
+]);
+var getParsedType = (data) => {
+  const t = typeof data;
+  switch (t) {
+    case "undefined":
+      return ZodParsedType.undefined;
+    case "string":
+      return ZodParsedType.string;
+    case "number":
+      return Number.isNaN(data) ? ZodParsedType.nan : ZodParsedType.number;
+    case "boolean":
+      return ZodParsedType.boolean;
+    case "function":
+      return ZodParsedType.function;
+    case "bigint":
+      return ZodParsedType.bigint;
+    case "symbol":
+      return ZodParsedType.symbol;
+    case "object":
+      if (Array.isArray(data)) {
+        return ZodParsedType.array;
+      }
+      if (data === null) {
+        return ZodParsedType.null;
+      }
+      if (data.then && typeof data.then === "function" && data.catch && typeof data.catch === "function") {
+        return ZodParsedType.promise;
+      }
+      if (typeof Map !== "undefined" && data instanceof Map) {
+        return ZodParsedType.map;
+      }
+      if (typeof Set !== "undefined" && data instanceof Set) {
+        return ZodParsedType.set;
+      }
+      if (typeof Date !== "undefined" && data instanceof Date) {
+        return ZodParsedType.date;
+      }
+      return ZodParsedType.object;
+    default:
+      return ZodParsedType.unknown;
+  }
+};
+var ZodIssueCode = util.arrayToEnum([
+  "invalid_type",
+  "invalid_literal",
+  "custom",
+  "invalid_union",
+  "invalid_union_discriminator",
+  "invalid_enum_value",
+  "unrecognized_keys",
+  "invalid_arguments",
+  "invalid_return_type",
+  "invalid_date",
+  "invalid_string",
+  "too_small",
+  "too_big",
+  "invalid_intersection_types",
+  "not_multiple_of",
+  "not_finite"
+]);
+var quotelessJson = (obj) => {
+  const json = JSON.stringify(obj, null, 2);
+  return json.replace(/"([^"]+)":/g, "$1:");
+};
+
+class ZodError extends Error {
+  get errors() {
+    return this.issues;
+  }
+  constructor(issues) {
+    super();
+    this.issues = [];
+    this.addIssue = (sub) => {
+      this.issues = [...this.issues, sub];
+    };
+    this.addIssues = (subs = []) => {
+      this.issues = [...this.issues, ...subs];
+    };
+    const actualProto = new.target.prototype;
+    if (Object.setPrototypeOf) {
+      Object.setPrototypeOf(this, actualProto);
+    } else {
+      this.__proto__ = actualProto;
+    }
+    this.name = "ZodError";
+    this.issues = issues;
+  }
+  format(_mapper) {
+    const mapper = _mapper || function(issue) {
+      return issue.message;
+    };
+    const fieldErrors = { _errors: [] };
+    const processError = (error) => {
+      for (const issue of error.issues) {
+        if (issue.code === "invalid_union") {
+          issue.unionErrors.map(processError);
+        } else if (issue.code === "invalid_return_type") {
+          processError(issue.returnTypeError);
+        } else if (issue.code === "invalid_arguments") {
+          processError(issue.argumentsError);
+        } else if (issue.path.length === 0) {
+          fieldErrors._errors.push(mapper(issue));
+        } else {
+          let curr = fieldErrors;
+          let i2 = 0;
+          while (i2 < issue.path.length) {
+            const el = issue.path[i2];
+            const terminal = i2 === issue.path.length - 1;
+            if (!terminal) {
+              curr[el] = curr[el] || { _errors: [] };
+            } else {
+              curr[el] = curr[el] || { _errors: [] };
+              curr[el]._errors.push(mapper(issue));
+            }
+            curr = curr[el];
+            i2++;
+          }
+        }
+      }
+    };
+    processError(this);
+    return fieldErrors;
+  }
+  static assert(value2) {
+    if (!(value2 instanceof ZodError)) {
+      throw new Error(`Not a ZodError: ${value2}`);
+    }
+  }
+  toString() {
+    return this.message;
+  }
+  get message() {
+    return JSON.stringify(this.issues, util.jsonStringifyReplacer, 2);
+  }
+  get isEmpty() {
+    return this.issues.length === 0;
+  }
+  flatten(mapper = (issue) => issue.message) {
+    const fieldErrors = {};
+    const formErrors = [];
+    for (const sub of this.issues) {
+      if (sub.path.length > 0) {
+        const firstEl = sub.path[0];
+        fieldErrors[firstEl] = fieldErrors[firstEl] || [];
+        fieldErrors[firstEl].push(mapper(sub));
+      } else {
+        formErrors.push(mapper(sub));
+      }
+    }
+    return { formErrors, fieldErrors };
+  }
+  get formErrors() {
+    return this.flatten();
+  }
+}
+ZodError.create = (issues) => {
+  const error = new ZodError(issues);
+  return error;
+};
+var errorMap = (issue, _ctx) => {
+  let message;
+  switch (issue.code) {
+    case ZodIssueCode.invalid_type:
+      if (issue.received === ZodParsedType.undefined) {
+        message = "Required";
+      } else {
+        message = `Expected ${issue.expected}, received ${issue.received}`;
+      }
+      break;
+    case ZodIssueCode.invalid_literal:
+      message = `Invalid literal value, expected ${JSON.stringify(issue.expected, util.jsonStringifyReplacer)}`;
+      break;
+    case ZodIssueCode.unrecognized_keys:
+      message = `Unrecognized key(s) in object: ${util.joinValues(issue.keys, ", ")}`;
+      break;
+    case ZodIssueCode.invalid_union:
+      message = `Invalid input`;
+      break;
+    case ZodIssueCode.invalid_union_discriminator:
+      message = `Invalid discriminator value. Expected ${util.joinValues(issue.options)}`;
+      break;
+    case ZodIssueCode.invalid_enum_value:
+      message = `Invalid enum value. Expected ${util.joinValues(issue.options)}, received '${issue.received}'`;
+      break;
+    case ZodIssueCode.invalid_arguments:
+      message = `Invalid function arguments`;
+      break;
+    case ZodIssueCode.invalid_return_type:
+      message = `Invalid function return type`;
+      break;
+    case ZodIssueCode.invalid_date:
+      message = `Invalid date`;
+      break;
+    case ZodIssueCode.invalid_string:
+      if (typeof issue.validation === "object") {
+        if ("includes" in issue.validation) {
+          message = `Invalid input: must include "${issue.validation.includes}"`;
+          if (typeof issue.validation.position === "number") {
+            message = `${message} at one or more positions greater than or equal to ${issue.validation.position}`;
+          }
+        } else if ("startsWith" in issue.validation) {
+          message = `Invalid input: must start with "${issue.validation.startsWith}"`;
+        } else if ("endsWith" in issue.validation) {
+          message = `Invalid input: must end with "${issue.validation.endsWith}"`;
+        } else {
+          util.assertNever(issue.validation);
+        }
+      } else if (issue.validation !== "regex") {
+        message = `Invalid ${issue.validation}`;
+      } else {
+        message = "Invalid";
+      }
+      break;
+    case ZodIssueCode.too_small:
+      if (issue.type === "array")
+        message = `Array must contain ${issue.exact ? "exactly" : issue.inclusive ? `at least` : `more than`} ${issue.minimum} element(s)`;
+      else if (issue.type === "string")
+        message = `String must contain ${issue.exact ? "exactly" : issue.inclusive ? `at least` : `over`} ${issue.minimum} character(s)`;
+      else if (issue.type === "number")
+        message = `Number must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${issue.minimum}`;
+      else if (issue.type === "bigint")
+        message = `Number must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${issue.minimum}`;
+      else if (issue.type === "date")
+        message = `Date must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${new Date(Number(issue.minimum))}`;
+      else
+        message = "Invalid input";
+      break;
+    case ZodIssueCode.too_big:
+      if (issue.type === "array")
+        message = `Array must contain ${issue.exact ? `exactly` : issue.inclusive ? `at most` : `less than`} ${issue.maximum} element(s)`;
+      else if (issue.type === "string")
+        message = `String must contain ${issue.exact ? `exactly` : issue.inclusive ? `at most` : `under`} ${issue.maximum} character(s)`;
+      else if (issue.type === "number")
+        message = `Number must be ${issue.exact ? `exactly` : issue.inclusive ? `less than or equal to` : `less than`} ${issue.maximum}`;
+      else if (issue.type === "bigint")
+        message = `BigInt must be ${issue.exact ? `exactly` : issue.inclusive ? `less than or equal to` : `less than`} ${issue.maximum}`;
+      else if (issue.type === "date")
+        message = `Date must be ${issue.exact ? `exactly` : issue.inclusive ? `smaller than or equal to` : `smaller than`} ${new Date(Number(issue.maximum))}`;
+      else
+        message = "Invalid input";
+      break;
+    case ZodIssueCode.custom:
+      message = `Invalid input`;
+      break;
+    case ZodIssueCode.invalid_intersection_types:
+      message = `Intersection results could not be merged`;
+      break;
+    case ZodIssueCode.not_multiple_of:
+      message = `Number must be a multiple of ${issue.multipleOf}`;
+      break;
+    case ZodIssueCode.not_finite:
+      message = "Number must be finite";
+      break;
+    default:
+      message = _ctx.defaultError;
+      util.assertNever(issue);
+  }
+  return { message };
+};
+var en_default = errorMap;
+var overrideErrorMap = en_default;
+function setErrorMap(map) {
+  overrideErrorMap = map;
+}
+function getErrorMap() {
+  return overrideErrorMap;
+}
+var makeIssue = (params) => {
+  const { data, path, errorMaps, issueData } = params;
+  const fullPath = [...path, ...issueData.path || []];
+  const fullIssue = {
+    ...issueData,
+    path: fullPath
+  };
+  if (issueData.message !== undefined) {
+    return {
+      ...issueData,
+      path: fullPath,
+      message: issueData.message
+    };
+  }
+  let errorMessage = "";
+  const maps = errorMaps.filter((m) => !!m).slice().reverse();
+  for (const map of maps) {
+    errorMessage = map(fullIssue, { data, defaultError: errorMessage }).message;
+  }
+  return {
+    ...issueData,
+    path: fullPath,
+    message: errorMessage
+  };
+};
+var EMPTY_PATH = [];
+function addIssueToContext(ctx, issueData) {
+  const overrideMap = getErrorMap();
+  const issue = makeIssue({
+    issueData,
+    data: ctx.data,
+    path: ctx.path,
+    errorMaps: [
+      ctx.common.contextualErrorMap,
+      ctx.schemaErrorMap,
+      overrideMap,
+      overrideMap === en_default ? undefined : en_default
+    ].filter((x) => !!x)
+  });
+  ctx.common.issues.push(issue);
+}
+
+class ParseStatus {
+  constructor() {
+    this.value = "valid";
+  }
+  dirty() {
+    if (this.value === "valid")
+      this.value = "dirty";
+  }
+  abort() {
+    if (this.value !== "aborted")
+      this.value = "aborted";
+  }
+  static mergeArray(status, results) {
+    const arrayValue = [];
+    for (const s of results) {
+      if (s.status === "aborted")
+        return INVALID;
+      if (s.status === "dirty")
+        status.dirty();
+      arrayValue.push(s.value);
+    }
+    return { status: status.value, value: arrayValue };
+  }
+  static async mergeObjectAsync(status, pairs) {
+    const syncPairs = [];
+    for (const pair of pairs) {
+      const key = await pair.key;
+      const value2 = await pair.value;
+      syncPairs.push({
+        key,
+        value: value2
+      });
+    }
+    return ParseStatus.mergeObjectSync(status, syncPairs);
+  }
+  static mergeObjectSync(status, pairs) {
+    const finalObject = {};
+    for (const pair of pairs) {
+      const { key, value: value2 } = pair;
+      if (key.status === "aborted")
+        return INVALID;
+      if (value2.status === "aborted")
+        return INVALID;
+      if (key.status === "dirty")
+        status.dirty();
+      if (value2.status === "dirty")
+        status.dirty();
+      if (key.value !== "__proto__" && (typeof value2.value !== "undefined" || pair.alwaysSet)) {
+        finalObject[key.value] = value2.value;
+      }
+    }
+    return { status: status.value, value: finalObject };
+  }
+}
+var INVALID = Object.freeze({
+  status: "aborted"
+});
+var DIRTY = (value2) => ({ status: "dirty", value: value2 });
+var OK = (value2) => ({ status: "valid", value: value2 });
+var isAborted = (x) => x.status === "aborted";
+var isDirty = (x) => x.status === "dirty";
+var isValid = (x) => x.status === "valid";
+var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
+var errorUtil;
+(function(errorUtil2) {
+  errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
+  errorUtil2.toString = (message) => typeof message === "string" ? message : message?.message;
+})(errorUtil || (errorUtil = {}));
+
+class ParseInputLazyPath {
+  constructor(parent, value2, path, key) {
+    this._cachedPath = [];
+    this.parent = parent;
+    this.data = value2;
+    this._path = path;
+    this._key = key;
+  }
+  get path() {
+    if (!this._cachedPath.length) {
+      if (Array.isArray(this._key)) {
+        this._cachedPath.push(...this._path, ...this._key);
+      } else {
+        this._cachedPath.push(...this._path, this._key);
+      }
+    }
+    return this._cachedPath;
+  }
+}
+var handleResult = (ctx, result) => {
+  if (isValid(result)) {
+    return { success: true, data: result.value };
+  } else {
+    if (!ctx.common.issues.length) {
+      throw new Error("Validation failed but no issues detected.");
+    }
+    return {
+      success: false,
+      get error() {
+        if (this._error)
+          return this._error;
+        const error = new ZodError(ctx.common.issues);
+        this._error = error;
+        return this._error;
+      }
+    };
+  }
+};
+function processCreateParams(params) {
+  if (!params)
+    return {};
+  const { errorMap: errorMap2, invalid_type_error, required_error, description } = params;
+  if (errorMap2 && (invalid_type_error || required_error)) {
+    throw new Error(`Can't use "invalid_type_error" or "required_error" in conjunction with custom error map.`);
+  }
+  if (errorMap2)
+    return { errorMap: errorMap2, description };
+  const customMap = (iss, ctx) => {
+    const { message } = params;
+    if (iss.code === "invalid_enum_value") {
+      return { message: message ?? ctx.defaultError };
+    }
+    if (typeof ctx.data === "undefined") {
+      return { message: message ?? required_error ?? ctx.defaultError };
+    }
+    if (iss.code !== "invalid_type")
+      return { message: ctx.defaultError };
+    return { message: message ?? invalid_type_error ?? ctx.defaultError };
+  };
+  return { errorMap: customMap, description };
+}
+
+class ZodType {
+  get description() {
+    return this._def.description;
+  }
+  _getType(input) {
+    return getParsedType(input.data);
+  }
+  _getOrReturnCtx(input, ctx) {
+    return ctx || {
+      common: input.parent.common,
+      data: input.data,
+      parsedType: getParsedType(input.data),
+      schemaErrorMap: this._def.errorMap,
+      path: input.path,
+      parent: input.parent
+    };
+  }
+  _processInputParams(input) {
+    return {
+      status: new ParseStatus,
+      ctx: {
+        common: input.parent.common,
+        data: input.data,
+        parsedType: getParsedType(input.data),
+        schemaErrorMap: this._def.errorMap,
+        path: input.path,
+        parent: input.parent
+      }
+    };
+  }
+  _parseSync(input) {
+    const result = this._parse(input);
+    if (isAsync(result)) {
+      throw new Error("Synchronous parse encountered promise.");
+    }
+    return result;
+  }
+  _parseAsync(input) {
+    const result = this._parse(input);
+    return Promise.resolve(result);
+  }
+  parse(data, params) {
+    const result = this.safeParse(data, params);
+    if (result.success)
+      return result.data;
+    throw result.error;
+  }
+  safeParse(data, params) {
+    const ctx = {
+      common: {
+        issues: [],
+        async: params?.async ?? false,
+        contextualErrorMap: params?.errorMap
+      },
+      path: params?.path || [],
+      schemaErrorMap: this._def.errorMap,
+      parent: null,
+      data,
+      parsedType: getParsedType(data)
+    };
+    const result = this._parseSync({ data, path: ctx.path, parent: ctx });
+    return handleResult(ctx, result);
+  }
+  "~validate"(data) {
+    const ctx = {
+      common: {
+        issues: [],
+        async: !!this["~standard"].async
+      },
+      path: [],
+      schemaErrorMap: this._def.errorMap,
+      parent: null,
+      data,
+      parsedType: getParsedType(data)
+    };
+    if (!this["~standard"].async) {
+      try {
+        const result = this._parseSync({ data, path: [], parent: ctx });
+        return isValid(result) ? {
+          value: result.value
+        } : {
+          issues: ctx.common.issues
+        };
+      } catch (err) {
+        if (err?.message?.toLowerCase()?.includes("encountered")) {
+          this["~standard"].async = true;
+        }
+        ctx.common = {
+          issues: [],
+          async: true
+        };
+      }
+    }
+    return this._parseAsync({ data, path: [], parent: ctx }).then((result) => isValid(result) ? {
+      value: result.value
+    } : {
+      issues: ctx.common.issues
+    });
+  }
+  async parseAsync(data, params) {
+    const result = await this.safeParseAsync(data, params);
+    if (result.success)
+      return result.data;
+    throw result.error;
+  }
+  async safeParseAsync(data, params) {
+    const ctx = {
+      common: {
+        issues: [],
+        contextualErrorMap: params?.errorMap,
+        async: true
+      },
+      path: params?.path || [],
+      schemaErrorMap: this._def.errorMap,
+      parent: null,
+      data,
+      parsedType: getParsedType(data)
+    };
+    const maybeAsyncResult = this._parse({ data, path: ctx.path, parent: ctx });
+    const result = await (isAsync(maybeAsyncResult) ? maybeAsyncResult : Promise.resolve(maybeAsyncResult));
+    return handleResult(ctx, result);
+  }
+  refine(check, message) {
+    const getIssueProperties = (val) => {
+      if (typeof message === "string" || typeof message === "undefined") {
+        return { message };
+      } else if (typeof message === "function") {
+        return message(val);
+      } else {
+        return message;
+      }
+    };
+    return this._refinement((val, ctx) => {
+      const result = check(val);
+      const setError = () => ctx.addIssue({
+        code: ZodIssueCode.custom,
+        ...getIssueProperties(val)
+      });
+      if (typeof Promise !== "undefined" && result instanceof Promise) {
+        return result.then((data) => {
+          if (!data) {
+            setError();
+            return false;
+          } else {
+            return true;
+          }
+        });
+      }
+      if (!result) {
+        setError();
+        return false;
+      } else {
+        return true;
+      }
+    });
+  }
+  refinement(check, refinementData) {
+    return this._refinement((val, ctx) => {
+      if (!check(val)) {
+        ctx.addIssue(typeof refinementData === "function" ? refinementData(val, ctx) : refinementData);
+        return false;
+      } else {
+        return true;
+      }
+    });
+  }
+  _refinement(refinement) {
+    return new ZodEffects({
+      schema: this,
+      typeName: ZodFirstPartyTypeKind.ZodEffects,
+      effect: { type: "refinement", refinement }
+    });
+  }
+  superRefine(refinement) {
+    return this._refinement(refinement);
+  }
+  constructor(def) {
+    this.spa = this.safeParseAsync;
+    this._def = def;
+    this.parse = this.parse.bind(this);
+    this.safeParse = this.safeParse.bind(this);
+    this.parseAsync = this.parseAsync.bind(this);
+    this.safeParseAsync = this.safeParseAsync.bind(this);
+    this.spa = this.spa.bind(this);
+    this.refine = this.refine.bind(this);
+    this.refinement = this.refinement.bind(this);
+    this.superRefine = this.superRefine.bind(this);
+    this.optional = this.optional.bind(this);
+    this.nullable = this.nullable.bind(this);
+    this.nullish = this.nullish.bind(this);
+    this.array = this.array.bind(this);
+    this.promise = this.promise.bind(this);
+    this.or = this.or.bind(this);
+    this.and = this.and.bind(this);
+    this.transform = this.transform.bind(this);
+    this.brand = this.brand.bind(this);
+    this.default = this.default.bind(this);
+    this.catch = this.catch.bind(this);
+    this.describe = this.describe.bind(this);
+    this.pipe = this.pipe.bind(this);
+    this.readonly = this.readonly.bind(this);
+    this.isNullable = this.isNullable.bind(this);
+    this.isOptional = this.isOptional.bind(this);
+    this["~standard"] = {
+      version: 1,
+      vendor: "zod",
+      validate: (data) => this["~validate"](data)
+    };
+  }
+  optional() {
+    return ZodOptional.create(this, this._def);
+  }
+  nullable() {
+    return ZodNullable.create(this, this._def);
+  }
+  nullish() {
+    return this.nullable().optional();
+  }
+  array() {
+    return ZodArray.create(this);
+  }
+  promise() {
+    return ZodPromise.create(this, this._def);
+  }
+  or(option) {
+    return ZodUnion.create([this, option], this._def);
+  }
+  and(incoming) {
+    return ZodIntersection.create(this, incoming, this._def);
+  }
+  transform(transform) {
+    return new ZodEffects({
+      ...processCreateParams(this._def),
+      schema: this,
+      typeName: ZodFirstPartyTypeKind.ZodEffects,
+      effect: { type: "transform", transform }
+    });
+  }
+  default(def) {
+    const defaultValueFunc = typeof def === "function" ? def : () => def;
+    return new ZodDefault({
+      ...processCreateParams(this._def),
+      innerType: this,
+      defaultValue: defaultValueFunc,
+      typeName: ZodFirstPartyTypeKind.ZodDefault
+    });
+  }
+  brand() {
+    return new ZodBranded({
+      typeName: ZodFirstPartyTypeKind.ZodBranded,
+      type: this,
+      ...processCreateParams(this._def)
+    });
+  }
+  catch(def) {
+    const catchValueFunc = typeof def === "function" ? def : () => def;
+    return new ZodCatch({
+      ...processCreateParams(this._def),
+      innerType: this,
+      catchValue: catchValueFunc,
+      typeName: ZodFirstPartyTypeKind.ZodCatch
+    });
+  }
+  describe(description) {
+    const This = this.constructor;
+    return new This({
+      ...this._def,
+      description
+    });
+  }
+  pipe(target) {
+    return ZodPipeline.create(this, target);
+  }
+  readonly() {
+    return ZodReadonly.create(this);
+  }
+  isOptional() {
+    return this.safeParse(undefined).success;
+  }
+  isNullable() {
+    return this.safeParse(null).success;
+  }
+}
+var cuidRegex = /^c[^\s-]{8,}$/i;
+var cuid2Regex = /^[0-9a-z]+$/;
+var ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
+var uuidRegex = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/i;
+var nanoidRegex = /^[a-z0-9_-]{21}$/i;
+var jwtRegex = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
+var durationRegex = /^[-+]?P(?!$)(?:(?:[-+]?\d+Y)|(?:[-+]?\d+[.,]\d+Y$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:(?:[-+]?\d+W)|(?:[-+]?\d+[.,]\d+W$))?(?:(?:[-+]?\d+D)|(?:[-+]?\d+[.,]\d+D$))?(?:T(?=[\d+-])(?:(?:[-+]?\d+H)|(?:[-+]?\d+[.,]\d+H$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:[-+]?\d+(?:[.,]\d+)?S)?)??$/;
+var emailRegex = /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-\.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9\-]*\.)+[A-Z]{2,}$/i;
+var _emojiRegex = `^(\\p{Extended_Pictographic}|\\p{Emoji_Component})+$`;
+var emojiRegex;
+var ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$/;
+var ipv4CidrRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\/(3[0-2]|[12]?[0-9])$/;
+var ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
+var ipv6CidrRegex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))\/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$/;
+var base64Regex = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/;
+var base64urlRegex = /^([0-9a-zA-Z-_]{4})*(([0-9a-zA-Z-_]{2}(==)?)|([0-9a-zA-Z-_]{3}(=)?))?$/;
+var dateRegexSource = `((\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\\d|3[01])|(0[469]|11)-(0[1-9]|[12]\\d|30)|(02)-(0[1-9]|1\\d|2[0-8])))`;
+var dateRegex = new RegExp(`^${dateRegexSource}$`);
+function timeRegexSource(args) {
+  let secondsRegexSource = `[0-5]\\d`;
+  if (args.precision) {
+    secondsRegexSource = `${secondsRegexSource}\\.\\d{${args.precision}}`;
+  } else if (args.precision == null) {
+    secondsRegexSource = `${secondsRegexSource}(\\.\\d+)?`;
+  }
+  const secondsQuantifier = args.precision ? "+" : "?";
+  return `([01]\\d|2[0-3]):[0-5]\\d(:${secondsRegexSource})${secondsQuantifier}`;
+}
+function timeRegex(args) {
+  return new RegExp(`^${timeRegexSource(args)}$`);
+}
+function datetimeRegex(args) {
+  let regex = `${dateRegexSource}T${timeRegexSource(args)}`;
+  const opts = [];
+  opts.push(args.local ? `Z?` : `Z`);
+  if (args.offset)
+    opts.push(`([+-]\\d{2}:?\\d{2})`);
+  regex = `${regex}(${opts.join("|")})`;
+  return new RegExp(`^${regex}$`);
+}
+function isValidIP(ip, version2) {
+  if ((version2 === "v4" || !version2) && ipv4Regex.test(ip)) {
+    return true;
+  }
+  if ((version2 === "v6" || !version2) && ipv6Regex.test(ip)) {
+    return true;
+  }
+  return false;
+}
+function isValidJWT(jwt, alg) {
+  if (!jwtRegex.test(jwt))
+    return false;
+  try {
+    const [header] = jwt.split(".");
+    if (!header)
+      return false;
+    const base64 = header.replace(/-/g, "+").replace(/_/g, "/").padEnd(header.length + (4 - header.length % 4) % 4, "=");
+    const decoded = JSON.parse(atob(base64));
+    if (typeof decoded !== "object" || decoded === null)
+      return false;
+    if ("typ" in decoded && decoded?.typ !== "JWT")
+      return false;
+    if (!decoded.alg)
+      return false;
+    if (alg && decoded.alg !== alg)
+      return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isValidCidr(ip, version2) {
+  if ((version2 === "v4" || !version2) && ipv4CidrRegex.test(ip)) {
+    return true;
+  }
+  if ((version2 === "v6" || !version2) && ipv6CidrRegex.test(ip)) {
+    return true;
+  }
+  return false;
+}
+
+class ZodString extends ZodType {
+  _parse(input) {
+    if (this._def.coerce) {
+      input.data = String(input.data);
+    }
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.string) {
+      const ctx2 = this._getOrReturnCtx(input);
+      addIssueToContext(ctx2, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.string,
+        received: ctx2.parsedType
+      });
+      return INVALID;
+    }
+    const status = new ParseStatus;
+    let ctx = undefined;
+    for (const check of this._def.checks) {
+      if (check.kind === "min") {
+        if (input.data.length < check.value) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_small,
+            minimum: check.value,
+            type: "string",
+            inclusive: true,
+            exact: false,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "max") {
+        if (input.data.length > check.value) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_big,
+            maximum: check.value,
+            type: "string",
+            inclusive: true,
+            exact: false,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "length") {
+        const tooBig = input.data.length > check.value;
+        const tooSmall = input.data.length < check.value;
+        if (tooBig || tooSmall) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          if (tooBig) {
+            addIssueToContext(ctx, {
+              code: ZodIssueCode.too_big,
+              maximum: check.value,
+              type: "string",
+              inclusive: true,
+              exact: true,
+              message: check.message
+            });
+          } else if (tooSmall) {
+            addIssueToContext(ctx, {
+              code: ZodIssueCode.too_small,
+              minimum: check.value,
+              type: "string",
+              inclusive: true,
+              exact: true,
+              message: check.message
+            });
+          }
+          status.dirty();
+        }
+      } else if (check.kind === "email") {
+        if (!emailRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "email",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "emoji") {
+        if (!emojiRegex) {
+          emojiRegex = new RegExp(_emojiRegex, "u");
+        }
+        if (!emojiRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "emoji",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "uuid") {
+        if (!uuidRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "uuid",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "nanoid") {
+        if (!nanoidRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "nanoid",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "cuid") {
+        if (!cuidRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "cuid",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "cuid2") {
+        if (!cuid2Regex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "cuid2",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "ulid") {
+        if (!ulidRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "ulid",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "url") {
+        try {
+          new URL(input.data);
+        } catch {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "url",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "regex") {
+        check.regex.lastIndex = 0;
+        const testResult = check.regex.test(input.data);
+        if (!testResult) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "regex",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "trim") {
+        input.data = input.data.trim();
+      } else if (check.kind === "includes") {
+        if (!input.data.includes(check.value, check.position)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.invalid_string,
+            validation: { includes: check.value, position: check.position },
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "toLowerCase") {
+        input.data = input.data.toLowerCase();
+      } else if (check.kind === "toUpperCase") {
+        input.data = input.data.toUpperCase();
+      } else if (check.kind === "startsWith") {
+        if (!input.data.startsWith(check.value)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.invalid_string,
+            validation: { startsWith: check.value },
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "endsWith") {
+        if (!input.data.endsWith(check.value)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.invalid_string,
+            validation: { endsWith: check.value },
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "datetime") {
+        const regex = datetimeRegex(check);
+        if (!regex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.invalid_string,
+            validation: "datetime",
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "date") {
+        const regex = dateRegex;
+        if (!regex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.invalid_string,
+            validation: "date",
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "time") {
+        const regex = timeRegex(check);
+        if (!regex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.invalid_string,
+            validation: "time",
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "duration") {
+        if (!durationRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "duration",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "ip") {
+        if (!isValidIP(input.data, check.version)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "ip",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "jwt") {
+        if (!isValidJWT(input.data, check.alg)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "jwt",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "cidr") {
+        if (!isValidCidr(input.data, check.version)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "cidr",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "base64") {
+        if (!base64Regex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "base64",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "base64url") {
+        if (!base64urlRegex.test(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            validation: "base64url",
+            code: ZodIssueCode.invalid_string,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else {
+        util.assertNever(check);
+      }
+    }
+    return { status: status.value, value: input.data };
+  }
+  _regex(regex, validation, message) {
+    return this.refinement((data) => regex.test(data), {
+      validation,
+      code: ZodIssueCode.invalid_string,
+      ...errorUtil.errToObj(message)
+    });
+  }
+  _addCheck(check) {
+    return new ZodString({
+      ...this._def,
+      checks: [...this._def.checks, check]
+    });
+  }
+  email(message) {
+    return this._addCheck({ kind: "email", ...errorUtil.errToObj(message) });
+  }
+  url(message) {
+    return this._addCheck({ kind: "url", ...errorUtil.errToObj(message) });
+  }
+  emoji(message) {
+    return this._addCheck({ kind: "emoji", ...errorUtil.errToObj(message) });
+  }
+  uuid(message) {
+    return this._addCheck({ kind: "uuid", ...errorUtil.errToObj(message) });
+  }
+  nanoid(message) {
+    return this._addCheck({ kind: "nanoid", ...errorUtil.errToObj(message) });
+  }
+  cuid(message) {
+    return this._addCheck({ kind: "cuid", ...errorUtil.errToObj(message) });
+  }
+  cuid2(message) {
+    return this._addCheck({ kind: "cuid2", ...errorUtil.errToObj(message) });
+  }
+  ulid(message) {
+    return this._addCheck({ kind: "ulid", ...errorUtil.errToObj(message) });
+  }
+  base64(message) {
+    return this._addCheck({ kind: "base64", ...errorUtil.errToObj(message) });
+  }
+  base64url(message) {
+    return this._addCheck({
+      kind: "base64url",
+      ...errorUtil.errToObj(message)
+    });
+  }
+  jwt(options) {
+    return this._addCheck({ kind: "jwt", ...errorUtil.errToObj(options) });
+  }
+  ip(options) {
+    return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options) });
+  }
+  cidr(options) {
+    return this._addCheck({ kind: "cidr", ...errorUtil.errToObj(options) });
+  }
+  datetime(options) {
+    if (typeof options === "string") {
+      return this._addCheck({
+        kind: "datetime",
+        precision: null,
+        offset: false,
+        local: false,
+        message: options
+      });
+    }
+    return this._addCheck({
+      kind: "datetime",
+      precision: typeof options?.precision === "undefined" ? null : options?.precision,
+      offset: options?.offset ?? false,
+      local: options?.local ?? false,
+      ...errorUtil.errToObj(options?.message)
+    });
+  }
+  date(message) {
+    return this._addCheck({ kind: "date", message });
+  }
+  time(options) {
+    if (typeof options === "string") {
+      return this._addCheck({
+        kind: "time",
+        precision: null,
+        message: options
+      });
+    }
+    return this._addCheck({
+      kind: "time",
+      precision: typeof options?.precision === "undefined" ? null : options?.precision,
+      ...errorUtil.errToObj(options?.message)
+    });
+  }
+  duration(message) {
+    return this._addCheck({ kind: "duration", ...errorUtil.errToObj(message) });
+  }
+  regex(regex, message) {
+    return this._addCheck({
+      kind: "regex",
+      regex,
+      ...errorUtil.errToObj(message)
+    });
+  }
+  includes(value2, options) {
+    return this._addCheck({
+      kind: "includes",
+      value: value2,
+      position: options?.position,
+      ...errorUtil.errToObj(options?.message)
+    });
+  }
+  startsWith(value2, message) {
+    return this._addCheck({
+      kind: "startsWith",
+      value: value2,
+      ...errorUtil.errToObj(message)
+    });
+  }
+  endsWith(value2, message) {
+    return this._addCheck({
+      kind: "endsWith",
+      value: value2,
+      ...errorUtil.errToObj(message)
+    });
+  }
+  min(minLength, message) {
+    return this._addCheck({
+      kind: "min",
+      value: minLength,
+      ...errorUtil.errToObj(message)
+    });
+  }
+  max(maxLength, message) {
+    return this._addCheck({
+      kind: "max",
+      value: maxLength,
+      ...errorUtil.errToObj(message)
+    });
+  }
+  length(len2, message) {
+    return this._addCheck({
+      kind: "length",
+      value: len2,
+      ...errorUtil.errToObj(message)
+    });
+  }
+  nonempty(message) {
+    return this.min(1, errorUtil.errToObj(message));
+  }
+  trim() {
+    return new ZodString({
+      ...this._def,
+      checks: [...this._def.checks, { kind: "trim" }]
+    });
+  }
+  toLowerCase() {
+    return new ZodString({
+      ...this._def,
+      checks: [...this._def.checks, { kind: "toLowerCase" }]
+    });
+  }
+  toUpperCase() {
+    return new ZodString({
+      ...this._def,
+      checks: [...this._def.checks, { kind: "toUpperCase" }]
+    });
+  }
+  get isDatetime() {
+    return !!this._def.checks.find((ch) => ch.kind === "datetime");
+  }
+  get isDate() {
+    return !!this._def.checks.find((ch) => ch.kind === "date");
+  }
+  get isTime() {
+    return !!this._def.checks.find((ch) => ch.kind === "time");
+  }
+  get isDuration() {
+    return !!this._def.checks.find((ch) => ch.kind === "duration");
+  }
+  get isEmail() {
+    return !!this._def.checks.find((ch) => ch.kind === "email");
+  }
+  get isURL() {
+    return !!this._def.checks.find((ch) => ch.kind === "url");
+  }
+  get isEmoji() {
+    return !!this._def.checks.find((ch) => ch.kind === "emoji");
+  }
+  get isUUID() {
+    return !!this._def.checks.find((ch) => ch.kind === "uuid");
+  }
+  get isNANOID() {
+    return !!this._def.checks.find((ch) => ch.kind === "nanoid");
+  }
+  get isCUID() {
+    return !!this._def.checks.find((ch) => ch.kind === "cuid");
+  }
+  get isCUID2() {
+    return !!this._def.checks.find((ch) => ch.kind === "cuid2");
+  }
+  get isULID() {
+    return !!this._def.checks.find((ch) => ch.kind === "ulid");
+  }
+  get isIP() {
+    return !!this._def.checks.find((ch) => ch.kind === "ip");
+  }
+  get isCIDR() {
+    return !!this._def.checks.find((ch) => ch.kind === "cidr");
+  }
+  get isBase64() {
+    return !!this._def.checks.find((ch) => ch.kind === "base64");
+  }
+  get isBase64url() {
+    return !!this._def.checks.find((ch) => ch.kind === "base64url");
+  }
+  get minLength() {
+    let min = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "min") {
+        if (min === null || ch.value > min)
+          min = ch.value;
+      }
+    }
+    return min;
+  }
+  get maxLength() {
+    let max = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "max") {
+        if (max === null || ch.value < max)
+          max = ch.value;
+      }
+    }
+    return max;
+  }
+}
+ZodString.create = (params) => {
+  return new ZodString({
+    checks: [],
+    typeName: ZodFirstPartyTypeKind.ZodString,
+    coerce: params?.coerce ?? false,
+    ...processCreateParams(params)
+  });
+};
+function floatSafeRemainder(val, step) {
+  const valDecCount = (val.toString().split(".")[1] || "").length;
+  const stepDecCount = (step.toString().split(".")[1] || "").length;
+  const decCount = valDecCount > stepDecCount ? valDecCount : stepDecCount;
+  const valInt = Number.parseInt(val.toFixed(decCount).replace(".", ""));
+  const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
+  return valInt % stepInt / 10 ** decCount;
+}
+
+class ZodNumber extends ZodType {
+  constructor() {
+    super(...arguments);
+    this.min = this.gte;
+    this.max = this.lte;
+    this.step = this.multipleOf;
+  }
+  _parse(input) {
+    if (this._def.coerce) {
+      input.data = Number(input.data);
+    }
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.number) {
+      const ctx2 = this._getOrReturnCtx(input);
+      addIssueToContext(ctx2, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.number,
+        received: ctx2.parsedType
+      });
+      return INVALID;
+    }
+    let ctx = undefined;
+    const status = new ParseStatus;
+    for (const check of this._def.checks) {
+      if (check.kind === "int") {
+        if (!util.isInteger(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.invalid_type,
+            expected: "integer",
+            received: "float",
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "min") {
+        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
+        if (tooSmall) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_small,
+            minimum: check.value,
+            type: "number",
+            inclusive: check.inclusive,
+            exact: false,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "max") {
+        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
+        if (tooBig) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_big,
+            maximum: check.value,
+            type: "number",
+            inclusive: check.inclusive,
+            exact: false,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "multipleOf") {
+        if (floatSafeRemainder(input.data, check.value) !== 0) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.not_multiple_of,
+            multipleOf: check.value,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "finite") {
+        if (!Number.isFinite(input.data)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.not_finite,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else {
+        util.assertNever(check);
+      }
+    }
+    return { status: status.value, value: input.data };
+  }
+  gte(value2, message) {
+    return this.setLimit("min", value2, true, errorUtil.toString(message));
+  }
+  gt(value2, message) {
+    return this.setLimit("min", value2, false, errorUtil.toString(message));
+  }
+  lte(value2, message) {
+    return this.setLimit("max", value2, true, errorUtil.toString(message));
+  }
+  lt(value2, message) {
+    return this.setLimit("max", value2, false, errorUtil.toString(message));
+  }
+  setLimit(kind, value2, inclusive, message) {
+    return new ZodNumber({
+      ...this._def,
+      checks: [
+        ...this._def.checks,
+        {
+          kind,
+          value: value2,
+          inclusive,
+          message: errorUtil.toString(message)
+        }
+      ]
+    });
+  }
+  _addCheck(check) {
+    return new ZodNumber({
+      ...this._def,
+      checks: [...this._def.checks, check]
+    });
+  }
+  int(message) {
+    return this._addCheck({
+      kind: "int",
+      message: errorUtil.toString(message)
+    });
+  }
+  positive(message) {
+    return this._addCheck({
+      kind: "min",
+      value: 0,
+      inclusive: false,
+      message: errorUtil.toString(message)
+    });
+  }
+  negative(message) {
+    return this._addCheck({
+      kind: "max",
+      value: 0,
+      inclusive: false,
+      message: errorUtil.toString(message)
+    });
+  }
+  nonpositive(message) {
+    return this._addCheck({
+      kind: "max",
+      value: 0,
+      inclusive: true,
+      message: errorUtil.toString(message)
+    });
+  }
+  nonnegative(message) {
+    return this._addCheck({
+      kind: "min",
+      value: 0,
+      inclusive: true,
+      message: errorUtil.toString(message)
+    });
+  }
+  multipleOf(value2, message) {
+    return this._addCheck({
+      kind: "multipleOf",
+      value: value2,
+      message: errorUtil.toString(message)
+    });
+  }
+  finite(message) {
+    return this._addCheck({
+      kind: "finite",
+      message: errorUtil.toString(message)
+    });
+  }
+  safe(message) {
+    return this._addCheck({
+      kind: "min",
+      inclusive: true,
+      value: Number.MIN_SAFE_INTEGER,
+      message: errorUtil.toString(message)
+    })._addCheck({
+      kind: "max",
+      inclusive: true,
+      value: Number.MAX_SAFE_INTEGER,
+      message: errorUtil.toString(message)
+    });
+  }
+  get minValue() {
+    let min = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "min") {
+        if (min === null || ch.value > min)
+          min = ch.value;
+      }
+    }
+    return min;
+  }
+  get maxValue() {
+    let max = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "max") {
+        if (max === null || ch.value < max)
+          max = ch.value;
+      }
+    }
+    return max;
+  }
+  get isInt() {
+    return !!this._def.checks.find((ch) => ch.kind === "int" || ch.kind === "multipleOf" && util.isInteger(ch.value));
+  }
+  get isFinite() {
+    let max = null;
+    let min = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "finite" || ch.kind === "int" || ch.kind === "multipleOf") {
+        return true;
+      } else if (ch.kind === "min") {
+        if (min === null || ch.value > min)
+          min = ch.value;
+      } else if (ch.kind === "max") {
+        if (max === null || ch.value < max)
+          max = ch.value;
+      }
+    }
+    return Number.isFinite(min) && Number.isFinite(max);
+  }
+}
+ZodNumber.create = (params) => {
+  return new ZodNumber({
+    checks: [],
+    typeName: ZodFirstPartyTypeKind.ZodNumber,
+    coerce: params?.coerce || false,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodBigInt extends ZodType {
+  constructor() {
+    super(...arguments);
+    this.min = this.gte;
+    this.max = this.lte;
+  }
+  _parse(input) {
+    if (this._def.coerce) {
+      try {
+        input.data = BigInt(input.data);
+      } catch {
+        return this._getInvalidInput(input);
+      }
+    }
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.bigint) {
+      return this._getInvalidInput(input);
+    }
+    let ctx = undefined;
+    const status = new ParseStatus;
+    for (const check of this._def.checks) {
+      if (check.kind === "min") {
+        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
+        if (tooSmall) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_small,
+            type: "bigint",
+            minimum: check.value,
+            inclusive: check.inclusive,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "max") {
+        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
+        if (tooBig) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_big,
+            type: "bigint",
+            maximum: check.value,
+            inclusive: check.inclusive,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "multipleOf") {
+        if (input.data % check.value !== BigInt(0)) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.not_multiple_of,
+            multipleOf: check.value,
+            message: check.message
+          });
+          status.dirty();
+        }
+      } else {
+        util.assertNever(check);
+      }
+    }
+    return { status: status.value, value: input.data };
+  }
+  _getInvalidInput(input) {
+    const ctx = this._getOrReturnCtx(input);
+    addIssueToContext(ctx, {
+      code: ZodIssueCode.invalid_type,
+      expected: ZodParsedType.bigint,
+      received: ctx.parsedType
+    });
+    return INVALID;
+  }
+  gte(value2, message) {
+    return this.setLimit("min", value2, true, errorUtil.toString(message));
+  }
+  gt(value2, message) {
+    return this.setLimit("min", value2, false, errorUtil.toString(message));
+  }
+  lte(value2, message) {
+    return this.setLimit("max", value2, true, errorUtil.toString(message));
+  }
+  lt(value2, message) {
+    return this.setLimit("max", value2, false, errorUtil.toString(message));
+  }
+  setLimit(kind, value2, inclusive, message) {
+    return new ZodBigInt({
+      ...this._def,
+      checks: [
+        ...this._def.checks,
+        {
+          kind,
+          value: value2,
+          inclusive,
+          message: errorUtil.toString(message)
+        }
+      ]
+    });
+  }
+  _addCheck(check) {
+    return new ZodBigInt({
+      ...this._def,
+      checks: [...this._def.checks, check]
+    });
+  }
+  positive(message) {
+    return this._addCheck({
+      kind: "min",
+      value: BigInt(0),
+      inclusive: false,
+      message: errorUtil.toString(message)
+    });
+  }
+  negative(message) {
+    return this._addCheck({
+      kind: "max",
+      value: BigInt(0),
+      inclusive: false,
+      message: errorUtil.toString(message)
+    });
+  }
+  nonpositive(message) {
+    return this._addCheck({
+      kind: "max",
+      value: BigInt(0),
+      inclusive: true,
+      message: errorUtil.toString(message)
+    });
+  }
+  nonnegative(message) {
+    return this._addCheck({
+      kind: "min",
+      value: BigInt(0),
+      inclusive: true,
+      message: errorUtil.toString(message)
+    });
+  }
+  multipleOf(value2, message) {
+    return this._addCheck({
+      kind: "multipleOf",
+      value: value2,
+      message: errorUtil.toString(message)
+    });
+  }
+  get minValue() {
+    let min = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "min") {
+        if (min === null || ch.value > min)
+          min = ch.value;
+      }
+    }
+    return min;
+  }
+  get maxValue() {
+    let max = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "max") {
+        if (max === null || ch.value < max)
+          max = ch.value;
+      }
+    }
+    return max;
+  }
+}
+ZodBigInt.create = (params) => {
+  return new ZodBigInt({
+    checks: [],
+    typeName: ZodFirstPartyTypeKind.ZodBigInt,
+    coerce: params?.coerce ?? false,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodBoolean extends ZodType {
+  _parse(input) {
+    if (this._def.coerce) {
+      input.data = Boolean(input.data);
+    }
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.boolean) {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.boolean,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    return OK(input.data);
+  }
+}
+ZodBoolean.create = (params) => {
+  return new ZodBoolean({
+    typeName: ZodFirstPartyTypeKind.ZodBoolean,
+    coerce: params?.coerce || false,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodDate extends ZodType {
+  _parse(input) {
+    if (this._def.coerce) {
+      input.data = new Date(input.data);
+    }
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.date) {
+      const ctx2 = this._getOrReturnCtx(input);
+      addIssueToContext(ctx2, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.date,
+        received: ctx2.parsedType
+      });
+      return INVALID;
+    }
+    if (Number.isNaN(input.data.getTime())) {
+      const ctx2 = this._getOrReturnCtx(input);
+      addIssueToContext(ctx2, {
+        code: ZodIssueCode.invalid_date
+      });
+      return INVALID;
+    }
+    const status = new ParseStatus;
+    let ctx = undefined;
+    for (const check of this._def.checks) {
+      if (check.kind === "min") {
+        if (input.data.getTime() < check.value) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_small,
+            message: check.message,
+            inclusive: true,
+            exact: false,
+            minimum: check.value,
+            type: "date"
+          });
+          status.dirty();
+        }
+      } else if (check.kind === "max") {
+        if (input.data.getTime() > check.value) {
+          ctx = this._getOrReturnCtx(input, ctx);
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.too_big,
+            message: check.message,
+            inclusive: true,
+            exact: false,
+            maximum: check.value,
+            type: "date"
+          });
+          status.dirty();
+        }
+      } else {
+        util.assertNever(check);
+      }
+    }
+    return {
+      status: status.value,
+      value: new Date(input.data.getTime())
+    };
+  }
+  _addCheck(check) {
+    return new ZodDate({
+      ...this._def,
+      checks: [...this._def.checks, check]
+    });
+  }
+  min(minDate, message) {
+    return this._addCheck({
+      kind: "min",
+      value: minDate.getTime(),
+      message: errorUtil.toString(message)
+    });
+  }
+  max(maxDate, message) {
+    return this._addCheck({
+      kind: "max",
+      value: maxDate.getTime(),
+      message: errorUtil.toString(message)
+    });
+  }
+  get minDate() {
+    let min = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "min") {
+        if (min === null || ch.value > min)
+          min = ch.value;
+      }
+    }
+    return min != null ? new Date(min) : null;
+  }
+  get maxDate() {
+    let max = null;
+    for (const ch of this._def.checks) {
+      if (ch.kind === "max") {
+        if (max === null || ch.value < max)
+          max = ch.value;
+      }
+    }
+    return max != null ? new Date(max) : null;
+  }
+}
+ZodDate.create = (params) => {
+  return new ZodDate({
+    checks: [],
+    coerce: params?.coerce || false,
+    typeName: ZodFirstPartyTypeKind.ZodDate,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodSymbol extends ZodType {
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.symbol) {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.symbol,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    return OK(input.data);
+  }
+}
+ZodSymbol.create = (params) => {
+  return new ZodSymbol({
+    typeName: ZodFirstPartyTypeKind.ZodSymbol,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodUndefined extends ZodType {
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.undefined) {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.undefined,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    return OK(input.data);
+  }
+}
+ZodUndefined.create = (params) => {
+  return new ZodUndefined({
+    typeName: ZodFirstPartyTypeKind.ZodUndefined,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodNull extends ZodType {
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.null) {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.null,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    return OK(input.data);
+  }
+}
+ZodNull.create = (params) => {
+  return new ZodNull({
+    typeName: ZodFirstPartyTypeKind.ZodNull,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodAny extends ZodType {
+  constructor() {
+    super(...arguments);
+    this._any = true;
+  }
+  _parse(input) {
+    return OK(input.data);
+  }
+}
+ZodAny.create = (params) => {
+  return new ZodAny({
+    typeName: ZodFirstPartyTypeKind.ZodAny,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodUnknown extends ZodType {
+  constructor() {
+    super(...arguments);
+    this._unknown = true;
+  }
+  _parse(input) {
+    return OK(input.data);
+  }
+}
+ZodUnknown.create = (params) => {
+  return new ZodUnknown({
+    typeName: ZodFirstPartyTypeKind.ZodUnknown,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodNever extends ZodType {
+  _parse(input) {
+    const ctx = this._getOrReturnCtx(input);
+    addIssueToContext(ctx, {
+      code: ZodIssueCode.invalid_type,
+      expected: ZodParsedType.never,
+      received: ctx.parsedType
+    });
+    return INVALID;
+  }
+}
+ZodNever.create = (params) => {
+  return new ZodNever({
+    typeName: ZodFirstPartyTypeKind.ZodNever,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodVoid extends ZodType {
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.undefined) {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.void,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    return OK(input.data);
+  }
+}
+ZodVoid.create = (params) => {
+  return new ZodVoid({
+    typeName: ZodFirstPartyTypeKind.ZodVoid,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodArray extends ZodType {
+  _parse(input) {
+    const { ctx, status } = this._processInputParams(input);
+    const def = this._def;
+    if (ctx.parsedType !== ZodParsedType.array) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.array,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    if (def.exactLength !== null) {
+      const tooBig = ctx.data.length > def.exactLength.value;
+      const tooSmall = ctx.data.length < def.exactLength.value;
+      if (tooBig || tooSmall) {
+        addIssueToContext(ctx, {
+          code: tooBig ? ZodIssueCode.too_big : ZodIssueCode.too_small,
+          minimum: tooSmall ? def.exactLength.value : undefined,
+          maximum: tooBig ? def.exactLength.value : undefined,
+          type: "array",
+          inclusive: true,
+          exact: true,
+          message: def.exactLength.message
+        });
+        status.dirty();
+      }
+    }
+    if (def.minLength !== null) {
+      if (ctx.data.length < def.minLength.value) {
+        addIssueToContext(ctx, {
+          code: ZodIssueCode.too_small,
+          minimum: def.minLength.value,
+          type: "array",
+          inclusive: true,
+          exact: false,
+          message: def.minLength.message
+        });
+        status.dirty();
+      }
+    }
+    if (def.maxLength !== null) {
+      if (ctx.data.length > def.maxLength.value) {
+        addIssueToContext(ctx, {
+          code: ZodIssueCode.too_big,
+          maximum: def.maxLength.value,
+          type: "array",
+          inclusive: true,
+          exact: false,
+          message: def.maxLength.message
+        });
+        status.dirty();
+      }
+    }
+    if (ctx.common.async) {
+      return Promise.all([...ctx.data].map((item, i2) => {
+        return def.type._parseAsync(new ParseInputLazyPath(ctx, item, ctx.path, i2));
+      })).then((result2) => {
+        return ParseStatus.mergeArray(status, result2);
+      });
+    }
+    const result = [...ctx.data].map((item, i2) => {
+      return def.type._parseSync(new ParseInputLazyPath(ctx, item, ctx.path, i2));
+    });
+    return ParseStatus.mergeArray(status, result);
+  }
+  get element() {
+    return this._def.type;
+  }
+  min(minLength, message) {
+    return new ZodArray({
+      ...this._def,
+      minLength: { value: minLength, message: errorUtil.toString(message) }
+    });
+  }
+  max(maxLength, message) {
+    return new ZodArray({
+      ...this._def,
+      maxLength: { value: maxLength, message: errorUtil.toString(message) }
+    });
+  }
+  length(len2, message) {
+    return new ZodArray({
+      ...this._def,
+      exactLength: { value: len2, message: errorUtil.toString(message) }
+    });
+  }
+  nonempty(message) {
+    return this.min(1, message);
+  }
+}
+ZodArray.create = (schema, params) => {
+  return new ZodArray({
+    type: schema,
+    minLength: null,
+    maxLength: null,
+    exactLength: null,
+    typeName: ZodFirstPartyTypeKind.ZodArray,
+    ...processCreateParams(params)
+  });
+};
+function deepPartialify(schema) {
+  if (schema instanceof ZodObject) {
+    const newShape = {};
+    for (const key in schema.shape) {
+      const fieldSchema = schema.shape[key];
+      newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
+    }
+    return new ZodObject({
+      ...schema._def,
+      shape: () => newShape
+    });
+  } else if (schema instanceof ZodArray) {
+    return new ZodArray({
+      ...schema._def,
+      type: deepPartialify(schema.element)
+    });
+  } else if (schema instanceof ZodOptional) {
+    return ZodOptional.create(deepPartialify(schema.unwrap()));
+  } else if (schema instanceof ZodNullable) {
+    return ZodNullable.create(deepPartialify(schema.unwrap()));
+  } else if (schema instanceof ZodTuple) {
+    return ZodTuple.create(schema.items.map((item) => deepPartialify(item)));
+  } else {
+    return schema;
+  }
+}
+
+class ZodObject extends ZodType {
+  constructor() {
+    super(...arguments);
+    this._cached = null;
+    this.nonstrict = this.passthrough;
+    this.augment = this.extend;
+  }
+  _getCached() {
+    if (this._cached !== null)
+      return this._cached;
+    const shape = this._def.shape();
+    const keys = util.objectKeys(shape);
+    this._cached = { shape, keys };
+    return this._cached;
+  }
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.object) {
+      const ctx2 = this._getOrReturnCtx(input);
+      addIssueToContext(ctx2, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.object,
+        received: ctx2.parsedType
+      });
+      return INVALID;
+    }
+    const { status, ctx } = this._processInputParams(input);
+    const { shape, keys: shapeKeys } = this._getCached();
+    const extraKeys = [];
+    if (!(this._def.catchall instanceof ZodNever && this._def.unknownKeys === "strip")) {
+      for (const key in ctx.data) {
+        if (!shapeKeys.includes(key)) {
+          extraKeys.push(key);
+        }
+      }
+    }
+    const pairs = [];
+    for (const key of shapeKeys) {
+      const keyValidator = shape[key];
+      const value2 = ctx.data[key];
+      pairs.push({
+        key: { status: "valid", value: key },
+        value: keyValidator._parse(new ParseInputLazyPath(ctx, value2, ctx.path, key)),
+        alwaysSet: key in ctx.data
+      });
+    }
+    if (this._def.catchall instanceof ZodNever) {
+      const unknownKeys = this._def.unknownKeys;
+      if (unknownKeys === "passthrough") {
+        for (const key of extraKeys) {
+          pairs.push({
+            key: { status: "valid", value: key },
+            value: { status: "valid", value: ctx.data[key] }
+          });
+        }
+      } else if (unknownKeys === "strict") {
+        if (extraKeys.length > 0) {
+          addIssueToContext(ctx, {
+            code: ZodIssueCode.unrecognized_keys,
+            keys: extraKeys
+          });
+          status.dirty();
+        }
+      } else if (unknownKeys === "strip") {} else {
+        throw new Error(`Internal ZodObject error: invalid unknownKeys value.`);
+      }
+    } else {
+      const catchall = this._def.catchall;
+      for (const key of extraKeys) {
+        const value2 = ctx.data[key];
+        pairs.push({
+          key: { status: "valid", value: key },
+          value: catchall._parse(new ParseInputLazyPath(ctx, value2, ctx.path, key)),
+          alwaysSet: key in ctx.data
+        });
+      }
+    }
+    if (ctx.common.async) {
+      return Promise.resolve().then(async () => {
+        const syncPairs = [];
+        for (const pair of pairs) {
+          const key = await pair.key;
+          const value2 = await pair.value;
+          syncPairs.push({
+            key,
+            value: value2,
+            alwaysSet: pair.alwaysSet
+          });
+        }
+        return syncPairs;
+      }).then((syncPairs) => {
+        return ParseStatus.mergeObjectSync(status, syncPairs);
+      });
+    } else {
+      return ParseStatus.mergeObjectSync(status, pairs);
+    }
+  }
+  get shape() {
+    return this._def.shape();
+  }
+  strict(message) {
+    errorUtil.errToObj;
+    return new ZodObject({
+      ...this._def,
+      unknownKeys: "strict",
+      ...message !== undefined ? {
+        errorMap: (issue, ctx) => {
+          const defaultError = this._def.errorMap?.(issue, ctx).message ?? ctx.defaultError;
+          if (issue.code === "unrecognized_keys")
+            return {
+              message: errorUtil.errToObj(message).message ?? defaultError
+            };
+          return {
+            message: defaultError
+          };
+        }
+      } : {}
+    });
+  }
+  strip() {
+    return new ZodObject({
+      ...this._def,
+      unknownKeys: "strip"
+    });
+  }
+  passthrough() {
+    return new ZodObject({
+      ...this._def,
+      unknownKeys: "passthrough"
+    });
+  }
+  extend(augmentation) {
+    return new ZodObject({
+      ...this._def,
+      shape: () => ({
+        ...this._def.shape(),
+        ...augmentation
+      })
+    });
+  }
+  merge(merging) {
+    const merged = new ZodObject({
+      unknownKeys: merging._def.unknownKeys,
+      catchall: merging._def.catchall,
+      shape: () => ({
+        ...this._def.shape(),
+        ...merging._def.shape()
+      }),
+      typeName: ZodFirstPartyTypeKind.ZodObject
+    });
+    return merged;
+  }
+  setKey(key, schema) {
+    return this.augment({ [key]: schema });
+  }
+  catchall(index) {
+    return new ZodObject({
+      ...this._def,
+      catchall: index
+    });
+  }
+  pick(mask) {
+    const shape = {};
+    for (const key of util.objectKeys(mask)) {
+      if (mask[key] && this.shape[key]) {
+        shape[key] = this.shape[key];
+      }
+    }
+    return new ZodObject({
+      ...this._def,
+      shape: () => shape
+    });
+  }
+  omit(mask) {
+    const shape = {};
+    for (const key of util.objectKeys(this.shape)) {
+      if (!mask[key]) {
+        shape[key] = this.shape[key];
+      }
+    }
+    return new ZodObject({
+      ...this._def,
+      shape: () => shape
+    });
+  }
+  deepPartial() {
+    return deepPartialify(this);
+  }
+  partial(mask) {
+    const newShape = {};
+    for (const key of util.objectKeys(this.shape)) {
+      const fieldSchema = this.shape[key];
+      if (mask && !mask[key]) {
+        newShape[key] = fieldSchema;
+      } else {
+        newShape[key] = fieldSchema.optional();
+      }
+    }
+    return new ZodObject({
+      ...this._def,
+      shape: () => newShape
+    });
+  }
+  required(mask) {
+    const newShape = {};
+    for (const key of util.objectKeys(this.shape)) {
+      if (mask && !mask[key]) {
+        newShape[key] = this.shape[key];
+      } else {
+        const fieldSchema = this.shape[key];
+        let newField2 = fieldSchema;
+        while (newField2 instanceof ZodOptional) {
+          newField2 = newField2._def.innerType;
+        }
+        newShape[key] = newField2;
+      }
+    }
+    return new ZodObject({
+      ...this._def,
+      shape: () => newShape
+    });
+  }
+  keyof() {
+    return createZodEnum(util.objectKeys(this.shape));
+  }
+}
+ZodObject.create = (shape, params) => {
+  return new ZodObject({
+    shape: () => shape,
+    unknownKeys: "strip",
+    catchall: ZodNever.create(),
+    typeName: ZodFirstPartyTypeKind.ZodObject,
+    ...processCreateParams(params)
+  });
+};
+ZodObject.strictCreate = (shape, params) => {
+  return new ZodObject({
+    shape: () => shape,
+    unknownKeys: "strict",
+    catchall: ZodNever.create(),
+    typeName: ZodFirstPartyTypeKind.ZodObject,
+    ...processCreateParams(params)
+  });
+};
+ZodObject.lazycreate = (shape, params) => {
+  return new ZodObject({
+    shape,
+    unknownKeys: "strip",
+    catchall: ZodNever.create(),
+    typeName: ZodFirstPartyTypeKind.ZodObject,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodUnion extends ZodType {
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    const options = this._def.options;
+    function handleResults(results) {
+      for (const result of results) {
+        if (result.result.status === "valid") {
+          return result.result;
+        }
+      }
+      for (const result of results) {
+        if (result.result.status === "dirty") {
+          ctx.common.issues.push(...result.ctx.common.issues);
+          return result.result;
+        }
+      }
+      const unionErrors = results.map((result) => new ZodError(result.ctx.common.issues));
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_union,
+        unionErrors
+      });
+      return INVALID;
+    }
+    if (ctx.common.async) {
+      return Promise.all(options.map(async (option) => {
+        const childCtx = {
+          ...ctx,
+          common: {
+            ...ctx.common,
+            issues: []
+          },
+          parent: null
+        };
+        return {
+          result: await option._parseAsync({
+            data: ctx.data,
+            path: ctx.path,
+            parent: childCtx
+          }),
+          ctx: childCtx
+        };
+      })).then(handleResults);
+    } else {
+      let dirty = undefined;
+      const issues = [];
+      for (const option of options) {
+        const childCtx = {
+          ...ctx,
+          common: {
+            ...ctx.common,
+            issues: []
+          },
+          parent: null
+        };
+        const result = option._parseSync({
+          data: ctx.data,
+          path: ctx.path,
+          parent: childCtx
+        });
+        if (result.status === "valid") {
+          return result;
+        } else if (result.status === "dirty" && !dirty) {
+          dirty = { result, ctx: childCtx };
+        }
+        if (childCtx.common.issues.length) {
+          issues.push(childCtx.common.issues);
+        }
+      }
+      if (dirty) {
+        ctx.common.issues.push(...dirty.ctx.common.issues);
+        return dirty.result;
+      }
+      const unionErrors = issues.map((issues2) => new ZodError(issues2));
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_union,
+        unionErrors
+      });
+      return INVALID;
+    }
+  }
+  get options() {
+    return this._def.options;
+  }
+}
+ZodUnion.create = (types3, params) => {
+  return new ZodUnion({
+    options: types3,
+    typeName: ZodFirstPartyTypeKind.ZodUnion,
+    ...processCreateParams(params)
+  });
+};
+var getDiscriminator = (type) => {
+  if (type instanceof ZodLazy) {
+    return getDiscriminator(type.schema);
+  } else if (type instanceof ZodEffects) {
+    return getDiscriminator(type.innerType());
+  } else if (type instanceof ZodLiteral) {
+    return [type.value];
+  } else if (type instanceof ZodEnum) {
+    return type.options;
+  } else if (type instanceof ZodNativeEnum) {
+    return util.objectValues(type.enum);
+  } else if (type instanceof ZodDefault) {
+    return getDiscriminator(type._def.innerType);
+  } else if (type instanceof ZodUndefined) {
+    return [undefined];
+  } else if (type instanceof ZodNull) {
+    return [null];
+  } else if (type instanceof ZodOptional) {
+    return [undefined, ...getDiscriminator(type.unwrap())];
+  } else if (type instanceof ZodNullable) {
+    return [null, ...getDiscriminator(type.unwrap())];
+  } else if (type instanceof ZodBranded) {
+    return getDiscriminator(type.unwrap());
+  } else if (type instanceof ZodReadonly) {
+    return getDiscriminator(type.unwrap());
+  } else if (type instanceof ZodCatch) {
+    return getDiscriminator(type._def.innerType);
+  } else {
+    return [];
+  }
+};
+
+class ZodDiscriminatedUnion extends ZodType {
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    if (ctx.parsedType !== ZodParsedType.object) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.object,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    const discriminator = this.discriminator;
+    const discriminatorValue = ctx.data[discriminator];
+    const option = this.optionsMap.get(discriminatorValue);
+    if (!option) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_union_discriminator,
+        options: Array.from(this.optionsMap.keys()),
+        path: [discriminator]
+      });
+      return INVALID;
+    }
+    if (ctx.common.async) {
+      return option._parseAsync({
+        data: ctx.data,
+        path: ctx.path,
+        parent: ctx
+      });
+    } else {
+      return option._parseSync({
+        data: ctx.data,
+        path: ctx.path,
+        parent: ctx
+      });
+    }
+  }
+  get discriminator() {
+    return this._def.discriminator;
+  }
+  get options() {
+    return this._def.options;
+  }
+  get optionsMap() {
+    return this._def.optionsMap;
+  }
+  static create(discriminator, options, params) {
+    const optionsMap = new Map;
+    for (const type of options) {
+      const discriminatorValues = getDiscriminator(type.shape[discriminator]);
+      if (!discriminatorValues.length) {
+        throw new Error(`A discriminator value for key \`${discriminator}\` could not be extracted from all schema options`);
+      }
+      for (const value2 of discriminatorValues) {
+        if (optionsMap.has(value2)) {
+          throw new Error(`Discriminator property ${String(discriminator)} has duplicate value ${String(value2)}`);
+        }
+        optionsMap.set(value2, type);
+      }
+    }
+    return new ZodDiscriminatedUnion({
+      typeName: ZodFirstPartyTypeKind.ZodDiscriminatedUnion,
+      discriminator,
+      options,
+      optionsMap,
+      ...processCreateParams(params)
+    });
+  }
+}
+function mergeValues(a, b) {
+  const aType = getParsedType(a);
+  const bType = getParsedType(b);
+  if (a === b) {
+    return { valid: true, data: a };
+  } else if (aType === ZodParsedType.object && bType === ZodParsedType.object) {
+    const bKeys = util.objectKeys(b);
+    const sharedKeys = util.objectKeys(a).filter((key) => bKeys.indexOf(key) !== -1);
+    const newObj = { ...a, ...b };
+    for (const key of sharedKeys) {
+      const sharedValue = mergeValues(a[key], b[key]);
+      if (!sharedValue.valid) {
+        return { valid: false };
+      }
+      newObj[key] = sharedValue.data;
+    }
+    return { valid: true, data: newObj };
+  } else if (aType === ZodParsedType.array && bType === ZodParsedType.array) {
+    if (a.length !== b.length) {
+      return { valid: false };
+    }
+    const newArray = [];
+    for (let index = 0;index < a.length; index++) {
+      const itemA = a[index];
+      const itemB = b[index];
+      const sharedValue = mergeValues(itemA, itemB);
+      if (!sharedValue.valid) {
+        return { valid: false };
+      }
+      newArray.push(sharedValue.data);
+    }
+    return { valid: true, data: newArray };
+  } else if (aType === ZodParsedType.date && bType === ZodParsedType.date && +a === +b) {
+    return { valid: true, data: a };
+  } else {
+    return { valid: false };
+  }
+}
+
+class ZodIntersection extends ZodType {
+  _parse(input) {
+    const { status, ctx } = this._processInputParams(input);
+    const handleParsed = (parsedLeft, parsedRight) => {
+      if (isAborted(parsedLeft) || isAborted(parsedRight)) {
+        return INVALID;
+      }
+      const merged = mergeValues(parsedLeft.value, parsedRight.value);
+      if (!merged.valid) {
+        addIssueToContext(ctx, {
+          code: ZodIssueCode.invalid_intersection_types
+        });
+        return INVALID;
+      }
+      if (isDirty(parsedLeft) || isDirty(parsedRight)) {
+        status.dirty();
+      }
+      return { status: status.value, value: merged.data };
+    };
+    if (ctx.common.async) {
+      return Promise.all([
+        this._def.left._parseAsync({
+          data: ctx.data,
+          path: ctx.path,
+          parent: ctx
+        }),
+        this._def.right._parseAsync({
+          data: ctx.data,
+          path: ctx.path,
+          parent: ctx
+        })
+      ]).then(([left, right]) => handleParsed(left, right));
+    } else {
+      return handleParsed(this._def.left._parseSync({
+        data: ctx.data,
+        path: ctx.path,
+        parent: ctx
+      }), this._def.right._parseSync({
+        data: ctx.data,
+        path: ctx.path,
+        parent: ctx
+      }));
+    }
+  }
+}
+ZodIntersection.create = (left, right, params) => {
+  return new ZodIntersection({
+    left,
+    right,
+    typeName: ZodFirstPartyTypeKind.ZodIntersection,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodTuple extends ZodType {
+  _parse(input) {
+    const { status, ctx } = this._processInputParams(input);
+    if (ctx.parsedType !== ZodParsedType.array) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.array,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    if (ctx.data.length < this._def.items.length) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.too_small,
+        minimum: this._def.items.length,
+        inclusive: true,
+        exact: false,
+        type: "array"
+      });
+      return INVALID;
+    }
+    const rest = this._def.rest;
+    if (!rest && ctx.data.length > this._def.items.length) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.too_big,
+        maximum: this._def.items.length,
+        inclusive: true,
+        exact: false,
+        type: "array"
+      });
+      status.dirty();
+    }
+    const items = [...ctx.data].map((item, itemIndex) => {
+      const schema = this._def.items[itemIndex] || this._def.rest;
+      if (!schema)
+        return null;
+      return schema._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
+    }).filter((x) => !!x);
+    if (ctx.common.async) {
+      return Promise.all(items).then((results) => {
+        return ParseStatus.mergeArray(status, results);
+      });
+    } else {
+      return ParseStatus.mergeArray(status, items);
+    }
+  }
+  get items() {
+    return this._def.items;
+  }
+  rest(rest) {
+    return new ZodTuple({
+      ...this._def,
+      rest
+    });
+  }
+}
+ZodTuple.create = (schemas, params) => {
+  if (!Array.isArray(schemas)) {
+    throw new Error("You must pass an array of schemas to z.tuple([ ... ])");
+  }
+  return new ZodTuple({
+    items: schemas,
+    typeName: ZodFirstPartyTypeKind.ZodTuple,
+    rest: null,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodRecord extends ZodType {
+  get keySchema() {
+    return this._def.keyType;
+  }
+  get valueSchema() {
+    return this._def.valueType;
+  }
+  _parse(input) {
+    const { status, ctx } = this._processInputParams(input);
+    if (ctx.parsedType !== ZodParsedType.object) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.object,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    const pairs = [];
+    const keyType = this._def.keyType;
+    const valueType = this._def.valueType;
+    for (const key in ctx.data) {
+      pairs.push({
+        key: keyType._parse(new ParseInputLazyPath(ctx, key, ctx.path, key)),
+        value: valueType._parse(new ParseInputLazyPath(ctx, ctx.data[key], ctx.path, key)),
+        alwaysSet: key in ctx.data
+      });
+    }
+    if (ctx.common.async) {
+      return ParseStatus.mergeObjectAsync(status, pairs);
+    } else {
+      return ParseStatus.mergeObjectSync(status, pairs);
+    }
+  }
+  get element() {
+    return this._def.valueType;
+  }
+  static create(first, second, third) {
+    if (second instanceof ZodType) {
+      return new ZodRecord({
+        keyType: first,
+        valueType: second,
+        typeName: ZodFirstPartyTypeKind.ZodRecord,
+        ...processCreateParams(third)
+      });
+    }
+    return new ZodRecord({
+      keyType: ZodString.create(),
+      valueType: first,
+      typeName: ZodFirstPartyTypeKind.ZodRecord,
+      ...processCreateParams(second)
+    });
+  }
+}
+
+class ZodMap extends ZodType {
+  get keySchema() {
+    return this._def.keyType;
+  }
+  get valueSchema() {
+    return this._def.valueType;
+  }
+  _parse(input) {
+    const { status, ctx } = this._processInputParams(input);
+    if (ctx.parsedType !== ZodParsedType.map) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.map,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    const keyType = this._def.keyType;
+    const valueType = this._def.valueType;
+    const pairs = [...ctx.data.entries()].map(([key, value2], index) => {
+      return {
+        key: keyType._parse(new ParseInputLazyPath(ctx, key, ctx.path, [index, "key"])),
+        value: valueType._parse(new ParseInputLazyPath(ctx, value2, ctx.path, [index, "value"]))
+      };
+    });
+    if (ctx.common.async) {
+      const finalMap = new Map;
+      return Promise.resolve().then(async () => {
+        for (const pair of pairs) {
+          const key = await pair.key;
+          const value2 = await pair.value;
+          if (key.status === "aborted" || value2.status === "aborted") {
+            return INVALID;
+          }
+          if (key.status === "dirty" || value2.status === "dirty") {
+            status.dirty();
+          }
+          finalMap.set(key.value, value2.value);
+        }
+        return { status: status.value, value: finalMap };
+      });
+    } else {
+      const finalMap = new Map;
+      for (const pair of pairs) {
+        const key = pair.key;
+        const value2 = pair.value;
+        if (key.status === "aborted" || value2.status === "aborted") {
+          return INVALID;
+        }
+        if (key.status === "dirty" || value2.status === "dirty") {
+          status.dirty();
+        }
+        finalMap.set(key.value, value2.value);
+      }
+      return { status: status.value, value: finalMap };
+    }
+  }
+}
+ZodMap.create = (keyType, valueType, params) => {
+  return new ZodMap({
+    valueType,
+    keyType,
+    typeName: ZodFirstPartyTypeKind.ZodMap,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodSet extends ZodType {
+  _parse(input) {
+    const { status, ctx } = this._processInputParams(input);
+    if (ctx.parsedType !== ZodParsedType.set) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.set,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    const def = this._def;
+    if (def.minSize !== null) {
+      if (ctx.data.size < def.minSize.value) {
+        addIssueToContext(ctx, {
+          code: ZodIssueCode.too_small,
+          minimum: def.minSize.value,
+          type: "set",
+          inclusive: true,
+          exact: false,
+          message: def.minSize.message
+        });
+        status.dirty();
+      }
+    }
+    if (def.maxSize !== null) {
+      if (ctx.data.size > def.maxSize.value) {
+        addIssueToContext(ctx, {
+          code: ZodIssueCode.too_big,
+          maximum: def.maxSize.value,
+          type: "set",
+          inclusive: true,
+          exact: false,
+          message: def.maxSize.message
+        });
+        status.dirty();
+      }
+    }
+    const valueType = this._def.valueType;
+    function finalizeSet(elements2) {
+      const parsedSet = new Set;
+      for (const element of elements2) {
+        if (element.status === "aborted")
+          return INVALID;
+        if (element.status === "dirty")
+          status.dirty();
+        parsedSet.add(element.value);
+      }
+      return { status: status.value, value: parsedSet };
+    }
+    const elements = [...ctx.data.values()].map((item, i2) => valueType._parse(new ParseInputLazyPath(ctx, item, ctx.path, i2)));
+    if (ctx.common.async) {
+      return Promise.all(elements).then((elements2) => finalizeSet(elements2));
+    } else {
+      return finalizeSet(elements);
+    }
+  }
+  min(minSize, message) {
+    return new ZodSet({
+      ...this._def,
+      minSize: { value: minSize, message: errorUtil.toString(message) }
+    });
+  }
+  max(maxSize, message) {
+    return new ZodSet({
+      ...this._def,
+      maxSize: { value: maxSize, message: errorUtil.toString(message) }
+    });
+  }
+  size(size2, message) {
+    return this.min(size2, message).max(size2, message);
+  }
+  nonempty(message) {
+    return this.min(1, message);
+  }
+}
+ZodSet.create = (valueType, params) => {
+  return new ZodSet({
+    valueType,
+    minSize: null,
+    maxSize: null,
+    typeName: ZodFirstPartyTypeKind.ZodSet,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodFunction extends ZodType {
+  constructor() {
+    super(...arguments);
+    this.validate = this.implement;
+  }
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    if (ctx.parsedType !== ZodParsedType.function) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.function,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    function makeArgsIssue(args, error) {
+      return makeIssue({
+        data: args,
+        path: ctx.path,
+        errorMaps: [ctx.common.contextualErrorMap, ctx.schemaErrorMap, getErrorMap(), en_default].filter((x) => !!x),
+        issueData: {
+          code: ZodIssueCode.invalid_arguments,
+          argumentsError: error
+        }
+      });
+    }
+    function makeReturnsIssue(returns, error) {
+      return makeIssue({
+        data: returns,
+        path: ctx.path,
+        errorMaps: [ctx.common.contextualErrorMap, ctx.schemaErrorMap, getErrorMap(), en_default].filter((x) => !!x),
+        issueData: {
+          code: ZodIssueCode.invalid_return_type,
+          returnTypeError: error
+        }
+      });
+    }
+    const params = { errorMap: ctx.common.contextualErrorMap };
+    const fn = ctx.data;
+    if (this._def.returns instanceof ZodPromise) {
+      const me = this;
+      return OK(async function(...args) {
+        const error = new ZodError([]);
+        const parsedArgs = await me._def.args.parseAsync(args, params).catch((e) => {
+          error.addIssue(makeArgsIssue(args, e));
+          throw error;
+        });
+        const result = await Reflect.apply(fn, this, parsedArgs);
+        const parsedReturns = await me._def.returns._def.type.parseAsync(result, params).catch((e) => {
+          error.addIssue(makeReturnsIssue(result, e));
+          throw error;
+        });
+        return parsedReturns;
+      });
+    } else {
+      const me = this;
+      return OK(function(...args) {
+        const parsedArgs = me._def.args.safeParse(args, params);
+        if (!parsedArgs.success) {
+          throw new ZodError([makeArgsIssue(args, parsedArgs.error)]);
+        }
+        const result = Reflect.apply(fn, this, parsedArgs.data);
+        const parsedReturns = me._def.returns.safeParse(result, params);
+        if (!parsedReturns.success) {
+          throw new ZodError([makeReturnsIssue(result, parsedReturns.error)]);
+        }
+        return parsedReturns.data;
+      });
+    }
+  }
+  parameters() {
+    return this._def.args;
+  }
+  returnType() {
+    return this._def.returns;
+  }
+  args(...items) {
+    return new ZodFunction({
+      ...this._def,
+      args: ZodTuple.create(items).rest(ZodUnknown.create())
+    });
+  }
+  returns(returnType) {
+    return new ZodFunction({
+      ...this._def,
+      returns: returnType
+    });
+  }
+  implement(func) {
+    const validatedFunc = this.parse(func);
+    return validatedFunc;
+  }
+  strictImplement(func) {
+    const validatedFunc = this.parse(func);
+    return validatedFunc;
+  }
+  static create(args, returns, params) {
+    return new ZodFunction({
+      args: args ? args : ZodTuple.create([]).rest(ZodUnknown.create()),
+      returns: returns || ZodUnknown.create(),
+      typeName: ZodFirstPartyTypeKind.ZodFunction,
+      ...processCreateParams(params)
+    });
+  }
+}
+
+class ZodLazy extends ZodType {
+  get schema() {
+    return this._def.getter();
+  }
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    const lazySchema = this._def.getter();
+    return lazySchema._parse({ data: ctx.data, path: ctx.path, parent: ctx });
+  }
+}
+ZodLazy.create = (getter, params) => {
+  return new ZodLazy({
+    getter,
+    typeName: ZodFirstPartyTypeKind.ZodLazy,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodLiteral extends ZodType {
+  _parse(input) {
+    if (input.data !== this._def.value) {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
+        received: ctx.data,
+        code: ZodIssueCode.invalid_literal,
+        expected: this._def.value
+      });
+      return INVALID;
+    }
+    return { status: "valid", value: input.data };
+  }
+  get value() {
+    return this._def.value;
+  }
+}
+ZodLiteral.create = (value2, params) => {
+  return new ZodLiteral({
+    value: value2,
+    typeName: ZodFirstPartyTypeKind.ZodLiteral,
+    ...processCreateParams(params)
+  });
+};
+function createZodEnum(values, params) {
+  return new ZodEnum({
+    values,
+    typeName: ZodFirstPartyTypeKind.ZodEnum,
+    ...processCreateParams(params)
+  });
+}
+
+class ZodEnum extends ZodType {
+  _parse(input) {
+    if (typeof input.data !== "string") {
+      const ctx = this._getOrReturnCtx(input);
+      const expectedValues = this._def.values;
+      addIssueToContext(ctx, {
+        expected: util.joinValues(expectedValues),
+        received: ctx.parsedType,
+        code: ZodIssueCode.invalid_type
+      });
+      return INVALID;
+    }
+    if (!this._cache) {
+      this._cache = new Set(this._def.values);
+    }
+    if (!this._cache.has(input.data)) {
+      const ctx = this._getOrReturnCtx(input);
+      const expectedValues = this._def.values;
+      addIssueToContext(ctx, {
+        received: ctx.data,
+        code: ZodIssueCode.invalid_enum_value,
+        options: expectedValues
+      });
+      return INVALID;
+    }
+    return OK(input.data);
+  }
+  get options() {
+    return this._def.values;
+  }
+  get enum() {
+    const enumValues = {};
+    for (const val of this._def.values) {
+      enumValues[val] = val;
+    }
+    return enumValues;
+  }
+  get Values() {
+    const enumValues = {};
+    for (const val of this._def.values) {
+      enumValues[val] = val;
+    }
+    return enumValues;
+  }
+  get Enum() {
+    const enumValues = {};
+    for (const val of this._def.values) {
+      enumValues[val] = val;
+    }
+    return enumValues;
+  }
+  extract(values, newDef = this._def) {
+    return ZodEnum.create(values, {
+      ...this._def,
+      ...newDef
+    });
+  }
+  exclude(values, newDef = this._def) {
+    return ZodEnum.create(this.options.filter((opt) => !values.includes(opt)), {
+      ...this._def,
+      ...newDef
+    });
+  }
+}
+ZodEnum.create = createZodEnum;
+
+class ZodNativeEnum extends ZodType {
+  _parse(input) {
+    const nativeEnumValues = util.getValidEnumValues(this._def.values);
+    const ctx = this._getOrReturnCtx(input);
+    if (ctx.parsedType !== ZodParsedType.string && ctx.parsedType !== ZodParsedType.number) {
+      const expectedValues = util.objectValues(nativeEnumValues);
+      addIssueToContext(ctx, {
+        expected: util.joinValues(expectedValues),
+        received: ctx.parsedType,
+        code: ZodIssueCode.invalid_type
+      });
+      return INVALID;
+    }
+    if (!this._cache) {
+      this._cache = new Set(util.getValidEnumValues(this._def.values));
+    }
+    if (!this._cache.has(input.data)) {
+      const expectedValues = util.objectValues(nativeEnumValues);
+      addIssueToContext(ctx, {
+        received: ctx.data,
+        code: ZodIssueCode.invalid_enum_value,
+        options: expectedValues
+      });
+      return INVALID;
+    }
+    return OK(input.data);
+  }
+  get enum() {
+    return this._def.values;
+  }
+}
+ZodNativeEnum.create = (values, params) => {
+  return new ZodNativeEnum({
+    values,
+    typeName: ZodFirstPartyTypeKind.ZodNativeEnum,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodPromise extends ZodType {
+  unwrap() {
+    return this._def.type;
+  }
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    if (ctx.parsedType !== ZodParsedType.promise && ctx.common.async === false) {
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.promise,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    const promisified = ctx.parsedType === ZodParsedType.promise ? ctx.data : Promise.resolve(ctx.data);
+    return OK(promisified.then((data) => {
+      return this._def.type.parseAsync(data, {
+        path: ctx.path,
+        errorMap: ctx.common.contextualErrorMap
+      });
+    }));
+  }
+}
+ZodPromise.create = (schema, params) => {
+  return new ZodPromise({
+    type: schema,
+    typeName: ZodFirstPartyTypeKind.ZodPromise,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodEffects extends ZodType {
+  innerType() {
+    return this._def.schema;
+  }
+  sourceType() {
+    return this._def.schema._def.typeName === ZodFirstPartyTypeKind.ZodEffects ? this._def.schema.sourceType() : this._def.schema;
+  }
+  _parse(input) {
+    const { status, ctx } = this._processInputParams(input);
+    const effect = this._def.effect || null;
+    const checkCtx = {
+      addIssue: (arg) => {
+        addIssueToContext(ctx, arg);
+        if (arg.fatal) {
+          status.abort();
+        } else {
+          status.dirty();
+        }
+      },
+      get path() {
+        return ctx.path;
+      }
+    };
+    checkCtx.addIssue = checkCtx.addIssue.bind(checkCtx);
+    if (effect.type === "preprocess") {
+      const processed = effect.transform(ctx.data, checkCtx);
+      if (ctx.common.async) {
+        return Promise.resolve(processed).then(async (processed2) => {
+          if (status.value === "aborted")
+            return INVALID;
+          const result = await this._def.schema._parseAsync({
+            data: processed2,
+            path: ctx.path,
+            parent: ctx
+          });
+          if (result.status === "aborted")
+            return INVALID;
+          if (result.status === "dirty")
+            return DIRTY(result.value);
+          if (status.value === "dirty")
+            return DIRTY(result.value);
+          return result;
+        });
+      } else {
+        if (status.value === "aborted")
+          return INVALID;
+        const result = this._def.schema._parseSync({
+          data: processed,
+          path: ctx.path,
+          parent: ctx
+        });
+        if (result.status === "aborted")
+          return INVALID;
+        if (result.status === "dirty")
+          return DIRTY(result.value);
+        if (status.value === "dirty")
+          return DIRTY(result.value);
+        return result;
+      }
+    }
+    if (effect.type === "refinement") {
+      const executeRefinement = (acc) => {
+        const result = effect.refinement(acc, checkCtx);
+        if (ctx.common.async) {
+          return Promise.resolve(result);
+        }
+        if (result instanceof Promise) {
+          throw new Error("Async refinement encountered during synchronous parse operation. Use .parseAsync instead.");
+        }
+        return acc;
+      };
+      if (ctx.common.async === false) {
+        const inner = this._def.schema._parseSync({
+          data: ctx.data,
+          path: ctx.path,
+          parent: ctx
+        });
+        if (inner.status === "aborted")
+          return INVALID;
+        if (inner.status === "dirty")
+          status.dirty();
+        executeRefinement(inner.value);
+        return { status: status.value, value: inner.value };
+      } else {
+        return this._def.schema._parseAsync({ data: ctx.data, path: ctx.path, parent: ctx }).then((inner) => {
+          if (inner.status === "aborted")
+            return INVALID;
+          if (inner.status === "dirty")
+            status.dirty();
+          return executeRefinement(inner.value).then(() => {
+            return { status: status.value, value: inner.value };
+          });
+        });
+      }
+    }
+    if (effect.type === "transform") {
+      if (ctx.common.async === false) {
+        const base = this._def.schema._parseSync({
+          data: ctx.data,
+          path: ctx.path,
+          parent: ctx
+        });
+        if (!isValid(base))
+          return INVALID;
+        const result = effect.transform(base.value, checkCtx);
+        if (result instanceof Promise) {
+          throw new Error(`Asynchronous transform encountered during synchronous parse operation. Use .parseAsync instead.`);
+        }
+        return { status: status.value, value: result };
+      } else {
+        return this._def.schema._parseAsync({ data: ctx.data, path: ctx.path, parent: ctx }).then((base) => {
+          if (!isValid(base))
+            return INVALID;
+          return Promise.resolve(effect.transform(base.value, checkCtx)).then((result) => ({
+            status: status.value,
+            value: result
+          }));
+        });
+      }
+    }
+    util.assertNever(effect);
+  }
+}
+ZodEffects.create = (schema, effect, params) => {
+  return new ZodEffects({
+    schema,
+    typeName: ZodFirstPartyTypeKind.ZodEffects,
+    effect,
+    ...processCreateParams(params)
+  });
+};
+ZodEffects.createWithPreprocess = (preprocess, schema, params) => {
+  return new ZodEffects({
+    schema,
+    effect: { type: "preprocess", transform: preprocess },
+    typeName: ZodFirstPartyTypeKind.ZodEffects,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodOptional extends ZodType {
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType === ZodParsedType.undefined) {
+      return OK(undefined);
+    }
+    return this._def.innerType._parse(input);
+  }
+  unwrap() {
+    return this._def.innerType;
+  }
+}
+ZodOptional.create = (type, params) => {
+  return new ZodOptional({
+    innerType: type,
+    typeName: ZodFirstPartyTypeKind.ZodOptional,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodNullable extends ZodType {
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType === ZodParsedType.null) {
+      return OK(null);
+    }
+    return this._def.innerType._parse(input);
+  }
+  unwrap() {
+    return this._def.innerType;
+  }
+}
+ZodNullable.create = (type, params) => {
+  return new ZodNullable({
+    innerType: type,
+    typeName: ZodFirstPartyTypeKind.ZodNullable,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodDefault extends ZodType {
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    let data = ctx.data;
+    if (ctx.parsedType === ZodParsedType.undefined) {
+      data = this._def.defaultValue();
+    }
+    return this._def.innerType._parse({
+      data,
+      path: ctx.path,
+      parent: ctx
+    });
+  }
+  removeDefault() {
+    return this._def.innerType;
+  }
+}
+ZodDefault.create = (type, params) => {
+  return new ZodDefault({
+    innerType: type,
+    typeName: ZodFirstPartyTypeKind.ZodDefault,
+    defaultValue: typeof params.default === "function" ? params.default : () => params.default,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodCatch extends ZodType {
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    const newCtx = {
+      ...ctx,
+      common: {
+        ...ctx.common,
+        issues: []
+      }
+    };
+    const result = this._def.innerType._parse({
+      data: newCtx.data,
+      path: newCtx.path,
+      parent: {
+        ...newCtx
+      }
+    });
+    if (isAsync(result)) {
+      return result.then((result2) => {
+        return {
+          status: "valid",
+          value: result2.status === "valid" ? result2.value : this._def.catchValue({
+            get error() {
+              return new ZodError(newCtx.common.issues);
+            },
+            input: newCtx.data
+          })
+        };
+      });
+    } else {
+      return {
+        status: "valid",
+        value: result.status === "valid" ? result.value : this._def.catchValue({
+          get error() {
+            return new ZodError(newCtx.common.issues);
+          },
+          input: newCtx.data
+        })
+      };
+    }
+  }
+  removeCatch() {
+    return this._def.innerType;
+  }
+}
+ZodCatch.create = (type, params) => {
+  return new ZodCatch({
+    innerType: type,
+    typeName: ZodFirstPartyTypeKind.ZodCatch,
+    catchValue: typeof params.catch === "function" ? params.catch : () => params.catch,
+    ...processCreateParams(params)
+  });
+};
+
+class ZodNaN extends ZodType {
+  _parse(input) {
+    const parsedType = this._getType(input);
+    if (parsedType !== ZodParsedType.nan) {
+      const ctx = this._getOrReturnCtx(input);
+      addIssueToContext(ctx, {
+        code: ZodIssueCode.invalid_type,
+        expected: ZodParsedType.nan,
+        received: ctx.parsedType
+      });
+      return INVALID;
+    }
+    return { status: "valid", value: input.data };
+  }
+}
+ZodNaN.create = (params) => {
+  return new ZodNaN({
+    typeName: ZodFirstPartyTypeKind.ZodNaN,
+    ...processCreateParams(params)
+  });
+};
+var BRAND = Symbol("zod_brand");
+
+class ZodBranded extends ZodType {
+  _parse(input) {
+    const { ctx } = this._processInputParams(input);
+    const data = ctx.data;
+    return this._def.type._parse({
+      data,
+      path: ctx.path,
+      parent: ctx
+    });
+  }
+  unwrap() {
+    return this._def.type;
+  }
+}
+
+class ZodPipeline extends ZodType {
+  _parse(input) {
+    const { status, ctx } = this._processInputParams(input);
+    if (ctx.common.async) {
+      const handleAsync = async () => {
+        const inResult = await this._def.in._parseAsync({
+          data: ctx.data,
+          path: ctx.path,
+          parent: ctx
+        });
+        if (inResult.status === "aborted")
+          return INVALID;
+        if (inResult.status === "dirty") {
+          status.dirty();
+          return DIRTY(inResult.value);
+        } else {
+          return this._def.out._parseAsync({
+            data: inResult.value,
+            path: ctx.path,
+            parent: ctx
+          });
+        }
+      };
+      return handleAsync();
+    } else {
+      const inResult = this._def.in._parseSync({
+        data: ctx.data,
+        path: ctx.path,
+        parent: ctx
+      });
+      if (inResult.status === "aborted")
+        return INVALID;
+      if (inResult.status === "dirty") {
+        status.dirty();
+        return {
+          status: "dirty",
+          value: inResult.value
+        };
+      } else {
+        return this._def.out._parseSync({
+          data: inResult.value,
+          path: ctx.path,
+          parent: ctx
+        });
+      }
+    }
+  }
+  static create(a, b) {
+    return new ZodPipeline({
+      in: a,
+      out: b,
+      typeName: ZodFirstPartyTypeKind.ZodPipeline
+    });
+  }
+}
+
+class ZodReadonly extends ZodType {
+  _parse(input) {
+    const result = this._def.innerType._parse(input);
+    const freeze = (data) => {
+      if (isValid(data)) {
+        data.value = Object.freeze(data.value);
+      }
+      return data;
+    };
+    return isAsync(result) ? result.then((data) => freeze(data)) : freeze(result);
+  }
+  unwrap() {
+    return this._def.innerType;
+  }
+}
+ZodReadonly.create = (type, params) => {
+  return new ZodReadonly({
+    innerType: type,
+    typeName: ZodFirstPartyTypeKind.ZodReadonly,
+    ...processCreateParams(params)
+  });
+};
+function cleanParams(params, data) {
+  const p = typeof params === "function" ? params(data) : typeof params === "string" ? { message: params } : params;
+  const p2 = typeof p === "string" ? { message: p } : p;
+  return p2;
+}
+function custom(check, _params = {}, fatal) {
+  if (check)
+    return ZodAny.create().superRefine((data, ctx) => {
+      const r = check(data);
+      if (r instanceof Promise) {
+        return r.then((r2) => {
+          if (!r2) {
+            const params = cleanParams(_params, data);
+            const _fatal = params.fatal ?? fatal ?? true;
+            ctx.addIssue({ code: "custom", ...params, fatal: _fatal });
+          }
+        });
+      }
+      if (!r) {
+        const params = cleanParams(_params, data);
+        const _fatal = params.fatal ?? fatal ?? true;
+        ctx.addIssue({ code: "custom", ...params, fatal: _fatal });
+      }
+      return;
+    });
+  return ZodAny.create();
+}
+var late = {
+  object: ZodObject.lazycreate
+};
+var ZodFirstPartyTypeKind;
+(function(ZodFirstPartyTypeKind2) {
+  ZodFirstPartyTypeKind2["ZodString"] = "ZodString";
+  ZodFirstPartyTypeKind2["ZodNumber"] = "ZodNumber";
+  ZodFirstPartyTypeKind2["ZodNaN"] = "ZodNaN";
+  ZodFirstPartyTypeKind2["ZodBigInt"] = "ZodBigInt";
+  ZodFirstPartyTypeKind2["ZodBoolean"] = "ZodBoolean";
+  ZodFirstPartyTypeKind2["ZodDate"] = "ZodDate";
+  ZodFirstPartyTypeKind2["ZodSymbol"] = "ZodSymbol";
+  ZodFirstPartyTypeKind2["ZodUndefined"] = "ZodUndefined";
+  ZodFirstPartyTypeKind2["ZodNull"] = "ZodNull";
+  ZodFirstPartyTypeKind2["ZodAny"] = "ZodAny";
+  ZodFirstPartyTypeKind2["ZodUnknown"] = "ZodUnknown";
+  ZodFirstPartyTypeKind2["ZodNever"] = "ZodNever";
+  ZodFirstPartyTypeKind2["ZodVoid"] = "ZodVoid";
+  ZodFirstPartyTypeKind2["ZodArray"] = "ZodArray";
+  ZodFirstPartyTypeKind2["ZodObject"] = "ZodObject";
+  ZodFirstPartyTypeKind2["ZodUnion"] = "ZodUnion";
+  ZodFirstPartyTypeKind2["ZodDiscriminatedUnion"] = "ZodDiscriminatedUnion";
+  ZodFirstPartyTypeKind2["ZodIntersection"] = "ZodIntersection";
+  ZodFirstPartyTypeKind2["ZodTuple"] = "ZodTuple";
+  ZodFirstPartyTypeKind2["ZodRecord"] = "ZodRecord";
+  ZodFirstPartyTypeKind2["ZodMap"] = "ZodMap";
+  ZodFirstPartyTypeKind2["ZodSet"] = "ZodSet";
+  ZodFirstPartyTypeKind2["ZodFunction"] = "ZodFunction";
+  ZodFirstPartyTypeKind2["ZodLazy"] = "ZodLazy";
+  ZodFirstPartyTypeKind2["ZodLiteral"] = "ZodLiteral";
+  ZodFirstPartyTypeKind2["ZodEnum"] = "ZodEnum";
+  ZodFirstPartyTypeKind2["ZodEffects"] = "ZodEffects";
+  ZodFirstPartyTypeKind2["ZodNativeEnum"] = "ZodNativeEnum";
+  ZodFirstPartyTypeKind2["ZodOptional"] = "ZodOptional";
+  ZodFirstPartyTypeKind2["ZodNullable"] = "ZodNullable";
+  ZodFirstPartyTypeKind2["ZodDefault"] = "ZodDefault";
+  ZodFirstPartyTypeKind2["ZodCatch"] = "ZodCatch";
+  ZodFirstPartyTypeKind2["ZodPromise"] = "ZodPromise";
+  ZodFirstPartyTypeKind2["ZodBranded"] = "ZodBranded";
+  ZodFirstPartyTypeKind2["ZodPipeline"] = "ZodPipeline";
+  ZodFirstPartyTypeKind2["ZodReadonly"] = "ZodReadonly";
+})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
+var instanceOfType = (cls, params = {
+  message: `Input not instance of ${cls.name}`
+}) => custom((data) => data instanceof cls, params);
+var stringType = ZodString.create;
+var numberType = ZodNumber.create;
+var nanType = ZodNaN.create;
+var bigIntType = ZodBigInt.create;
+var booleanType = ZodBoolean.create;
+var dateType = ZodDate.create;
+var symbolType = ZodSymbol.create;
+var undefinedType = ZodUndefined.create;
+var nullType = ZodNull.create;
+var anyType = ZodAny.create;
+var unknownType = ZodUnknown.create;
+var neverType = ZodNever.create;
+var voidType = ZodVoid.create;
+var arrayType = ZodArray.create;
+var objectType = ZodObject.create;
+var strictObjectType = ZodObject.strictCreate;
+var unionType = ZodUnion.create;
+var discriminatedUnionType = ZodDiscriminatedUnion.create;
+var intersectionType = ZodIntersection.create;
+var tupleType = ZodTuple.create;
+var recordType = ZodRecord.create;
+var mapType = ZodMap.create;
+var setType = ZodSet.create;
+var functionType = ZodFunction.create;
+var lazyType = ZodLazy.create;
+var literalType = ZodLiteral.create;
+var enumType = ZodEnum.create;
+var nativeEnumType = ZodNativeEnum.create;
+var promiseType = ZodPromise.create;
+var effectsType = ZodEffects.create;
+var optionalType = ZodOptional.create;
+var nullableType = ZodNullable.create;
+var preprocessType = ZodEffects.createWithPreprocess;
+var pipelineType = ZodPipeline.create;
+var ostring = () => stringType().optional();
+var onumber = () => numberType().optional();
+var oboolean = () => booleanType().optional();
+var coerce = {
+  string: (arg) => ZodString.create({ ...arg, coerce: true }),
+  number: (arg) => ZodNumber.create({ ...arg, coerce: true }),
+  boolean: (arg) => ZodBoolean.create({
+    ...arg,
+    coerce: true
+  }),
+  bigint: (arg) => ZodBigInt.create({ ...arg, coerce: true }),
+  date: (arg) => ZodDate.create({ ...arg, coerce: true })
+};
+var NEVER = INVALID;
+var globalHostBindingsSchema = exports_external.object({
+  switchModes: exports_external.function().args(exports_external.nativeEnum(Mode)).returns(exports_external.void()),
+  log: exports_external.function().args(exports_external.string()).returns(exports_external.void()),
+  sendResponse: exports_external.function().args(exports_external.union([exports_external.instanceof(Uint8Array), exports_external.custom()])).returns(exports_external.number()),
+  versionV2: exports_external.function().args().returns(exports_external.void()),
+  callCapability: exports_external.function().args(exports_external.union([exports_external.instanceof(Uint8Array), exports_external.custom()])).returns(exports_external.number()),
+  awaitCapabilities: exports_external.function().args(exports_external.union([exports_external.instanceof(Uint8Array), exports_external.custom()]), exports_external.number()).returns(exports_external.union([exports_external.instanceof(Uint8Array), exports_external.custom()])),
+  getSecrets: exports_external.function().args(exports_external.union([exports_external.instanceof(Uint8Array), exports_external.custom()]), exports_external.number()).returns(exports_external.any()),
+  awaitSecrets: exports_external.function().args(exports_external.union([exports_external.instanceof(Uint8Array), exports_external.custom()]), exports_external.number()).returns(exports_external.union([exports_external.instanceof(Uint8Array), exports_external.custom()])),
+  getWasiArgs: exports_external.function().args().returns(exports_external.string()),
+  now: exports_external.function().args().returns(exports_external.number())
+});
+var validateGlobalHostBindings = () => {
+  const globalFunctions = globalThis;
+  try {
+    return globalHostBindingsSchema.parse(globalFunctions);
+  } catch (error) {
+    const missingFunctions = Object.keys(globalHostBindingsSchema.shape).filter((key) => !(key in globalFunctions));
+    throw new Error(`Missing required global host functions: ${missingFunctions.join(", ")}. ` + `The CRE WASM runtime must provide these functions on globalThis. ` + `This usually means the workflow is being executed outside the CRE WASM environment, ` + `or the host runtime version is incompatible with this SDK version.`);
+  }
+};
+var _hostBindings = null;
+var hostBindings = new Proxy({}, {
+  get(target, prop) {
+    if (!_hostBindings) {
+      _hostBindings = validateGlobalHostBindings();
+    }
+    return _hostBindings[prop];
+  }
+});
+
+class ConsensusCapability {
+  static CAPABILITY_ID = "consensus@1.0.0-alpha";
+  static CAPABILITY_NAME = "consensus";
+  static CAPABILITY_VERSION = "1.0.0-alpha";
+  simple(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(SimpleConsensusInputsSchema, input);
+    }
+    const capabilityId = ConsensusCapability.CAPABILITY_ID;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "Simple",
+      payload,
+      inputSchema: SimpleConsensusInputsSchema,
+      outputSchema: ValueSchema2
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return result;
+      }
+    };
+  }
+  report(runtime, input) {
+    let payload;
+    if (input.$typeName) {
+      payload = input;
+    } else {
+      payload = fromJson(ReportRequestSchema, input);
+    }
+    const capabilityId = ConsensusCapability.CAPABILITY_ID;
+    const capabilityResponse = runtime.callCapability({
+      capabilityId,
+      method: "Report",
+      payload,
+      inputSchema: ReportRequestSchema,
+      outputSchema: ReportResponseSchema
+    });
+    return {
+      result: () => {
+        const result = capabilityResponse.result();
+        return new Report(result);
+      }
+    };
+  }
+}
+
+class CapabilityError extends Error {
+  name;
+  capabilityId;
+  method;
+  callbackId;
+  constructor(message, options) {
+    super(message);
+    this.name = "CapabilityError";
+    if (options) {
+      this.capabilityId = options.capabilityId;
+      this.method = options.method;
+      this.callbackId = options.callbackId;
+    }
+  }
+}
+
+class DonModeError extends Error {
+  constructor() {
+    super("cannot use Runtime inside RunInNodeMode");
+    this.name = "DonModeError";
+  }
+}
+
+class NodeModeError extends Error {
+  constructor() {
+    super("cannot use NodeRuntime outside RunInNodeMode");
+    this.name = "NodeModeError";
+  }
+}
+
+class SecretsError extends Error {
+  secretRequest;
+  error;
+  constructor(secretRequest, error) {
+    super(`secret retrieval failed for ${secretRequest.id || "unknown"} (namespace: ${secretRequest.namespace || "default"}): ${error}. Verify the secret name is correct and that the secret has been configured for this workflow`);
+    this.secretRequest = secretRequest;
+    this.error = error;
+    this.name = "SecretsError";
+  }
+}
+
+class BaseRuntimeImpl {
+  config;
+  nextCallId;
+  helpers;
+  maxResponseSize;
+  mode;
+  modeError;
+  constructor(config, nextCallId, helpers, maxResponseSize, mode) {
+    this.config = config;
+    this.nextCallId = nextCallId;
+    this.helpers = helpers;
+    this.maxResponseSize = maxResponseSize;
+    this.mode = mode;
+  }
+  callCapability({ capabilityId, method, payload, inputSchema, outputSchema }) {
+    if (this.modeError) {
+      return {
+        result: () => {
+          throw this.modeError;
+        }
+      };
+    }
+    const callbackId = this.allocateCallbackId();
+    const anyPayload = anyPack(inputSchema, payload);
+    const req = create(CapabilityRequestSchema, {
+      id: capabilityId,
+      method,
+      payload: anyPayload,
+      callbackId
+    });
+    if (!this.helpers.call(req)) {
+      return {
+        result: () => {
+          throw new CapabilityError(`Capability '${capabilityId}' not found: the host rejected the call to method '${method}'. Verify the capability ID is correct and the capability is available in this CRE environment`, {
+            callbackId,
+            method,
+            capabilityId
+          });
+        }
+      };
+    }
+    return {
+      result: () => this.awaitAndUnwrapCapabilityResponse(callbackId, capabilityId, method, outputSchema)
+    };
+  }
+  allocateCallbackId() {
+    const callbackId = this.nextCallId;
+    if (this.mode === Mode.DON) {
+      this.nextCallId++;
+    } else {
+      this.nextCallId--;
+    }
+    return callbackId;
+  }
+  awaitAndUnwrapCapabilityResponse(callbackId, capabilityId, method, outputSchema) {
+    const awaitRequest = create(AwaitCapabilitiesRequestSchema, {
+      ids: [callbackId]
+    });
+    const awaitResponse = this.helpers.await(awaitRequest, this.maxResponseSize);
+    const capabilityResponse = awaitResponse.responses[callbackId];
+    if (!capabilityResponse) {
+      throw new CapabilityError(`No response found for capability '${capabilityId}' method '${method}' (callback ID ${callbackId}): the host returned a response map that does not contain an entry for this call`, {
+        capabilityId,
+        method,
+        callbackId
+      });
+    }
+    const response = capabilityResponse.response;
+    switch (response.case) {
+      case "payload": {
+        try {
+          return anyUnpack(response.value, outputSchema);
+        } catch {
+          throw new CapabilityError(`Failed to deserialize response payload for capability '${capabilityId}' method '${method}': the response could not be unpacked into the expected output schema`, {
+            capabilityId,
+            method,
+            callbackId
+          });
+        }
+      }
+      case "error":
+        throw new CapabilityError(`Capability '${capabilityId}' method '${method}' returned an error: ${response.value}`, {
+          capabilityId,
+          method,
+          callbackId
+        });
+      default:
+        throw new CapabilityError(`Unexpected response type '${response.case}' for capability '${capabilityId}' method '${method}': expected 'payload' or 'error'`, {
+          capabilityId,
+          method,
+          callbackId
+        });
+    }
+  }
+  getNextCallId() {
+    return this.nextCallId;
+  }
+  now() {
+    return new Date(this.helpers.now());
+  }
+  log(message) {
+    this.helpers.log(message);
+  }
+}
+
+class NodeRuntimeImpl extends BaseRuntimeImpl {
+  _isNodeRuntime = true;
+  constructor(config, nextCallId, helpers, maxResponseSize) {
+    helpers.switchModes(Mode.NODE);
+    super(config, nextCallId, helpers, maxResponseSize, Mode.NODE);
+  }
+}
+
+class RuntimeImpl extends BaseRuntimeImpl {
+  nextNodeCallId = -1;
+  constructor(config, nextCallId, helpers, maxResponseSize) {
+    helpers.switchModes(Mode.DON);
+    super(config, nextCallId, helpers, maxResponseSize, Mode.DON);
+  }
+  runInNodeMode(fn, consensusAggregation, unwrapOptions) {
+    return (...args) => {
+      this.modeError = new DonModeError;
+      const nodeRuntime = new NodeRuntimeImpl(this.config, this.nextNodeCallId, this.helpers, this.maxResponseSize);
+      const consensusInput = this.prepareConsensusInput(consensusAggregation);
+      try {
+        const observation = fn(nodeRuntime, ...args);
+        this.captureObservation(consensusInput, observation, consensusAggregation.descriptor);
+      } catch (e) {
+        this.captureError(consensusInput, e);
+      } finally {
+        this.restoreDonMode(nodeRuntime);
+      }
+      return this.runConsensusAndWrap(consensusInput, unwrapOptions);
+    };
+  }
+  prepareConsensusInput(consensusAggregation) {
+    const consensusInput = create(SimpleConsensusInputsSchema, {
+      descriptors: consensusAggregation.descriptor
+    });
+    if (consensusAggregation.defaultValue) {
+      const defaultValue = Value.from(consensusAggregation.defaultValue).proto();
+      clearIgnoredFields(defaultValue, consensusAggregation.descriptor);
+      consensusInput.default = defaultValue;
+    }
+    return consensusInput;
+  }
+  captureObservation(consensusInput, observation, descriptor) {
+    const observationValue = Value.from(observation).proto();
+    clearIgnoredFields(observationValue, descriptor);
+    consensusInput.observation = {
+      case: "value",
+      value: observationValue
+    };
+  }
+  captureError(consensusInput, e) {
+    consensusInput.observation = {
+      case: "error",
+      value: e instanceof Error && e.message || String(e)
+    };
+  }
+  restoreDonMode(nodeRuntime) {
+    this.modeError = undefined;
+    this.nextNodeCallId = nodeRuntime.nextCallId;
+    nodeRuntime.modeError = new NodeModeError;
+    this.helpers.switchModes(Mode.DON);
+  }
+  runConsensusAndWrap(consensusInput, unwrapOptions) {
+    const consensus = new ConsensusCapability;
+    const call = consensus.simple(this, consensusInput);
+    return {
+      result: () => {
+        const result = call.result();
+        const wrappedValue = Value.wrap(result);
+        return unwrapOptions ? wrappedValue.unwrapToType(unwrapOptions) : wrappedValue.unwrap();
+      }
+    };
+  }
+  getSecret(request) {
+    if (this.modeError) {
+      return {
+        result: () => {
+          throw this.modeError;
+        }
+      };
+    }
+    const secretRequest = request.$typeName ? request : create(SecretRequestSchema, request);
+    const id = this.nextCallId;
+    this.nextCallId++;
+    const secretsReq = create(GetSecretsRequestSchema, {
+      callbackId: id,
+      requests: [secretRequest]
+    });
+    if (!this.helpers.getSecrets(secretsReq, this.maxResponseSize)) {
+      return {
+        result: () => {
+          throw new SecretsError(secretRequest, "host is not making the secrets request");
+        }
+      };
+    }
+    return {
+      result: () => this.awaitAndUnwrapSecret(id, secretRequest)
+    };
+  }
+  awaitAndUnwrapSecret(id, secretRequest) {
+    const awaitRequest = create(AwaitSecretsRequestSchema, { ids: [id] });
+    const awaitResponse = this.helpers.awaitSecrets(awaitRequest, this.maxResponseSize);
+    const secretsResponse = awaitResponse.responses[id];
+    if (!secretsResponse) {
+      throw new SecretsError(secretRequest, "no response");
+    }
+    const responses = secretsResponse.responses;
+    if (responses.length !== 1) {
+      throw new SecretsError(secretRequest, "invalid value returned from host");
+    }
+    const response = responses[0].response;
+    switch (response.case) {
+      case "secret":
+        return response.value;
+      case "error":
+        throw new SecretsError(secretRequest, response.value.error);
+      default:
+        throw new SecretsError(secretRequest, "cannot unmarshal returned value from host");
+    }
+  }
+  report(input) {
+    const consensus = new ConsensusCapability;
+    const call = consensus.report(this, input);
+    return {
+      result: () => call.result()
+    };
+  }
+}
+function clearIgnoredFields(value2, descriptor) {
+  if (!descriptor || !value2) {
+    return;
+  }
+  const fieldsMap = descriptor.descriptor?.case === "fieldsMap" ? descriptor.descriptor.value : undefined;
+  if (!fieldsMap) {
+    return;
+  }
+  if (value2.value?.case === "mapValue") {
+    const mapValue = value2.value.value;
+    if (!mapValue || !mapValue.fields) {
+      return;
+    }
+    for (const [key, val] of Object.entries(mapValue.fields)) {
+      const nestedDescriptor = fieldsMap.fields[key];
+      if (!nestedDescriptor) {
+        delete mapValue.fields[key];
+        continue;
+      }
+      const nestedFieldsMap = nestedDescriptor.descriptor?.case === "fieldsMap" ? nestedDescriptor.descriptor.value : undefined;
+      if (nestedFieldsMap && val.value?.case === "mapValue") {
+        clearIgnoredFields(val, nestedDescriptor);
+      }
+    }
+  }
+}
+
+class Runtime extends RuntimeImpl {
+  constructor(config, nextCallId, maxResponseSize) {
+    super(config, nextCallId, WasmRuntimeHelpers.getInstance(), maxResponseSize);
+  }
+}
+function toI32ResponseSize(maxResponseSize) {
+  if (maxResponseSize > 2147483647n || maxResponseSize < -2147483648n) {
+    throw new Error(`maxResponseSize ${maxResponseSize} exceeds i32 range. Expected a value between -2147483648 and 2147483647`);
+  }
+  return Math.trunc(Number(maxResponseSize));
+}
+
+class WasmRuntimeHelpers {
+  static instance;
+  constructor() {}
+  now() {
+    return hostBindings.now();
+  }
+  static getInstance() {
+    if (!WasmRuntimeHelpers.instance) {
+      WasmRuntimeHelpers.instance = new WasmRuntimeHelpers;
+    }
+    return WasmRuntimeHelpers.instance;
+  }
+  call(request) {
+    return hostBindings.callCapability(toBinary(CapabilityRequestSchema, request)) >= 0;
+  }
+  await(request, maxResponseSize) {
+    const responseSize = toI32ResponseSize(maxResponseSize);
+    const response = hostBindings.awaitCapabilities(toBinary(AwaitCapabilitiesRequestSchema, request), responseSize);
+    const responseBytes = Array.isArray(response) ? new Uint8Array(response) : response;
+    return fromBinary(AwaitCapabilitiesResponseSchema, responseBytes);
+  }
+  getSecrets(request, maxResponseSize) {
+    const responseSize = toI32ResponseSize(maxResponseSize);
+    return hostBindings.getSecrets(toBinary(GetSecretsRequestSchema, request), responseSize) >= 0;
+  }
+  awaitSecrets(request, maxResponseSize) {
+    const responseSize = toI32ResponseSize(maxResponseSize);
+    const response = hostBindings.awaitSecrets(toBinary(AwaitSecretsRequestSchema, request), responseSize);
+    const responseBytes = Array.isArray(response) ? new Uint8Array(response) : response;
+    return fromBinary(AwaitSecretsResponseSchema, responseBytes);
+  }
+  switchModes(mode) {
+    hostBindings.switchModes(mode);
+  }
+  log(message) {
+    hostBindings.log(message);
+  }
+}
+
+class Runner {
+  config;
+  request;
+  constructor(config, request) {
+    this.config = config;
+    this.request = request;
+  }
+  static async newRunner(configHandlerParams) {
+    hostBindings.versionV2();
+    const request = Runner.getRequest();
+    const config = await configHandler(request, configHandlerParams);
+    return new Runner(config, request);
+  }
+  static getRequest() {
+    const argsString = hostBindings.getWasiArgs();
+    let args;
+    try {
+      args = JSON.parse(argsString);
+    } catch (e) {
+      throw new Error("Invalid request: could not parse WASI arguments as JSON. Ensure the WASM runtime is passing valid arguments to the workflow");
+    }
+    if (args.length !== 2) {
+      throw new Error(`Invalid request: expected exactly 2 WASI arguments (script name and base64-encoded request payload), but received ${args.length}`);
+    }
+    const base64Request = args[1];
+    const bytes = Buffer.from(base64Request, "base64");
+    return fromBinary(ExecuteRequestSchema, bytes);
+  }
+  async run(initFn) {
+    const runtime = new Runtime(this.config, 0, this.request.maxResponseSize);
+    let result;
+    try {
+      const workflow = await initFn(this.config, {
+        getSecret: runtime.getSecret.bind(runtime)
+      });
+      switch (this.request.request.case) {
+        case "subscribe":
+          result = this.handleSubscribePhase(this.request, workflow);
+          break;
+        case "trigger":
+          result = this.handleExecutionPhase(this.request, workflow, runtime);
+          break;
+        default:
+          throw new Error(`Unknown request type '${this.request.request.case}': expected 'subscribe' or 'trigger'. This may indicate a version mismatch between the SDK and the CRE runtime`);
+      }
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e);
+      result = create(ExecutionResultSchema, {
+        result: { case: "error", value: err }
+      });
+    }
+    const awaitedResult = await result;
+    hostBindings.sendResponse(toBinary(ExecutionResultSchema, awaitedResult));
+  }
+  async handleExecutionPhase(req, workflow, runtime) {
+    if (req.request.case !== "trigger") {
+      throw new Error(`cannot handle non-trigger request as a trigger: received request type '${req.request.case}' in handleExecutionPhase. This is an internal SDK error`);
+    }
+    const triggerMsg = req.request.value;
+    const id = BigInt(triggerMsg.id);
+    if (id > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error(`Trigger ID ${id} exceeds JavaScript safe integer range (Number.MAX_SAFE_INTEGER = ${Number.MAX_SAFE_INTEGER}). This trigger ID cannot be safely represented as a number`);
+    }
+    const index = Number(triggerMsg.id);
+    if (Number.isFinite(index) && index >= 0 && index < workflow.length) {
+      const entry = workflow[index];
+      const schema = entry.trigger.outputSchema();
+      if (!triggerMsg.payload) {
+        return create(ExecutionResultSchema, {
+          result: {
+            case: "error",
+            value: `trigger payload is missing for handler at index ${index} (trigger ID ${triggerMsg.id}). The trigger event must include a payload`
+          }
+        });
+      }
+      const payloadAny = triggerMsg.payload;
+      const decoded = fromBinary(schema, payloadAny.value);
+      const adapted = entry.trigger.adapt(decoded);
+      try {
+        const result = await entry.fn(runtime, adapted);
+        const wrapped = Value.wrap(result);
+        return create(ExecutionResultSchema, {
+          result: { case: "value", value: wrapped.proto() }
+        });
+      } catch (e) {
+        const err = e instanceof Error ? e.message : String(e);
+        return create(ExecutionResultSchema, {
+          result: { case: "error", value: err }
+        });
+      }
+    }
+    return create(ExecutionResultSchema, {
+      result: {
+        case: "error",
+        value: `trigger not found: no workflow handler registered at index ${index} (trigger ID ${triggerMsg.id}). The workflow has ${workflow.length} handler(s) registered. Verify the trigger subscription matches a registered handler`
+      }
+    });
+  }
+  handleSubscribePhase(req, workflow) {
+    if (req.request.case !== "subscribe") {
+      return create(ExecutionResultSchema, {
+        result: {
+          case: "error",
+          value: `subscribe request expected but received '${req.request.case}' in handleSubscribePhase. This is an internal SDK error`
+        }
+      });
+    }
+    const subscriptions = workflow.map((entry) => ({
+      id: entry.trigger.capabilityId(),
+      method: entry.trigger.method(),
+      payload: entry.trigger.configAsAny()
+    }));
+    const subscriptionRequest = create(TriggerSubscriptionRequestSchema, {
+      subscriptions
+    });
+    return create(ExecutionResultSchema, {
+      result: { case: "triggerSubscriptions", value: subscriptionRequest }
+    });
+  }
+}
+var prepareErrorResponse = (error) => {
+  let errorMessage = null;
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  } else if (typeof error === "string") {
+    errorMessage = error;
+  } else {
+    errorMessage = String(error) || null;
+  }
+  if (typeof errorMessage !== "string") {
+    return null;
+  }
+  const result = create(ExecutionResultSchema, {
+    result: { case: "error", value: errorMessage }
+  });
+  return toBinary(ExecutionResultSchema, result);
+};
+var sendErrorResponse = (error) => {
+  const payload = prepareErrorResponse(error);
+  if (payload === null) {
+    console.error("Failed to serialize error response: the error could not be converted to a string. Original error:", error);
+    const fallback = prepareErrorResponse("Unknown error: the original error could not be serialized");
+    if (fallback !== null) {
+      hostBindings.sendResponse(fallback);
+    }
+    return;
+  }
+  hostBindings.sendResponse(payload);
+};
+var API_KEY_SECRET_NAMESPACE = "sub0";
+var API_KEY_SECRET_ID = "HTTP_API_KEY";
+function verifyApiKey(runtime2, body) {
+  try {
+    const secret = runtime2.getSecret({ id: API_KEY_SECRET_ID, namespace: API_KEY_SECRET_NAMESPACE }).result();
+    const expected = secret?.value?.trim() ?? "";
+    if (expected.length === 0)
+      return;
+    const provided = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+    if (provided !== expected) {
+      runtime2.log("HTTP trigger: API key missing or invalid.");
+      throw new Error("Unauthorized: invalid or missing apiKey");
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message === "Unauthorized: invalid or missing apiKey")
+      throw err;
+    return;
+  }
+}
+init_abi();
+init_address();
+init_base();
+
+class InvalidDomainError extends BaseError {
+  constructor({ domain }) {
+    super(`Invalid domain "${stringify(domain)}".`, {
+      metaMessages: ["Must be a valid EIP-712 domain."]
+    });
+  }
+}
+
+class InvalidPrimaryTypeError extends BaseError {
+  constructor({ primaryType, types: types4 }) {
+    super(`Invalid primary type \`${primaryType}\` must be one of \`${JSON.stringify(Object.keys(types4))}\`.`, {
+      docsPath: "/api/glossary/Errors#typeddatainvalidprimarytypeerror",
+      metaMessages: ["Check that the primary type is a key in `types`."]
+    });
+  }
+}
+
+class InvalidStructTypeError extends BaseError {
+  constructor({ type }) {
+    super(`Struct type "${type}" is invalid.`, {
+      metaMessages: ["Struct type must not be a Solidity type."],
+      name: "InvalidStructTypeError"
+    });
+  }
+}
+init_isAddress();
+init_size();
+init_toHex();
+init_regex2();
+init_encodeAbiParameters();
+init_toHex();
+init_keccak256();
+function hashTypedData(parameters) {
+  const { domain = {}, message, primaryType } = parameters;
+  const types4 = {
+    EIP712Domain: getTypesForEIP712Domain({ domain }),
+    ...parameters.types
+  };
+  validateTypedData({
+    domain,
+    message,
+    primaryType,
+    types: types4
+  });
+  const parts = ["0x1901"];
+  if (domain)
+    parts.push(hashDomain({
+      domain,
+      types: types4
+    }));
+  if (primaryType !== "EIP712Domain")
+    parts.push(hashStruct({
+      data: message,
+      primaryType,
+      types: types4
+    }));
+  return keccak256(concat(parts));
+}
+function hashDomain({ domain, types: types4 }) {
+  return hashStruct({
+    data: domain,
+    primaryType: "EIP712Domain",
+    types: types4
+  });
+}
+function hashStruct({ data, primaryType, types: types4 }) {
+  const encoded = encodeData({
+    data,
+    primaryType,
+    types: types4
+  });
+  return keccak256(encoded);
+}
+function encodeData({ data, primaryType, types: types4 }) {
+  const encodedTypes = [{ type: "bytes32" }];
+  const encodedValues = [hashType({ primaryType, types: types4 })];
+  for (const field of types4[primaryType]) {
+    const [type, value2] = encodeField({
+      types: types4,
+      name: field.name,
+      type: field.type,
+      value: data[field.name]
+    });
+    encodedTypes.push(type);
+    encodedValues.push(value2);
+  }
+  return encodeAbiParameters(encodedTypes, encodedValues);
+}
+function hashType({ primaryType, types: types4 }) {
+  const encodedHashType = toHex(encodeType({ primaryType, types: types4 }));
+  return keccak256(encodedHashType);
+}
+function encodeType({ primaryType, types: types4 }) {
+  let result = "";
+  const unsortedDeps = findTypeDependencies({ primaryType, types: types4 });
+  unsortedDeps.delete(primaryType);
+  const deps = [primaryType, ...Array.from(unsortedDeps).sort()];
+  for (const type of deps) {
+    result += `${type}(${types4[type].map(({ name, type: t }) => `${t} ${name}`).join(",")})`;
+  }
+  return result;
+}
+function findTypeDependencies({ primaryType: primaryType_, types: types4 }, results = new Set) {
+  const match = primaryType_.match(/^\w*/u);
+  const primaryType = match?.[0];
+  if (results.has(primaryType) || types4[primaryType] === undefined) {
+    return results;
+  }
+  results.add(primaryType);
+  for (const field of types4[primaryType]) {
+    findTypeDependencies({ primaryType: field.type, types: types4 }, results);
+  }
+  return results;
+}
+function encodeField({ types: types4, name, type, value: value2 }) {
+  if (types4[type] !== undefined) {
+    return [
+      { type: "bytes32" },
+      keccak256(encodeData({ data: value2, primaryType: type, types: types4 }))
+    ];
+  }
+  if (type === "bytes") {
+    const prepend = value2.length % 2 ? "0" : "";
+    value2 = `0x${prepend + value2.slice(2)}`;
+    return [{ type: "bytes32" }, keccak256(value2)];
+  }
+  if (type === "string")
+    return [{ type: "bytes32" }, keccak256(toHex(value2))];
+  if (type.lastIndexOf("]") === type.length - 1) {
+    const parsedType = type.slice(0, type.lastIndexOf("["));
+    const typeValuePairs = value2.map((item) => encodeField({
+      name,
+      type: parsedType,
+      types: types4,
+      value: item
+    }));
+    return [
+      { type: "bytes32" },
+      keccak256(encodeAbiParameters(typeValuePairs.map(([t]) => t), typeValuePairs.map(([, v]) => v)))
+    ];
+  }
+  return [{ type }, value2];
+}
+function validateTypedData(parameters) {
+  const { domain, message, primaryType, types: types4 } = parameters;
+  const validateData = (struct, data) => {
+    for (const param of struct) {
+      const { name, type } = param;
+      const value2 = data[name];
+      const integerMatch = type.match(integerRegex);
+      if (integerMatch && (typeof value2 === "number" || typeof value2 === "bigint")) {
+        const [_type, base, size_] = integerMatch;
+        numberToHex(value2, {
+          signed: base === "int",
+          size: Number.parseInt(size_) / 8
+        });
+      }
+      if (type === "address" && typeof value2 === "string" && !isAddress(value2))
+        throw new InvalidAddressError({ address: value2 });
+      const bytesMatch = type.match(bytesRegex);
+      if (bytesMatch) {
+        const [_type, size_] = bytesMatch;
+        if (size_ && size(value2) !== Number.parseInt(size_))
+          throw new BytesSizeMismatchError({
+            expectedSize: Number.parseInt(size_),
+            givenSize: size(value2)
+          });
+      }
+      const struct2 = types4[type];
+      if (struct2) {
+        validateReference(type);
+        validateData(struct2, value2);
+      }
+    }
+  };
+  if (types4.EIP712Domain && domain) {
+    if (typeof domain !== "object")
+      throw new InvalidDomainError({ domain });
+    validateData(types4.EIP712Domain, domain);
+  }
+  if (primaryType !== "EIP712Domain") {
+    if (types4[primaryType])
+      validateData(types4[primaryType], message);
+    else
+      throw new InvalidPrimaryTypeError({ primaryType, types: types4 });
+  }
+}
+function getTypesForEIP712Domain({ domain }) {
+  return [
+    typeof domain?.name === "string" && { name: "name", type: "string" },
+    domain?.version && { name: "version", type: "string" },
+    (typeof domain?.chainId === "number" || typeof domain?.chainId === "bigint") && {
+      name: "chainId",
+      type: "uint256"
+    },
+    domain?.verifyingContract && {
+      name: "verifyingContract",
+      type: "address"
+    },
+    domain?.salt && { name: "salt", type: "bytes32" }
+  ].filter(Boolean);
+}
+function validateReference(type) {
+  if (type === "address" || type === "bool" || type === "string" || type.startsWith("bytes") || type.startsWith("uint") || type.startsWith("int"))
+    throw new InvalidStructTypeError({ type });
+}
+init_abi();
+init_address();
+init_isAddress();
+init_pad();
+init_toHex();
+init_regex2();
+function encodePacked(types4, values) {
+  if (types4.length !== values.length)
+    throw new AbiEncodingLengthMismatchError({
+      expectedLength: types4.length,
+      givenLength: values.length
+    });
+  const data = [];
+  for (let i2 = 0;i2 < types4.length; i2++) {
+    const type = types4[i2];
+    const value2 = values[i2];
+    data.push(encode(type, value2));
+  }
+  return concatHex(data);
+}
+function encode(type, value2, isArray = false) {
+  if (type === "address") {
+    const address = value2;
+    if (!isAddress(address))
+      throw new InvalidAddressError({ address });
+    return pad(address.toLowerCase(), {
+      size: isArray ? 32 : null
+    });
+  }
+  if (type === "string")
+    return stringToHex(value2);
+  if (type === "bytes")
+    return value2;
+  if (type === "bool")
+    return pad(boolToHex(value2), { size: isArray ? 32 : 1 });
+  const intMatch = type.match(integerRegex);
+  if (intMatch) {
+    const [_type, baseType, bits = "256"] = intMatch;
+    const size2 = Number.parseInt(bits) / 8;
+    return numberToHex(value2, {
+      size: isArray ? 32 : size2,
+      signed: baseType === "int"
+    });
+  }
+  const bytesMatch = type.match(bytesRegex);
+  if (bytesMatch) {
+    const [_type, size2] = bytesMatch;
+    if (Number.parseInt(size2) !== (value2.length - 2) / 2)
+      throw new BytesSizeMismatchError({
+        expectedSize: Number.parseInt(size2),
+        givenSize: (value2.length - 2) / 2
+      });
+    return pad(value2, { dir: "right", size: isArray ? 32 : null });
+  }
+  const arrayMatch = type.match(arrayRegex);
+  if (arrayMatch && Array.isArray(value2)) {
+    const [_type, childType] = arrayMatch;
+    const data = [];
+    for (let i2 = 0;i2 < value2.length; i2++) {
+      data.push(encode(childType, value2[i2], true));
+    }
+    if (data.length === 0)
+      return "0x";
+    return concatHex(data);
+  }
+  throw new UnsupportedPackedAbiType(type);
+}
+var zeroAddress = "0x0000000000000000000000000000000000000000";
+init_secp256k1();
+init_fromHex();
+init_toBytes();
+function serializeSignature({ r, s, to = "hex", v, yParity }) {
+  const yParity_ = (() => {
+    if (yParity === 0 || yParity === 1)
+      return yParity;
+    if (v && (v === 27n || v === 28n || v >= 35n))
+      return v % 2n === 0n ? 1 : 0;
+    throw new Error("Invalid `v` or `yParity` value");
+  })();
+  const signature = `0x${new secp256k1.Signature(hexToBigInt(r), hexToBigInt(s)).toCompactHex()}${yParity_ === 0 ? "1b" : "1c"}`;
+  if (to === "hex")
+    return signature;
+  return hexToBytes2(signature);
+}
+init_decodeFunctionResult();
+init_encodeFunctionData();
+init_toBytes();
+init_toHex();
+init_getAddress();
+init_keccak256();
+init_utils2();
+function setBigUint642(view, byteOffset, value2, isLE2) {
+  if (typeof view.setBigUint64 === "function")
+    return view.setBigUint64(byteOffset, value2, isLE2);
+  const _32n2 = BigInt(32);
+  const _u32_max = BigInt(4294967295);
+  const wh = Number(value2 >> _32n2 & _u32_max);
+  const wl = Number(value2 & _u32_max);
+  const h = isLE2 ? 4 : 0;
+  const l = isLE2 ? 0 : 4;
+  view.setUint32(byteOffset + h, wh, isLE2);
+  view.setUint32(byteOffset + l, wl, isLE2);
+}
+function Chi2(a, b, c) {
+  return a & b ^ ~a & c;
+}
+function Maj2(a, b, c) {
+  return a & b ^ a & c ^ b & c;
+}
+
+class HashMD2 extends Hash2 {
+  constructor(blockLen, outputLen, padOffset, isLE2) {
+    super();
+    this.finished = false;
+    this.length = 0;
+    this.pos = 0;
+    this.destroyed = false;
+    this.blockLen = blockLen;
+    this.outputLen = outputLen;
+    this.padOffset = padOffset;
+    this.isLE = isLE2;
+    this.buffer = new Uint8Array(blockLen);
+    this.view = createView2(this.buffer);
+  }
+  update(data) {
+    aexists2(this);
+    data = toBytes3(data);
+    abytes2(data);
+    const { view, buffer, blockLen } = this;
+    const len2 = data.length;
+    for (let pos = 0;pos < len2; ) {
+      const take = Math.min(blockLen - this.pos, len2 - pos);
+      if (take === blockLen) {
+        const dataView = createView2(data);
+        for (;blockLen <= len2 - pos; pos += blockLen)
+          this.process(dataView, pos);
+        continue;
+      }
+      buffer.set(data.subarray(pos, pos + take), this.pos);
+      this.pos += take;
+      pos += take;
+      if (this.pos === blockLen) {
+        this.process(view, 0);
+        this.pos = 0;
+      }
+    }
+    this.length += data.length;
+    this.roundClean();
+    return this;
+  }
+  digestInto(out) {
+    aexists2(this);
+    aoutput2(out, this);
+    this.finished = true;
+    const { buffer, view, blockLen, isLE: isLE2 } = this;
+    let { pos } = this;
+    buffer[pos++] = 128;
+    clean2(this.buffer.subarray(pos));
+    if (this.padOffset > blockLen - pos) {
+      this.process(view, 0);
+      pos = 0;
+    }
+    for (let i2 = pos;i2 < blockLen; i2++)
+      buffer[i2] = 0;
+    setBigUint642(view, blockLen - 8, BigInt(this.length * 8), isLE2);
+    this.process(view, 0);
+    const oview = createView2(out);
+    const len2 = this.outputLen;
+    if (len2 % 4)
+      throw new Error("_sha2: outputLen should be aligned to 32bit");
+    const outLen = len2 / 4;
+    const state = this.get();
+    if (outLen > state.length)
+      throw new Error("_sha2: outputLen bigger than state");
+    for (let i2 = 0;i2 < outLen; i2++)
+      oview.setUint32(4 * i2, state[i2], isLE2);
+  }
+  digest() {
+    const { buffer, outputLen } = this;
+    this.digestInto(buffer);
+    const res = buffer.slice(0, outputLen);
+    this.destroy();
+    return res;
+  }
+  _cloneInto(to) {
+    to || (to = new this.constructor);
+    to.set(...this.get());
+    const { blockLen, buffer, length, finished, destroyed, pos } = this;
+    to.destroyed = destroyed;
+    to.finished = finished;
+    to.length = length;
+    to.pos = pos;
+    if (length % blockLen)
+      to.buffer.set(buffer);
+    return to;
+  }
+  clone() {
+    return this._cloneInto();
+  }
+}
+var SHA256_IV2 = /* @__PURE__ */ Uint32Array.from([
+  1779033703,
+  3144134277,
+  1013904242,
+  2773480762,
+  1359893119,
+  2600822924,
+  528734635,
+  1541459225
+]);
+init_utils2();
+var SHA256_K2 = /* @__PURE__ */ Uint32Array.from([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
+var SHA256_W2 = /* @__PURE__ */ new Uint32Array(64);
+
+class SHA2562 extends HashMD2 {
+  constructor(outputLen = 32) {
+    super(64, outputLen, 8, false);
+    this.A = SHA256_IV2[0] | 0;
+    this.B = SHA256_IV2[1] | 0;
+    this.C = SHA256_IV2[2] | 0;
+    this.D = SHA256_IV2[3] | 0;
+    this.E = SHA256_IV2[4] | 0;
+    this.F = SHA256_IV2[5] | 0;
+    this.G = SHA256_IV2[6] | 0;
+    this.H = SHA256_IV2[7] | 0;
+  }
+  get() {
+    const { A, B, C, D, E: E2, F, G, H } = this;
+    return [A, B, C, D, E2, F, G, H];
+  }
+  set(A, B, C, D, E2, F, G, H) {
+    this.A = A | 0;
+    this.B = B | 0;
+    this.C = C | 0;
+    this.D = D | 0;
+    this.E = E2 | 0;
+    this.F = F | 0;
+    this.G = G | 0;
+    this.H = H | 0;
+  }
+  process(view, offset) {
+    for (let i2 = 0;i2 < 16; i2++, offset += 4)
+      SHA256_W2[i2] = view.getUint32(offset, false);
+    for (let i2 = 16;i2 < 64; i2++) {
+      const W15 = SHA256_W2[i2 - 15];
+      const W2 = SHA256_W2[i2 - 2];
+      const s0 = rotr2(W15, 7) ^ rotr2(W15, 18) ^ W15 >>> 3;
+      const s1 = rotr2(W2, 17) ^ rotr2(W2, 19) ^ W2 >>> 10;
+      SHA256_W2[i2] = s1 + SHA256_W2[i2 - 7] + s0 + SHA256_W2[i2 - 16] | 0;
+    }
+    let { A, B, C, D, E: E2, F, G, H } = this;
+    for (let i2 = 0;i2 < 64; i2++) {
+      const sigma1 = rotr2(E2, 6) ^ rotr2(E2, 11) ^ rotr2(E2, 25);
+      const T1 = H + sigma1 + Chi2(E2, F, G) + SHA256_K2[i2] + SHA256_W2[i2] | 0;
+      const sigma0 = rotr2(A, 2) ^ rotr2(A, 13) ^ rotr2(A, 22);
+      const T2 = sigma0 + Maj2(A, B, C) | 0;
+      H = G;
+      G = F;
+      F = E2;
+      E2 = D + T1 | 0;
+      D = C;
+      C = B;
+      B = A;
+      A = T1 + T2 | 0;
+    }
+    A = A + this.A | 0;
+    B = B + this.B | 0;
+    C = C + this.C | 0;
+    D = D + this.D | 0;
+    E2 = E2 + this.E | 0;
+    F = F + this.F | 0;
+    G = G + this.G | 0;
+    H = H + this.H | 0;
+    this.set(A, B, C, D, E2, F, G, H);
+  }
+  roundClean() {
+    clean2(SHA256_W2);
+  }
+  destroy() {
+    this.set(0, 0, 0, 0, 0, 0, 0, 0);
+    clean2(this.buffer);
+  }
+}
+var sha2562 = /* @__PURE__ */ createHasher2(() => new SHA2562);
+init_utils2();
+
+class HMAC2 extends Hash2 {
+  constructor(hash2, _key) {
+    super();
+    this.finished = false;
+    this.destroyed = false;
+    ahash2(hash2);
+    const key = toBytes3(_key);
+    this.iHash = hash2.create();
+    if (typeof this.iHash.update !== "function")
+      throw new Error("Expected instance of class which extends utils.Hash");
+    this.blockLen = this.iHash.blockLen;
+    this.outputLen = this.iHash.outputLen;
+    const blockLen = this.blockLen;
+    const pad2 = new Uint8Array(blockLen);
+    pad2.set(key.length > blockLen ? hash2.create().update(key).digest() : key);
+    for (let i2 = 0;i2 < pad2.length; i2++)
+      pad2[i2] ^= 54;
+    this.iHash.update(pad2);
+    this.oHash = hash2.create();
+    for (let i2 = 0;i2 < pad2.length; i2++)
+      pad2[i2] ^= 54 ^ 92;
+    this.oHash.update(pad2);
+    clean2(pad2);
+  }
+  update(buf) {
+    aexists2(this);
+    this.iHash.update(buf);
+    return this;
+  }
+  digestInto(out) {
+    aexists2(this);
+    abytes2(out, this.outputLen);
+    this.finished = true;
+    this.iHash.digestInto(out);
+    this.oHash.update(out);
+    this.oHash.digestInto(out);
+    this.destroy();
+  }
+  digest() {
+    const out = new Uint8Array(this.oHash.outputLen);
+    this.digestInto(out);
+    return out;
+  }
+  _cloneInto(to) {
+    to || (to = Object.create(Object.getPrototypeOf(this), {}));
+    const { oHash, iHash, finished, destroyed, blockLen, outputLen } = this;
+    to = to;
+    to.finished = finished;
+    to.destroyed = destroyed;
+    to.blockLen = blockLen;
+    to.outputLen = outputLen;
+    to.oHash = oHash._cloneInto(to.oHash);
+    to.iHash = iHash._cloneInto(to.iHash);
+    return to;
+  }
+  clone() {
+    return this._cloneInto();
+  }
+  destroy() {
+    this.destroyed = true;
+    this.oHash.destroy();
+    this.iHash.destroy();
+  }
+}
+var hmac2 = (hash2, key, message) => new HMAC2(hash2, key).update(message).digest();
+hmac2.create = (hash2, key) => new HMAC2(hash2, key);
+init_utils2();
+init_utils3();
+init_utils3();
+init_utils3();
+/*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+var _0n7 = BigInt(0);
+var _1n7 = BigInt(1);
+var _2n5 = /* @__PURE__ */ BigInt(2);
+var _3n3 = /* @__PURE__ */ BigInt(3);
+var _4n3 = /* @__PURE__ */ BigInt(4);
+var _5n2 = /* @__PURE__ */ BigInt(5);
+var _7n3 = /* @__PURE__ */ BigInt(7);
+var _8n2 = /* @__PURE__ */ BigInt(8);
+var _9n2 = /* @__PURE__ */ BigInt(9);
+var _16n2 = /* @__PURE__ */ BigInt(16);
+function mod2(a, b) {
+  const result = a % b;
+  return result >= _0n7 ? result : b + result;
+}
+function pow22(x, power, modulo) {
+  let res = x;
+  while (power-- > _0n7) {
+    res *= res;
+    res %= modulo;
+  }
+  return res;
+}
+function invert2(number, modulo) {
+  if (number === _0n7)
+    throw new Error("invert: expected non-zero number");
+  if (modulo <= _0n7)
+    throw new Error("invert: expected positive modulus, got " + modulo);
+  let a = mod2(number, modulo);
+  let b = modulo;
+  let x = _0n7, y = _1n7, u = _1n7, v = _0n7;
+  while (a !== _0n7) {
+    const q = b / a;
+    const r = b % a;
+    const m = x - u * q;
+    const n = y - v * q;
+    b = a, a = r, x = u, y = v, u = m, v = n;
+  }
+  const gcd = b;
+  if (gcd !== _1n7)
+    throw new Error("invert: does not exist");
+  return mod2(x, modulo);
+}
+function assertIsSquare2(Fp, root, n) {
+  if (!Fp.eql(Fp.sqr(root), n))
+    throw new Error("Cannot find square root");
+}
+function sqrt3mod42(Fp, n) {
+  const p1div4 = (Fp.ORDER + _1n7) / _4n3;
+  const root = Fp.pow(n, p1div4);
+  assertIsSquare2(Fp, root, n);
+  return root;
+}
+function sqrt5mod82(Fp, n) {
+  const p5div8 = (Fp.ORDER - _5n2) / _8n2;
+  const n2 = Fp.mul(n, _2n5);
+  const v = Fp.pow(n2, p5div8);
+  const nv = Fp.mul(n, v);
+  const i2 = Fp.mul(Fp.mul(nv, _2n5), v);
+  const root = Fp.mul(nv, Fp.sub(i2, Fp.ONE));
+  assertIsSquare2(Fp, root, n);
+  return root;
+}
+function sqrt9mod162(P) {
+  const Fp_ = Field2(P);
+  const tn = tonelliShanks2(P);
+  const c1 = tn(Fp_, Fp_.neg(Fp_.ONE));
+  const c2 = tn(Fp_, c1);
+  const c3 = tn(Fp_, Fp_.neg(c1));
+  const c4 = (P + _7n3) / _16n2;
+  return (Fp, n) => {
+    let tv1 = Fp.pow(n, c4);
+    let tv2 = Fp.mul(tv1, c1);
+    const tv3 = Fp.mul(tv1, c2);
+    const tv4 = Fp.mul(tv1, c3);
+    const e1 = Fp.eql(Fp.sqr(tv2), n);
+    const e2 = Fp.eql(Fp.sqr(tv3), n);
+    tv1 = Fp.cmov(tv1, tv2, e1);
+    tv2 = Fp.cmov(tv4, tv3, e2);
+    const e3 = Fp.eql(Fp.sqr(tv2), n);
+    const root = Fp.cmov(tv1, tv2, e3);
+    assertIsSquare2(Fp, root, n);
+    return root;
+  };
+}
+function tonelliShanks2(P) {
+  if (P < _3n3)
+    throw new Error("sqrt is not defined for small field");
+  let Q = P - _1n7;
+  let S = 0;
+  while (Q % _2n5 === _0n7) {
+    Q /= _2n5;
+    S++;
+  }
+  let Z = _2n5;
+  const _Fp = Field2(P);
+  while (FpLegendre2(_Fp, Z) === 1) {
+    if (Z++ > 1000)
+      throw new Error("Cannot find square root: probably non-prime P");
+  }
+  if (S === 1)
+    return sqrt3mod42;
+  let cc = _Fp.pow(Z, Q);
+  const Q1div2 = (Q + _1n7) / _2n5;
+  return function tonelliSlow(Fp, n) {
+    if (Fp.is0(n))
+      return n;
+    if (FpLegendre2(Fp, n) !== 1)
+      throw new Error("Cannot find square root");
+    let M = S;
+    let c = Fp.mul(Fp.ONE, cc);
+    let t = Fp.pow(n, Q);
+    let R = Fp.pow(n, Q1div2);
+    while (!Fp.eql(t, Fp.ONE)) {
+      if (Fp.is0(t))
+        return Fp.ZERO;
+      let i2 = 1;
+      let t_tmp = Fp.sqr(t);
+      while (!Fp.eql(t_tmp, Fp.ONE)) {
+        i2++;
+        t_tmp = Fp.sqr(t_tmp);
+        if (i2 === M)
+          throw new Error("Cannot find square root");
+      }
+      const exponent = _1n7 << BigInt(M - i2 - 1);
+      const b = Fp.pow(c, exponent);
+      M = i2;
+      c = Fp.sqr(b);
+      t = Fp.mul(t, c);
+      R = Fp.mul(R, b);
+    }
+    return R;
+  };
+}
+function FpSqrt2(P) {
+  if (P % _4n3 === _3n3)
+    return sqrt3mod42;
+  if (P % _8n2 === _5n2)
+    return sqrt5mod82;
+  if (P % _16n2 === _9n2)
+    return sqrt9mod162(P);
+  return tonelliShanks2(P);
+}
+var FIELD_FIELDS2 = [
+  "create",
+  "isValid",
+  "is0",
+  "neg",
+  "inv",
+  "sqrt",
+  "sqr",
+  "eql",
+  "add",
+  "sub",
+  "mul",
+  "pow",
+  "div",
+  "addN",
+  "subN",
+  "mulN",
+  "sqrN"
+];
+function validateField2(field) {
+  const initial = {
+    ORDER: "bigint",
+    MASK: "bigint",
+    BYTES: "number",
+    BITS: "number"
+  };
+  const opts = FIELD_FIELDS2.reduce((map, val) => {
+    map[val] = "function";
+    return map;
+  }, initial);
+  _validateObject(field, opts);
+  return field;
+}
+function FpPow2(Fp, num, power) {
+  if (power < _0n7)
+    throw new Error("invalid exponent, negatives unsupported");
+  if (power === _0n7)
+    return Fp.ONE;
+  if (power === _1n7)
+    return num;
+  let p = Fp.ONE;
+  let d = num;
+  while (power > _0n7) {
+    if (power & _1n7)
+      p = Fp.mul(p, d);
+    d = Fp.sqr(d);
+    power >>= _1n7;
+  }
+  return p;
+}
+function FpInvertBatch2(Fp, nums, passZero = false) {
+  const inverted = new Array(nums.length).fill(passZero ? Fp.ZERO : undefined);
+  const multipliedAcc = nums.reduce((acc, num, i2) => {
+    if (Fp.is0(num))
+      return acc;
+    inverted[i2] = acc;
+    return Fp.mul(acc, num);
+  }, Fp.ONE);
+  const invertedAcc = Fp.inv(multipliedAcc);
+  nums.reduceRight((acc, num, i2) => {
+    if (Fp.is0(num))
+      return acc;
+    inverted[i2] = Fp.mul(acc, inverted[i2]);
+    return Fp.mul(acc, num);
+  }, invertedAcc);
+  return inverted;
+}
+function FpLegendre2(Fp, n) {
+  const p1mod2 = (Fp.ORDER - _1n7) / _2n5;
+  const powered = Fp.pow(n, p1mod2);
+  const yes = Fp.eql(powered, Fp.ONE);
+  const zero = Fp.eql(powered, Fp.ZERO);
+  const no = Fp.eql(powered, Fp.neg(Fp.ONE));
+  if (!yes && !zero && !no)
+    throw new Error("invalid Legendre symbol result");
+  return yes ? 1 : zero ? 0 : -1;
+}
+function nLength2(n, nBitLength) {
+  if (nBitLength !== undefined)
+    anumber2(nBitLength);
+  const _nBitLength = nBitLength !== undefined ? nBitLength : n.toString(2).length;
+  const nByteLength = Math.ceil(_nBitLength / 8);
+  return { nBitLength: _nBitLength, nByteLength };
+}
+function Field2(ORDER, bitLenOrOpts, isLE2 = false, opts = {}) {
+  if (ORDER <= _0n7)
+    throw new Error("invalid field: expected ORDER > 0, got " + ORDER);
+  let _nbitLength = undefined;
+  let _sqrt = undefined;
+  let modFromBytes = false;
+  let allowedLengths = undefined;
+  if (typeof bitLenOrOpts === "object" && bitLenOrOpts != null) {
+    if (opts.sqrt || isLE2)
+      throw new Error("cannot specify opts in two arguments");
+    const _opts = bitLenOrOpts;
+    if (_opts.BITS)
+      _nbitLength = _opts.BITS;
+    if (_opts.sqrt)
+      _sqrt = _opts.sqrt;
+    if (typeof _opts.isLE === "boolean")
+      isLE2 = _opts.isLE;
+    if (typeof _opts.modFromBytes === "boolean")
+      modFromBytes = _opts.modFromBytes;
+    allowedLengths = _opts.allowedLengths;
+  } else {
+    if (typeof bitLenOrOpts === "number")
+      _nbitLength = bitLenOrOpts;
+    if (opts.sqrt)
+      _sqrt = opts.sqrt;
+  }
+  const { nBitLength: BITS, nByteLength: BYTES } = nLength2(ORDER, _nbitLength);
+  if (BYTES > 2048)
+    throw new Error("invalid field: expected ORDER of <= 2048 bytes");
+  let sqrtP;
+  const f = Object.freeze({
+    ORDER,
+    isLE: isLE2,
+    BITS,
+    BYTES,
+    MASK: bitMask(BITS),
+    ZERO: _0n7,
+    ONE: _1n7,
+    allowedLengths,
+    create: (num) => mod2(num, ORDER),
+    isValid: (num) => {
+      if (typeof num !== "bigint")
+        throw new Error("invalid field element: expected bigint, got " + typeof num);
+      return _0n7 <= num && num < ORDER;
+    },
+    is0: (num) => num === _0n7,
+    isValidNot0: (num) => !f.is0(num) && f.isValid(num),
+    isOdd: (num) => (num & _1n7) === _1n7,
+    neg: (num) => mod2(-num, ORDER),
+    eql: (lhs, rhs) => lhs === rhs,
+    sqr: (num) => mod2(num * num, ORDER),
+    add: (lhs, rhs) => mod2(lhs + rhs, ORDER),
+    sub: (lhs, rhs) => mod2(lhs - rhs, ORDER),
+    mul: (lhs, rhs) => mod2(lhs * rhs, ORDER),
+    pow: (num, power) => FpPow2(f, num, power),
+    div: (lhs, rhs) => mod2(lhs * invert2(rhs, ORDER), ORDER),
+    sqrN: (num) => num * num,
+    addN: (lhs, rhs) => lhs + rhs,
+    subN: (lhs, rhs) => lhs - rhs,
+    mulN: (lhs, rhs) => lhs * rhs,
+    inv: (num) => invert2(num, ORDER),
+    sqrt: _sqrt || ((n) => {
+      if (!sqrtP)
+        sqrtP = FpSqrt2(ORDER);
+      return sqrtP(f, n);
+    }),
+    toBytes: (num) => isLE2 ? numberToBytesLE(num, BYTES) : numberToBytesBE(num, BYTES),
+    fromBytes: (bytes, skipValidation = true) => {
+      if (allowedLengths) {
+        if (!allowedLengths.includes(bytes.length) || bytes.length > BYTES) {
+          throw new Error("Field.fromBytes: expected " + allowedLengths + " bytes, got " + bytes.length);
+        }
+        const padded = new Uint8Array(BYTES);
+        padded.set(bytes, isLE2 ? 0 : padded.length - bytes.length);
+        bytes = padded;
+      }
+      if (bytes.length !== BYTES)
+        throw new Error("Field.fromBytes: expected " + BYTES + " bytes, got " + bytes.length);
+      let scalar = isLE2 ? bytesToNumberLE(bytes) : bytesToNumberBE(bytes);
+      if (modFromBytes)
+        scalar = mod2(scalar, ORDER);
+      if (!skipValidation) {
+        if (!f.isValid(scalar))
+          throw new Error("invalid field element: outside of range 0..ORDER");
+      }
+      return scalar;
+    },
+    invertBatch: (lst) => FpInvertBatch2(f, lst),
+    cmov: (a, b, c) => c ? b : a
+  });
+  return Object.freeze(f);
+}
+function getFieldBytesLength2(fieldOrder) {
+  if (typeof fieldOrder !== "bigint")
+    throw new Error("field order must be bigint");
+  const bitLength = fieldOrder.toString(2).length;
+  return Math.ceil(bitLength / 8);
+}
+function getMinHashLength2(fieldOrder) {
+  const length = getFieldBytesLength2(fieldOrder);
+  return length + Math.ceil(length / 2);
+}
+function mapHashToField2(key, fieldOrder, isLE2 = false) {
+  const len2 = key.length;
+  const fieldLen = getFieldBytesLength2(fieldOrder);
+  const minLen = getMinHashLength2(fieldOrder);
+  if (len2 < 16 || len2 < minLen || len2 > 1024)
+    throw new Error("expected " + minLen + "-1024 bytes of input, got " + len2);
+  const num = isLE2 ? bytesToNumberLE(key) : bytesToNumberBE(key);
+  const reduced = mod2(num, fieldOrder - _1n7) + _1n7;
+  return isLE2 ? numberToBytesLE(reduced, fieldLen) : numberToBytesBE(reduced, fieldLen);
+}
+/*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+var _0n8 = BigInt(0);
+var _1n8 = BigInt(1);
+function negateCt2(condition, item) {
+  const neg = item.negate();
+  return condition ? neg : item;
+}
+function normalizeZ2(c, points) {
+  const invertedZs = FpInvertBatch2(c.Fp, points.map((p) => p.Z));
+  return points.map((p, i2) => c.fromAffine(p.toAffine(invertedZs[i2])));
+}
+function validateW2(W, bits) {
+  if (!Number.isSafeInteger(W) || W <= 0 || W > bits)
+    throw new Error("invalid window size, expected [1.." + bits + "], got W=" + W);
+}
+function calcWOpts2(W, scalarBits) {
+  validateW2(W, scalarBits);
+  const windows = Math.ceil(scalarBits / W) + 1;
+  const windowSize = 2 ** (W - 1);
+  const maxNumber = 2 ** W;
+  const mask = bitMask(W);
+  const shiftBy = BigInt(W);
+  return { windows, windowSize, mask, maxNumber, shiftBy };
+}
+function calcOffsets2(n, window, wOpts) {
+  const { windowSize, mask, maxNumber, shiftBy } = wOpts;
+  let wbits = Number(n & mask);
+  let nextN = n >> shiftBy;
+  if (wbits > windowSize) {
+    wbits -= maxNumber;
+    nextN += _1n8;
+  }
+  const offsetStart = window * windowSize;
+  const offset = offsetStart + Math.abs(wbits) - 1;
+  const isZero = wbits === 0;
+  const isNeg = wbits < 0;
+  const isNegF = window % 2 !== 0;
+  const offsetF = offsetStart;
+  return { nextN, offset, isZero, isNeg, isNegF, offsetF };
+}
+function validateMSMPoints2(points, c) {
+  if (!Array.isArray(points))
+    throw new Error("array expected");
+  points.forEach((p, i2) => {
+    if (!(p instanceof c))
+      throw new Error("invalid point at index " + i2);
+  });
+}
+function validateMSMScalars2(scalars, field) {
+  if (!Array.isArray(scalars))
+    throw new Error("array of scalars expected");
+  scalars.forEach((s, i2) => {
+    if (!field.isValid(s))
+      throw new Error("invalid scalar at index " + i2);
+  });
+}
+var pointPrecomputes2 = new WeakMap;
+var pointWindowSizes2 = new WeakMap;
+function getW2(P) {
+  return pointWindowSizes2.get(P) || 1;
+}
+function assert02(n) {
+  if (n !== _0n8)
+    throw new Error("invalid wNAF");
+}
+
+class wNAF2 {
+  constructor(Point, bits) {
+    this.BASE = Point.BASE;
+    this.ZERO = Point.ZERO;
+    this.Fn = Point.Fn;
+    this.bits = bits;
+  }
+  _unsafeLadder(elm, n, p = this.ZERO) {
+    let d = elm;
+    while (n > _0n8) {
+      if (n & _1n8)
+        p = p.add(d);
+      d = d.double();
+      n >>= _1n8;
+    }
+    return p;
+  }
+  precomputeWindow(point, W) {
+    const { windows, windowSize } = calcWOpts2(W, this.bits);
+    const points = [];
+    let p = point;
+    let base = p;
+    for (let window = 0;window < windows; window++) {
+      base = p;
+      points.push(base);
+      for (let i2 = 1;i2 < windowSize; i2++) {
+        base = base.add(p);
+        points.push(base);
+      }
+      p = base.double();
+    }
+    return points;
+  }
+  wNAF(W, precomputes, n) {
+    if (!this.Fn.isValid(n))
+      throw new Error("invalid scalar");
+    let p = this.ZERO;
+    let f = this.BASE;
+    const wo = calcWOpts2(W, this.bits);
+    for (let window = 0;window < wo.windows; window++) {
+      const { nextN, offset, isZero, isNeg, isNegF, offsetF } = calcOffsets2(n, window, wo);
+      n = nextN;
+      if (isZero) {
+        f = f.add(negateCt2(isNegF, precomputes[offsetF]));
+      } else {
+        p = p.add(negateCt2(isNeg, precomputes[offset]));
+      }
+    }
+    assert02(n);
+    return { p, f };
+  }
+  wNAFUnsafe(W, precomputes, n, acc = this.ZERO) {
+    const wo = calcWOpts2(W, this.bits);
+    for (let window = 0;window < wo.windows; window++) {
+      if (n === _0n8)
+        break;
+      const { nextN, offset, isZero, isNeg } = calcOffsets2(n, window, wo);
+      n = nextN;
+      if (isZero) {
+        continue;
+      } else {
+        const item = precomputes[offset];
+        acc = acc.add(isNeg ? item.negate() : item);
+      }
+    }
+    assert02(n);
+    return acc;
+  }
+  getPrecomputes(W, point, transform) {
+    let comp = pointPrecomputes2.get(point);
+    if (!comp) {
+      comp = this.precomputeWindow(point, W);
+      if (W !== 1) {
+        if (typeof transform === "function")
+          comp = transform(comp);
+        pointPrecomputes2.set(point, comp);
+      }
+    }
+    return comp;
+  }
+  cached(point, scalar, transform) {
+    const W = getW2(point);
+    return this.wNAF(W, this.getPrecomputes(W, point, transform), scalar);
+  }
+  unsafe(point, scalar, transform, prev) {
+    const W = getW2(point);
+    if (W === 1)
+      return this._unsafeLadder(point, scalar, prev);
+    return this.wNAFUnsafe(W, this.getPrecomputes(W, point, transform), scalar, prev);
+  }
+  createCache(P, W) {
+    validateW2(W, this.bits);
+    pointWindowSizes2.set(P, W);
+    pointPrecomputes2.delete(P);
+  }
+  hasCache(elm) {
+    return getW2(elm) !== 1;
+  }
+}
+function mulEndoUnsafe2(Point, point, k1, k2) {
+  let acc = point;
+  let p1 = Point.ZERO;
+  let p2 = Point.ZERO;
+  while (k1 > _0n8 || k2 > _0n8) {
+    if (k1 & _1n8)
+      p1 = p1.add(acc);
+    if (k2 & _1n8)
+      p2 = p2.add(acc);
+    acc = acc.double();
+    k1 >>= _1n8;
+    k2 >>= _1n8;
+  }
+  return { p1, p2 };
+}
+function pippenger2(c, fieldN, points, scalars) {
+  validateMSMPoints2(points, c);
+  validateMSMScalars2(scalars, fieldN);
+  const plength = points.length;
+  const slength = scalars.length;
+  if (plength !== slength)
+    throw new Error("arrays of points and scalars must have equal length");
+  const zero = c.ZERO;
+  const wbits = bitLen(BigInt(plength));
+  let windowSize = 1;
+  if (wbits > 12)
+    windowSize = wbits - 3;
+  else if (wbits > 4)
+    windowSize = wbits - 2;
+  else if (wbits > 0)
+    windowSize = 2;
+  const MASK = bitMask(windowSize);
+  const buckets = new Array(Number(MASK) + 1).fill(zero);
+  const lastBits = Math.floor((fieldN.BITS - 1) / windowSize) * windowSize;
+  let sum = zero;
+  for (let i2 = lastBits;i2 >= 0; i2 -= windowSize) {
+    buckets.fill(zero);
+    for (let j = 0;j < slength; j++) {
+      const scalar = scalars[j];
+      const wbits2 = Number(scalar >> BigInt(i2) & MASK);
+      buckets[wbits2] = buckets[wbits2].add(points[j]);
+    }
+    let resI = zero;
+    for (let j = buckets.length - 1, sumI = zero;j > 0; j--) {
+      sumI = sumI.add(buckets[j]);
+      resI = resI.add(sumI);
+    }
+    sum = sum.add(resI);
+    if (i2 !== 0)
+      for (let j = 0;j < windowSize; j++)
+        sum = sum.double();
+  }
+  return sum;
+}
+function createField2(order, field, isLE2) {
+  if (field) {
+    if (field.ORDER !== order)
+      throw new Error("Field.ORDER must match order: Fp == p, Fn == n");
+    validateField2(field);
+    return field;
+  } else {
+    return Field2(order, { isLE: isLE2 });
+  }
+}
+function _createCurveFields2(type, CURVE, curveOpts = {}, FpFnLE) {
+  if (FpFnLE === undefined)
+    FpFnLE = type === "edwards";
+  if (!CURVE || typeof CURVE !== "object")
+    throw new Error(`expected valid ${type} CURVE object`);
+  for (const p of ["p", "n", "h"]) {
+    const val = CURVE[p];
+    if (!(typeof val === "bigint" && val > _0n8))
+      throw new Error(`CURVE.${p} must be positive bigint`);
+  }
+  const Fp = createField2(CURVE.p, curveOpts.Fp, FpFnLE);
+  const Fn = createField2(CURVE.n, curveOpts.Fn, FpFnLE);
+  const _b = type === "weierstrass" ? "b" : "d";
+  const params = ["Gx", "Gy", "a", _b];
+  for (const p of params) {
+    if (!Fp.isValid(CURVE[p]))
+      throw new Error(`CURVE.${p} must be valid field element of CURVE.Fp`);
+  }
+  CURVE = Object.freeze(Object.assign({}, CURVE));
+  return { CURVE, Fp, Fn };
+}
+/*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+var divNearest2 = (num, den) => (num + (num >= 0 ? den : -den) / _2n6) / den;
+function _splitEndoScalar2(k, basis, n) {
+  const [[a1, b1], [a2, b2]] = basis;
+  const c1 = divNearest2(b2 * k, n);
+  const c2 = divNearest2(-b1 * k, n);
+  let k1 = k - c1 * a1 - c2 * a2;
+  let k2 = -c1 * b1 - c2 * b2;
+  const k1neg = k1 < _0n9;
+  const k2neg = k2 < _0n9;
+  if (k1neg)
+    k1 = -k1;
+  if (k2neg)
+    k2 = -k2;
+  const MAX_NUM = bitMask(Math.ceil(bitLen(n) / 2)) + _1n9;
+  if (k1 < _0n9 || k1 >= MAX_NUM || k2 < _0n9 || k2 >= MAX_NUM) {
+    throw new Error("splitScalar (endomorphism): failed, k=" + k);
+  }
+  return { k1neg, k1, k2neg, k2 };
+}
+function validateSigFormat2(format) {
+  if (!["compact", "recovered", "der"].includes(format))
+    throw new Error('Signature format must be "compact", "recovered", or "der"');
+  return format;
+}
+function validateSigOpts2(opts, def) {
+  const optsn = {};
+  for (let optName of Object.keys(def)) {
+    optsn[optName] = opts[optName] === undefined ? def[optName] : opts[optName];
+  }
+  _abool2(optsn.lowS, "lowS");
+  _abool2(optsn.prehash, "prehash");
+  if (optsn.format !== undefined)
+    validateSigFormat2(optsn.format);
+  return optsn;
+}
+
+class DERErr2 extends Error {
+  constructor(m = "") {
+    super(m);
+  }
+}
+var DER2 = {
+  Err: DERErr2,
+  _tlv: {
+    encode: (tag, data) => {
+      const { Err: E2 } = DER2;
+      if (tag < 0 || tag > 256)
+        throw new E2("tlv.encode: wrong tag");
+      if (data.length & 1)
+        throw new E2("tlv.encode: unpadded data");
+      const dataLen = data.length / 2;
+      const len2 = numberToHexUnpadded(dataLen);
+      if (len2.length / 2 & 128)
+        throw new E2("tlv.encode: long form length too big");
+      const lenLen = dataLen > 127 ? numberToHexUnpadded(len2.length / 2 | 128) : "";
+      const t = numberToHexUnpadded(tag);
+      return t + lenLen + len2 + data;
+    },
+    decode(tag, data) {
+      const { Err: E2 } = DER2;
+      let pos = 0;
+      if (tag < 0 || tag > 256)
+        throw new E2("tlv.encode: wrong tag");
+      if (data.length < 2 || data[pos++] !== tag)
+        throw new E2("tlv.decode: wrong tlv");
+      const first = data[pos++];
+      const isLong = !!(first & 128);
+      let length = 0;
+      if (!isLong)
+        length = first;
+      else {
+        const lenLen = first & 127;
+        if (!lenLen)
+          throw new E2("tlv.decode(long): indefinite length not supported");
+        if (lenLen > 4)
+          throw new E2("tlv.decode(long): byte length is too big");
+        const lengthBytes = data.subarray(pos, pos + lenLen);
+        if (lengthBytes.length !== lenLen)
+          throw new E2("tlv.decode: length bytes not complete");
+        if (lengthBytes[0] === 0)
+          throw new E2("tlv.decode(long): zero leftmost byte");
+        for (const b of lengthBytes)
+          length = length << 8 | b;
+        pos += lenLen;
+        if (length < 128)
+          throw new E2("tlv.decode(long): not minimal encoding");
+      }
+      const v = data.subarray(pos, pos + length);
+      if (v.length !== length)
+        throw new E2("tlv.decode: wrong value length");
+      return { v, l: data.subarray(pos + length) };
+    }
+  },
+  _int: {
+    encode(num) {
+      const { Err: E2 } = DER2;
+      if (num < _0n9)
+        throw new E2("integer: negative integers are not allowed");
+      let hex = numberToHexUnpadded(num);
+      if (Number.parseInt(hex[0], 16) & 8)
+        hex = "00" + hex;
+      if (hex.length & 1)
+        throw new E2("unexpected DER parsing assertion: unpadded hex");
+      return hex;
+    },
+    decode(data) {
+      const { Err: E2 } = DER2;
+      if (data[0] & 128)
+        throw new E2("invalid signature integer: negative");
+      if (data[0] === 0 && !(data[1] & 128))
+        throw new E2("invalid signature integer: unnecessary leading zero");
+      return bytesToNumberBE(data);
+    }
+  },
+  toSig(hex) {
+    const { Err: E2, _int: int, _tlv: tlv } = DER2;
+    const data = ensureBytes("signature", hex);
+    const { v: seqBytes, l: seqLeftBytes } = tlv.decode(48, data);
+    if (seqLeftBytes.length)
+      throw new E2("invalid signature: left bytes after parsing");
+    const { v: rBytes, l: rLeftBytes } = tlv.decode(2, seqBytes);
+    const { v: sBytes, l: sLeftBytes } = tlv.decode(2, rLeftBytes);
+    if (sLeftBytes.length)
+      throw new E2("invalid signature: left bytes after parsing");
+    return { r: int.decode(rBytes), s: int.decode(sBytes) };
+  },
+  hexFromSig(sig) {
+    const { _tlv: tlv, _int: int } = DER2;
+    const rs = tlv.encode(2, int.encode(sig.r));
+    const ss = tlv.encode(2, int.encode(sig.s));
+    const seq = rs + ss;
+    return tlv.encode(48, seq);
+  }
+};
+var _0n9 = BigInt(0);
+var _1n9 = BigInt(1);
+var _2n6 = BigInt(2);
+var _3n4 = BigInt(3);
+var _4n4 = BigInt(4);
+function _normFnElement2(Fn, key) {
+  const { BYTES: expected } = Fn;
+  let num;
+  if (typeof key === "bigint") {
+    num = key;
+  } else {
+    let bytes = ensureBytes("private key", key);
+    try {
+      num = Fn.fromBytes(bytes);
+    } catch (error) {
+      throw new Error(`invalid private key: expected ui8a of size ${expected}, got ${typeof key}`);
+    }
+  }
+  if (!Fn.isValidNot0(num))
+    throw new Error("invalid private key: out of range [1..N-1]");
+  return num;
+}
+function weierstrassN2(params, extraOpts = {}) {
+  const validated = _createCurveFields2("weierstrass", params, extraOpts);
+  const { Fp, Fn } = validated;
+  let CURVE = validated.CURVE;
+  const { h: cofactor, n: CURVE_ORDER } = CURVE;
+  _validateObject(extraOpts, {}, {
+    allowInfinityPoint: "boolean",
+    clearCofactor: "function",
+    isTorsionFree: "function",
+    fromBytes: "function",
+    toBytes: "function",
+    endo: "object",
+    wrapPrivateKey: "boolean"
+  });
+  const { endo } = extraOpts;
+  if (endo) {
+    if (!Fp.is0(CURVE.a) || typeof endo.beta !== "bigint" || !Array.isArray(endo.basises)) {
+      throw new Error('invalid endo: expected "beta": bigint and "basises": array');
+    }
+  }
+  const lengths = getWLengths2(Fp, Fn);
+  function assertCompressionIsSupported() {
+    if (!Fp.isOdd)
+      throw new Error("compression is not supported: Field does not have .isOdd()");
+  }
+  function pointToBytes(_c, point, isCompressed) {
+    const { x, y } = point.toAffine();
+    const bx = Fp.toBytes(x);
+    _abool2(isCompressed, "isCompressed");
+    if (isCompressed) {
+      assertCompressionIsSupported();
+      const hasEvenY = !Fp.isOdd(y);
+      return concatBytes3(pprefix2(hasEvenY), bx);
+    } else {
+      return concatBytes3(Uint8Array.of(4), bx, Fp.toBytes(y));
+    }
+  }
+  function pointFromBytes(bytes) {
+    _abytes2(bytes, undefined, "Point");
+    const { publicKey: comp, publicKeyUncompressed: uncomp } = lengths;
+    const length = bytes.length;
+    const head = bytes[0];
+    const tail = bytes.subarray(1);
+    if (length === comp && (head === 2 || head === 3)) {
+      const x = Fp.fromBytes(tail);
+      if (!Fp.isValid(x))
+        throw new Error("bad point: is not on curve, wrong x");
+      const y2 = weierstrassEquation(x);
+      let y;
+      try {
+        y = Fp.sqrt(y2);
+      } catch (sqrtError) {
+        const err = sqrtError instanceof Error ? ": " + sqrtError.message : "";
+        throw new Error("bad point: is not on curve, sqrt error" + err);
+      }
+      assertCompressionIsSupported();
+      const isYOdd = Fp.isOdd(y);
+      const isHeadOdd = (head & 1) === 1;
+      if (isHeadOdd !== isYOdd)
+        y = Fp.neg(y);
+      return { x, y };
+    } else if (length === uncomp && head === 4) {
+      const L = Fp.BYTES;
+      const x = Fp.fromBytes(tail.subarray(0, L));
+      const y = Fp.fromBytes(tail.subarray(L, L * 2));
+      if (!isValidXY(x, y))
+        throw new Error("bad point: is not on curve");
+      return { x, y };
+    } else {
+      throw new Error(`bad point: got length ${length}, expected compressed=${comp} or uncompressed=${uncomp}`);
+    }
+  }
+  const encodePoint = extraOpts.toBytes || pointToBytes;
+  const decodePoint = extraOpts.fromBytes || pointFromBytes;
+  function weierstrassEquation(x) {
+    const x2 = Fp.sqr(x);
+    const x3 = Fp.mul(x2, x);
+    return Fp.add(Fp.add(x3, Fp.mul(x, CURVE.a)), CURVE.b);
+  }
+  function isValidXY(x, y) {
+    const left = Fp.sqr(y);
+    const right = weierstrassEquation(x);
+    return Fp.eql(left, right);
+  }
+  if (!isValidXY(CURVE.Gx, CURVE.Gy))
+    throw new Error("bad curve params: generator point");
+  const _4a3 = Fp.mul(Fp.pow(CURVE.a, _3n4), _4n4);
+  const _27b2 = Fp.mul(Fp.sqr(CURVE.b), BigInt(27));
+  if (Fp.is0(Fp.add(_4a3, _27b2)))
+    throw new Error("bad curve params: a or b");
+  function acoord(title, n, banZero = false) {
+    if (!Fp.isValid(n) || banZero && Fp.is0(n))
+      throw new Error(`bad point coordinate ${title}`);
+    return n;
+  }
+  function aprjpoint(other) {
+    if (!(other instanceof Point))
+      throw new Error("ProjectivePoint expected");
+  }
+  function splitEndoScalarN(k) {
+    if (!endo || !endo.basises)
+      throw new Error("no endo");
+    return _splitEndoScalar2(k, endo.basises, Fn.ORDER);
+  }
+  const toAffineMemo = memoized((p, iz) => {
+    const { X, Y, Z } = p;
+    if (Fp.eql(Z, Fp.ONE))
+      return { x: X, y: Y };
+    const is0 = p.is0();
+    if (iz == null)
+      iz = is0 ? Fp.ONE : Fp.inv(Z);
+    const x = Fp.mul(X, iz);
+    const y = Fp.mul(Y, iz);
+    const zz = Fp.mul(Z, iz);
+    if (is0)
+      return { x: Fp.ZERO, y: Fp.ZERO };
+    if (!Fp.eql(zz, Fp.ONE))
+      throw new Error("invZ was invalid");
+    return { x, y };
+  });
+  const assertValidMemo = memoized((p) => {
+    if (p.is0()) {
+      if (extraOpts.allowInfinityPoint && !Fp.is0(p.Y))
+        return;
+      throw new Error("bad point: ZERO");
+    }
+    const { x, y } = p.toAffine();
+    if (!Fp.isValid(x) || !Fp.isValid(y))
+      throw new Error("bad point: x or y not field elements");
+    if (!isValidXY(x, y))
+      throw new Error("bad point: equation left != right");
+    if (!p.isTorsionFree())
+      throw new Error("bad point: not in prime-order subgroup");
+    return true;
+  });
+  function finishEndo(endoBeta, k1p, k2p, k1neg, k2neg) {
+    k2p = new Point(Fp.mul(k2p.X, endoBeta), k2p.Y, k2p.Z);
+    k1p = negateCt2(k1neg, k1p);
+    k2p = negateCt2(k2neg, k2p);
+    return k1p.add(k2p);
+  }
+
+  class Point {
+    constructor(X, Y, Z) {
+      this.X = acoord("x", X);
+      this.Y = acoord("y", Y, true);
+      this.Z = acoord("z", Z);
+      Object.freeze(this);
+    }
+    static CURVE() {
+      return CURVE;
+    }
+    static fromAffine(p) {
+      const { x, y } = p || {};
+      if (!p || !Fp.isValid(x) || !Fp.isValid(y))
+        throw new Error("invalid affine point");
+      if (p instanceof Point)
+        throw new Error("projective point not allowed");
+      if (Fp.is0(x) && Fp.is0(y))
+        return Point.ZERO;
+      return new Point(x, y, Fp.ONE);
+    }
+    static fromBytes(bytes) {
+      const P = Point.fromAffine(decodePoint(_abytes2(bytes, undefined, "point")));
+      P.assertValidity();
+      return P;
+    }
+    static fromHex(hex) {
+      return Point.fromBytes(ensureBytes("pointHex", hex));
+    }
+    get x() {
+      return this.toAffine().x;
+    }
+    get y() {
+      return this.toAffine().y;
+    }
+    precompute(windowSize = 8, isLazy = true) {
+      wnaf.createCache(this, windowSize);
+      if (!isLazy)
+        this.multiply(_3n4);
+      return this;
+    }
+    assertValidity() {
+      assertValidMemo(this);
+    }
+    hasEvenY() {
+      const { y } = this.toAffine();
+      if (!Fp.isOdd)
+        throw new Error("Field doesn't support isOdd");
+      return !Fp.isOdd(y);
+    }
+    equals(other) {
+      aprjpoint(other);
+      const { X: X1, Y: Y1, Z: Z1 } = this;
+      const { X: X2, Y: Y2, Z: Z2 } = other;
+      const U1 = Fp.eql(Fp.mul(X1, Z2), Fp.mul(X2, Z1));
+      const U2 = Fp.eql(Fp.mul(Y1, Z2), Fp.mul(Y2, Z1));
+      return U1 && U2;
+    }
+    negate() {
+      return new Point(this.X, Fp.neg(this.Y), this.Z);
+    }
+    double() {
+      const { a, b } = CURVE;
+      const b3 = Fp.mul(b, _3n4);
+      const { X: X1, Y: Y1, Z: Z1 } = this;
+      let { ZERO: X3, ZERO: Y3, ZERO: Z3 } = Fp;
+      let t0 = Fp.mul(X1, X1);
+      let t1 = Fp.mul(Y1, Y1);
+      let t2 = Fp.mul(Z1, Z1);
+      let t3 = Fp.mul(X1, Y1);
+      t3 = Fp.add(t3, t3);
+      Z3 = Fp.mul(X1, Z1);
+      Z3 = Fp.add(Z3, Z3);
+      X3 = Fp.mul(a, Z3);
+      Y3 = Fp.mul(b3, t2);
+      Y3 = Fp.add(X3, Y3);
+      X3 = Fp.sub(t1, Y3);
+      Y3 = Fp.add(t1, Y3);
+      Y3 = Fp.mul(X3, Y3);
+      X3 = Fp.mul(t3, X3);
+      Z3 = Fp.mul(b3, Z3);
+      t2 = Fp.mul(a, t2);
+      t3 = Fp.sub(t0, t2);
+      t3 = Fp.mul(a, t3);
+      t3 = Fp.add(t3, Z3);
+      Z3 = Fp.add(t0, t0);
+      t0 = Fp.add(Z3, t0);
+      t0 = Fp.add(t0, t2);
+      t0 = Fp.mul(t0, t3);
+      Y3 = Fp.add(Y3, t0);
+      t2 = Fp.mul(Y1, Z1);
+      t2 = Fp.add(t2, t2);
+      t0 = Fp.mul(t2, t3);
+      X3 = Fp.sub(X3, t0);
+      Z3 = Fp.mul(t2, t1);
+      Z3 = Fp.add(Z3, Z3);
+      Z3 = Fp.add(Z3, Z3);
+      return new Point(X3, Y3, Z3);
+    }
+    add(other) {
+      aprjpoint(other);
+      const { X: X1, Y: Y1, Z: Z1 } = this;
+      const { X: X2, Y: Y2, Z: Z2 } = other;
+      let { ZERO: X3, ZERO: Y3, ZERO: Z3 } = Fp;
+      const a = CURVE.a;
+      const b3 = Fp.mul(CURVE.b, _3n4);
+      let t0 = Fp.mul(X1, X2);
+      let t1 = Fp.mul(Y1, Y2);
+      let t2 = Fp.mul(Z1, Z2);
+      let t3 = Fp.add(X1, Y1);
+      let t4 = Fp.add(X2, Y2);
+      t3 = Fp.mul(t3, t4);
+      t4 = Fp.add(t0, t1);
+      t3 = Fp.sub(t3, t4);
+      t4 = Fp.add(X1, Z1);
+      let t5 = Fp.add(X2, Z2);
+      t4 = Fp.mul(t4, t5);
+      t5 = Fp.add(t0, t2);
+      t4 = Fp.sub(t4, t5);
+      t5 = Fp.add(Y1, Z1);
+      X3 = Fp.add(Y2, Z2);
+      t5 = Fp.mul(t5, X3);
+      X3 = Fp.add(t1, t2);
+      t5 = Fp.sub(t5, X3);
+      Z3 = Fp.mul(a, t4);
+      X3 = Fp.mul(b3, t2);
+      Z3 = Fp.add(X3, Z3);
+      X3 = Fp.sub(t1, Z3);
+      Z3 = Fp.add(t1, Z3);
+      Y3 = Fp.mul(X3, Z3);
+      t1 = Fp.add(t0, t0);
+      t1 = Fp.add(t1, t0);
+      t2 = Fp.mul(a, t2);
+      t4 = Fp.mul(b3, t4);
+      t1 = Fp.add(t1, t2);
+      t2 = Fp.sub(t0, t2);
+      t2 = Fp.mul(a, t2);
+      t4 = Fp.add(t4, t2);
+      t0 = Fp.mul(t1, t4);
+      Y3 = Fp.add(Y3, t0);
+      t0 = Fp.mul(t5, t4);
+      X3 = Fp.mul(t3, X3);
+      X3 = Fp.sub(X3, t0);
+      t0 = Fp.mul(t3, t1);
+      Z3 = Fp.mul(t5, Z3);
+      Z3 = Fp.add(Z3, t0);
+      return new Point(X3, Y3, Z3);
+    }
+    subtract(other) {
+      return this.add(other.negate());
+    }
+    is0() {
+      return this.equals(Point.ZERO);
+    }
+    multiply(scalar) {
+      const { endo: endo2 } = extraOpts;
+      if (!Fn.isValidNot0(scalar))
+        throw new Error("invalid scalar: out of range");
+      let point, fake;
+      const mul = (n) => wnaf.cached(this, n, (p) => normalizeZ2(Point, p));
+      if (endo2) {
+        const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(scalar);
+        const { p: k1p, f: k1f } = mul(k1);
+        const { p: k2p, f: k2f } = mul(k2);
+        fake = k1f.add(k2f);
+        point = finishEndo(endo2.beta, k1p, k2p, k1neg, k2neg);
+      } else {
+        const { p, f } = mul(scalar);
+        point = p;
+        fake = f;
+      }
+      return normalizeZ2(Point, [point, fake])[0];
+    }
+    multiplyUnsafe(sc) {
+      const { endo: endo2 } = extraOpts;
+      const p = this;
+      if (!Fn.isValid(sc))
+        throw new Error("invalid scalar: out of range");
+      if (sc === _0n9 || p.is0())
+        return Point.ZERO;
+      if (sc === _1n9)
+        return p;
+      if (wnaf.hasCache(this))
+        return this.multiply(sc);
+      if (endo2) {
+        const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(sc);
+        const { p1, p2 } = mulEndoUnsafe2(Point, p, k1, k2);
+        return finishEndo(endo2.beta, p1, p2, k1neg, k2neg);
+      } else {
+        return wnaf.unsafe(p, sc);
+      }
+    }
+    multiplyAndAddUnsafe(Q, a, b) {
+      const sum = this.multiplyUnsafe(a).add(Q.multiplyUnsafe(b));
+      return sum.is0() ? undefined : sum;
+    }
+    toAffine(invertedZ) {
+      return toAffineMemo(this, invertedZ);
+    }
+    isTorsionFree() {
+      const { isTorsionFree } = extraOpts;
+      if (cofactor === _1n9)
+        return true;
+      if (isTorsionFree)
+        return isTorsionFree(Point, this);
+      return wnaf.unsafe(this, CURVE_ORDER).is0();
+    }
+    clearCofactor() {
+      const { clearCofactor } = extraOpts;
+      if (cofactor === _1n9)
+        return this;
+      if (clearCofactor)
+        return clearCofactor(Point, this);
+      return this.multiplyUnsafe(cofactor);
+    }
+    isSmallOrder() {
+      return this.multiplyUnsafe(cofactor).is0();
+    }
+    toBytes(isCompressed = true) {
+      _abool2(isCompressed, "isCompressed");
+      this.assertValidity();
+      return encodePoint(Point, this, isCompressed);
+    }
+    toHex(isCompressed = true) {
+      return bytesToHex4(this.toBytes(isCompressed));
+    }
+    toString() {
+      return `<Point ${this.is0() ? "ZERO" : this.toHex()}>`;
+    }
+    get px() {
+      return this.X;
+    }
+    get py() {
+      return this.X;
+    }
+    get pz() {
+      return this.Z;
+    }
+    toRawBytes(isCompressed = true) {
+      return this.toBytes(isCompressed);
+    }
+    _setWindowSize(windowSize) {
+      this.precompute(windowSize);
+    }
+    static normalizeZ(points) {
+      return normalizeZ2(Point, points);
+    }
+    static msm(points, scalars) {
+      return pippenger2(Point, Fn, points, scalars);
+    }
+    static fromPrivateKey(privateKey) {
+      return Point.BASE.multiply(_normFnElement2(Fn, privateKey));
+    }
+  }
+  Point.BASE = new Point(CURVE.Gx, CURVE.Gy, Fp.ONE);
+  Point.ZERO = new Point(Fp.ZERO, Fp.ONE, Fp.ZERO);
+  Point.Fp = Fp;
+  Point.Fn = Fn;
+  const bits = Fn.BITS;
+  const wnaf = new wNAF2(Point, extraOpts.endo ? Math.ceil(bits / 2) : bits);
+  Point.BASE.precompute(8);
+  return Point;
+}
+function pprefix2(hasEvenY) {
+  return Uint8Array.of(hasEvenY ? 2 : 3);
+}
+function getWLengths2(Fp, Fn) {
+  return {
+    secretKey: Fn.BYTES,
+    publicKey: 1 + Fp.BYTES,
+    publicKeyUncompressed: 1 + 2 * Fp.BYTES,
+    publicKeyHasPrefix: true,
+    signature: 2 * Fn.BYTES
+  };
+}
+function ecdh2(Point, ecdhOpts = {}) {
+  const { Fn } = Point;
+  const randomBytes_ = ecdhOpts.randomBytes || randomBytes2;
+  const lengths = Object.assign(getWLengths2(Point.Fp, Fn), { seed: getMinHashLength2(Fn.ORDER) });
+  function isValidSecretKey(secretKey) {
+    try {
+      return !!_normFnElement2(Fn, secretKey);
+    } catch (error) {
+      return false;
+    }
+  }
+  function isValidPublicKey(publicKey, isCompressed) {
+    const { publicKey: comp, publicKeyUncompressed } = lengths;
+    try {
+      const l = publicKey.length;
+      if (isCompressed === true && l !== comp)
+        return false;
+      if (isCompressed === false && l !== publicKeyUncompressed)
+        return false;
+      return !!Point.fromBytes(publicKey);
+    } catch (error) {
+      return false;
+    }
+  }
+  function randomSecretKey(seed = randomBytes_(lengths.seed)) {
+    return mapHashToField2(_abytes2(seed, lengths.seed, "seed"), Fn.ORDER);
+  }
+  function getPublicKey(secretKey, isCompressed = true) {
+    return Point.BASE.multiply(_normFnElement2(Fn, secretKey)).toBytes(isCompressed);
+  }
+  function keygen(seed) {
+    const secretKey = randomSecretKey(seed);
+    return { secretKey, publicKey: getPublicKey(secretKey) };
+  }
+  function isProbPub(item) {
+    if (typeof item === "bigint")
+      return false;
+    if (item instanceof Point)
+      return true;
+    const { secretKey, publicKey, publicKeyUncompressed } = lengths;
+    if (Fn.allowedLengths || secretKey === publicKey)
+      return;
+    const l = ensureBytes("key", item).length;
+    return l === publicKey || l === publicKeyUncompressed;
+  }
+  function getSharedSecret(secretKeyA, publicKeyB, isCompressed = true) {
+    if (isProbPub(secretKeyA) === true)
+      throw new Error("first arg must be private key");
+    if (isProbPub(publicKeyB) === false)
+      throw new Error("second arg must be public key");
+    const s = _normFnElement2(Fn, secretKeyA);
+    const b = Point.fromHex(publicKeyB);
+    return b.multiply(s).toBytes(isCompressed);
+  }
+  const utils2 = {
+    isValidSecretKey,
+    isValidPublicKey,
+    randomSecretKey,
+    isValidPrivateKey: isValidSecretKey,
+    randomPrivateKey: randomSecretKey,
+    normPrivateKeyToScalar: (key) => _normFnElement2(Fn, key),
+    precompute(windowSize = 8, point = Point.BASE) {
+      return point.precompute(windowSize, false);
+    }
+  };
+  return Object.freeze({ getPublicKey, getSharedSecret, keygen, Point, utils: utils2, lengths });
+}
+function ecdsa2(Point, hash2, ecdsaOpts = {}) {
+  ahash2(hash2);
+  _validateObject(ecdsaOpts, {}, {
+    hmac: "function",
+    lowS: "boolean",
+    randomBytes: "function",
+    bits2int: "function",
+    bits2int_modN: "function"
+  });
+  const randomBytes3 = ecdsaOpts.randomBytes || randomBytes2;
+  const hmac3 = ecdsaOpts.hmac || ((key, ...msgs) => hmac2(hash2, key, concatBytes3(...msgs)));
+  const { Fp, Fn } = Point;
+  const { ORDER: CURVE_ORDER, BITS: fnBits } = Fn;
+  const { keygen, getPublicKey, getSharedSecret, utils: utils2, lengths } = ecdh2(Point, ecdsaOpts);
+  const defaultSigOpts = {
+    prehash: false,
+    lowS: typeof ecdsaOpts.lowS === "boolean" ? ecdsaOpts.lowS : false,
+    format: undefined,
+    extraEntropy: false
+  };
+  const defaultSigOpts_format = "compact";
+  function isBiggerThanHalfOrder(number) {
+    const HALF = CURVE_ORDER >> _1n9;
+    return number > HALF;
+  }
+  function validateRS(title, num) {
+    if (!Fn.isValidNot0(num))
+      throw new Error(`invalid signature ${title}: out of range 1..Point.Fn.ORDER`);
+    return num;
+  }
+  function validateSigLength(bytes, format) {
+    validateSigFormat2(format);
+    const size2 = lengths.signature;
+    const sizer = format === "compact" ? size2 : format === "recovered" ? size2 + 1 : undefined;
+    return _abytes2(bytes, sizer, `${format} signature`);
+  }
+
+  class Signature {
+    constructor(r, s, recovery) {
+      this.r = validateRS("r", r);
+      this.s = validateRS("s", s);
+      if (recovery != null)
+        this.recovery = recovery;
+      Object.freeze(this);
+    }
+    static fromBytes(bytes, format = defaultSigOpts_format) {
+      validateSigLength(bytes, format);
+      let recid;
+      if (format === "der") {
+        const { r: r2, s: s2 } = DER2.toSig(_abytes2(bytes));
+        return new Signature(r2, s2);
+      }
+      if (format === "recovered") {
+        recid = bytes[0];
+        format = "compact";
+        bytes = bytes.subarray(1);
+      }
+      const L = Fn.BYTES;
+      const r = bytes.subarray(0, L);
+      const s = bytes.subarray(L, L * 2);
+      return new Signature(Fn.fromBytes(r), Fn.fromBytes(s), recid);
+    }
+    static fromHex(hex, format) {
+      return this.fromBytes(hexToBytes4(hex), format);
+    }
+    addRecoveryBit(recovery) {
+      return new Signature(this.r, this.s, recovery);
+    }
+    recoverPublicKey(messageHash) {
+      const FIELD_ORDER = Fp.ORDER;
+      const { r, s, recovery: rec } = this;
+      if (rec == null || ![0, 1, 2, 3].includes(rec))
+        throw new Error("recovery id invalid");
+      const hasCofactor = CURVE_ORDER * _2n6 < FIELD_ORDER;
+      if (hasCofactor && rec > 1)
+        throw new Error("recovery id is ambiguous for h>1 curve");
+      const radj = rec === 2 || rec === 3 ? r + CURVE_ORDER : r;
+      if (!Fp.isValid(radj))
+        throw new Error("recovery id 2 or 3 invalid");
+      const x = Fp.toBytes(radj);
+      const R = Point.fromBytes(concatBytes3(pprefix2((rec & 1) === 0), x));
+      const ir = Fn.inv(radj);
+      const h = bits2int_modN(ensureBytes("msgHash", messageHash));
+      const u1 = Fn.create(-h * ir);
+      const u2 = Fn.create(s * ir);
+      const Q = Point.BASE.multiplyUnsafe(u1).add(R.multiplyUnsafe(u2));
+      if (Q.is0())
+        throw new Error("point at infinify");
+      Q.assertValidity();
+      return Q;
+    }
+    hasHighS() {
+      return isBiggerThanHalfOrder(this.s);
+    }
+    toBytes(format = defaultSigOpts_format) {
+      validateSigFormat2(format);
+      if (format === "der")
+        return hexToBytes4(DER2.hexFromSig(this));
+      const r = Fn.toBytes(this.r);
+      const s = Fn.toBytes(this.s);
+      if (format === "recovered") {
+        if (this.recovery == null)
+          throw new Error("recovery bit must be present");
+        return concatBytes3(Uint8Array.of(this.recovery), r, s);
+      }
+      return concatBytes3(r, s);
+    }
+    toHex(format) {
+      return bytesToHex4(this.toBytes(format));
+    }
+    assertValidity() {}
+    static fromCompact(hex) {
+      return Signature.fromBytes(ensureBytes("sig", hex), "compact");
+    }
+    static fromDER(hex) {
+      return Signature.fromBytes(ensureBytes("sig", hex), "der");
+    }
+    normalizeS() {
+      return this.hasHighS() ? new Signature(this.r, Fn.neg(this.s), this.recovery) : this;
+    }
+    toDERRawBytes() {
+      return this.toBytes("der");
+    }
+    toDERHex() {
+      return bytesToHex4(this.toBytes("der"));
+    }
+    toCompactRawBytes() {
+      return this.toBytes("compact");
+    }
+    toCompactHex() {
+      return bytesToHex4(this.toBytes("compact"));
+    }
+  }
+  const bits2int = ecdsaOpts.bits2int || function bits2int_def(bytes) {
+    if (bytes.length > 8192)
+      throw new Error("input is too large");
+    const num = bytesToNumberBE(bytes);
+    const delta = bytes.length * 8 - fnBits;
+    return delta > 0 ? num >> BigInt(delta) : num;
+  };
+  const bits2int_modN = ecdsaOpts.bits2int_modN || function bits2int_modN_def(bytes) {
+    return Fn.create(bits2int(bytes));
+  };
+  const ORDER_MASK = bitMask(fnBits);
+  function int2octets(num) {
+    aInRange("num < 2^" + fnBits, num, _0n9, ORDER_MASK);
+    return Fn.toBytes(num);
+  }
+  function validateMsgAndHash(message, prehash) {
+    _abytes2(message, undefined, "message");
+    return prehash ? _abytes2(hash2(message), undefined, "prehashed message") : message;
+  }
+  function prepSig(message, privateKey, opts) {
+    if (["recovered", "canonical"].some((k) => (k in opts)))
+      throw new Error("sign() legacy options not supported");
+    const { lowS, prehash, extraEntropy } = validateSigOpts2(opts, defaultSigOpts);
+    message = validateMsgAndHash(message, prehash);
+    const h1int = bits2int_modN(message);
+    const d = _normFnElement2(Fn, privateKey);
+    const seedArgs = [int2octets(d), int2octets(h1int)];
+    if (extraEntropy != null && extraEntropy !== false) {
+      const e = extraEntropy === true ? randomBytes3(lengths.secretKey) : extraEntropy;
+      seedArgs.push(ensureBytes("extraEntropy", e));
+    }
+    const seed = concatBytes3(...seedArgs);
+    const m = h1int;
+    function k2sig(kBytes) {
+      const k = bits2int(kBytes);
+      if (!Fn.isValidNot0(k))
+        return;
+      const ik = Fn.inv(k);
+      const q = Point.BASE.multiply(k).toAffine();
+      const r = Fn.create(q.x);
+      if (r === _0n9)
+        return;
+      const s = Fn.create(ik * Fn.create(m + r * d));
+      if (s === _0n9)
+        return;
+      let recovery = (q.x === r ? 0 : 2) | Number(q.y & _1n9);
+      let normS = s;
+      if (lowS && isBiggerThanHalfOrder(s)) {
+        normS = Fn.neg(s);
+        recovery ^= 1;
+      }
+      return new Signature(r, normS, recovery);
+    }
+    return { seed, k2sig };
+  }
+  function sign(message, secretKey, opts = {}) {
+    message = ensureBytes("message", message);
+    const { seed, k2sig } = prepSig(message, secretKey, opts);
+    const drbg = createHmacDrbg(hash2.outputLen, Fn.BYTES, hmac3);
+    const sig = drbg(seed, k2sig);
+    return sig;
+  }
+  function tryParsingSig(sg) {
+    let sig = undefined;
+    const isHex2 = typeof sg === "string" || isBytes2(sg);
+    const isObj = !isHex2 && sg !== null && typeof sg === "object" && typeof sg.r === "bigint" && typeof sg.s === "bigint";
+    if (!isHex2 && !isObj)
+      throw new Error("invalid signature, expected Uint8Array, hex string or Signature instance");
+    if (isObj) {
+      sig = new Signature(sg.r, sg.s);
+    } else if (isHex2) {
+      try {
+        sig = Signature.fromBytes(ensureBytes("sig", sg), "der");
+      } catch (derError) {
+        if (!(derError instanceof DER2.Err))
+          throw derError;
+      }
+      if (!sig) {
+        try {
+          sig = Signature.fromBytes(ensureBytes("sig", sg), "compact");
+        } catch (error) {
+          return false;
+        }
+      }
+    }
+    if (!sig)
+      return false;
+    return sig;
+  }
+  function verify(signature, message, publicKey, opts = {}) {
+    const { lowS, prehash, format } = validateSigOpts2(opts, defaultSigOpts);
+    publicKey = ensureBytes("publicKey", publicKey);
+    message = validateMsgAndHash(ensureBytes("message", message), prehash);
+    if ("strict" in opts)
+      throw new Error("options.strict was renamed to lowS");
+    const sig = format === undefined ? tryParsingSig(signature) : Signature.fromBytes(ensureBytes("sig", signature), format);
+    if (sig === false)
+      return false;
+    try {
+      const P = Point.fromBytes(publicKey);
+      if (lowS && sig.hasHighS())
+        return false;
+      const { r, s } = sig;
+      const h = bits2int_modN(message);
+      const is = Fn.inv(s);
+      const u1 = Fn.create(h * is);
+      const u2 = Fn.create(r * is);
+      const R = Point.BASE.multiplyUnsafe(u1).add(P.multiplyUnsafe(u2));
+      if (R.is0())
+        return false;
+      const v = Fn.create(R.x);
+      return v === r;
+    } catch (e) {
+      return false;
+    }
+  }
+  function recoverPublicKey(signature, message, opts = {}) {
+    const { prehash } = validateSigOpts2(opts, defaultSigOpts);
+    message = validateMsgAndHash(message, prehash);
+    return Signature.fromBytes(signature, "recovered").recoverPublicKey(message).toBytes();
+  }
+  return Object.freeze({
+    keygen,
+    getPublicKey,
+    getSharedSecret,
+    utils: utils2,
+    lengths,
+    Point,
+    sign,
+    verify,
+    recoverPublicKey,
+    Signature,
+    hash: hash2
+  });
+}
+function _weierstrass_legacy_opts_to_new2(c) {
+  const CURVE = {
+    a: c.a,
+    b: c.b,
+    p: c.Fp.ORDER,
+    n: c.n,
+    h: c.h,
+    Gx: c.Gx,
+    Gy: c.Gy
+  };
+  const Fp = c.Fp;
+  let allowedLengths = c.allowedPrivateKeyLengths ? Array.from(new Set(c.allowedPrivateKeyLengths.map((l) => Math.ceil(l / 2)))) : undefined;
+  const Fn = Field2(CURVE.n, {
+    BITS: c.nBitLength,
+    allowedLengths,
+    modFromBytes: c.wrapPrivateKey
+  });
+  const curveOpts = {
+    Fp,
+    Fn,
+    allowInfinityPoint: c.allowInfinityPoint,
+    endo: c.endo,
+    isTorsionFree: c.isTorsionFree,
+    clearCofactor: c.clearCofactor,
+    fromBytes: c.fromBytes,
+    toBytes: c.toBytes
+  };
+  return { CURVE, curveOpts };
+}
+function _ecdsa_legacy_opts_to_new2(c) {
+  const { CURVE, curveOpts } = _weierstrass_legacy_opts_to_new2(c);
+  const ecdsaOpts = {
+    hmac: c.hmac,
+    randomBytes: c.randomBytes,
+    lowS: c.lowS,
+    bits2int: c.bits2int,
+    bits2int_modN: c.bits2int_modN
+  };
+  return { CURVE, curveOpts, hash: c.hash, ecdsaOpts };
+}
+function _ecdsa_new_output_to_legacy2(c, _ecdsa) {
+  const Point = _ecdsa.Point;
+  return Object.assign({}, _ecdsa, {
+    ProjectivePoint: Point,
+    CURVE: Object.assign({}, c, nLength2(Point.Fn.ORDER, Point.Fn.BITS))
+  });
+}
+function weierstrass2(c) {
+  const { CURVE, curveOpts, hash: hash2, ecdsaOpts } = _ecdsa_legacy_opts_to_new2(c);
+  const Point = weierstrassN2(CURVE, curveOpts);
+  const signs = ecdsa2(Point, hash2, ecdsaOpts);
+  return _ecdsa_new_output_to_legacy2(c, signs);
+}
+/*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+function createCurve2(curveDef, defHash) {
+  const create3 = (hash2) => weierstrass2({ ...curveDef, hash: hash2 });
+  return { ...create3(defHash), create: create3 };
+}
+/*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+var secp256k1_CURVE2 = {
+  p: BigInt("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),
+  n: BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"),
+  h: BigInt(1),
+  a: BigInt(0),
+  b: BigInt(7),
+  Gx: BigInt("0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"),
+  Gy: BigInt("0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8")
+};
+var secp256k1_ENDO2 = {
+  beta: BigInt("0x7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"),
+  basises: [
+    [BigInt("0x3086d221a7d46bcde86c90e49284eb15"), -BigInt("0xe4437ed6010e88286f547fa90abfe4c3")],
+    [BigInt("0x114ca50f7a8e2f3f657c1108d9d44cfd8"), BigInt("0x3086d221a7d46bcde86c90e49284eb15")]
+  ]
+};
+var _2n7 = /* @__PURE__ */ BigInt(2);
+function sqrtMod2(y) {
+  const P = secp256k1_CURVE2.p;
+  const _3n5 = BigInt(3), _6n = BigInt(6), _11n = BigInt(11), _22n = BigInt(22);
+  const _23n = BigInt(23), _44n = BigInt(44), _88n = BigInt(88);
+  const b2 = y * y * y % P;
+  const b3 = b2 * b2 * y % P;
+  const b6 = pow22(b3, _3n5, P) * b3 % P;
+  const b9 = pow22(b6, _3n5, P) * b3 % P;
+  const b11 = pow22(b9, _2n7, P) * b2 % P;
+  const b22 = pow22(b11, _11n, P) * b11 % P;
+  const b44 = pow22(b22, _22n, P) * b22 % P;
+  const b88 = pow22(b44, _44n, P) * b44 % P;
+  const b176 = pow22(b88, _88n, P) * b88 % P;
+  const b220 = pow22(b176, _44n, P) * b44 % P;
+  const b223 = pow22(b220, _3n5, P) * b3 % P;
+  const t1 = pow22(b223, _23n, P) * b22 % P;
+  const t2 = pow22(t1, _6n, P) * b2 % P;
+  const root = pow22(t2, _2n7, P);
+  if (!Fpk12.eql(Fpk12.sqr(root), y))
+    throw new Error("Cannot find square root");
+  return root;
+}
+var Fpk12 = Field2(secp256k1_CURVE2.p, { sqrt: sqrtMod2 });
+var secp256k12 = createCurve2({ ...secp256k1_CURVE2, Fp: Fpk12, lowS: true, endo: secp256k1_ENDO2 }, sha2562);
+function signTypedDataSync(params) {
+  const { domain, types: types4, primaryType, message, privateKey } = params;
+  const hash2 = hashTypedData({ domain, types: types4, primaryType, message });
+  const hashBytes = hexToBytes2(hash2);
+  const keyBytes = hexToBytes2(privateKey);
+  const sig = secp256k12.sign(hashBytes, keyBytes, { lowS: true });
+  const r = numberToHex(sig.r, { size: 32 });
+  const s = numberToHex(sig.s, { size: 32 });
+  const yParity = sig.recovery === 1 ? 1 : 0;
+  return serializeSignature({ r, s, yParity, to: "hex" });
+}
+var SUB0_ABI = [
+  {
+    type: "function",
+    name: "getMarket",
+    inputs: [{ name: "questionId", type: "bytes32", internalType: "bytes32" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        internalType: "struct Sub0.Market",
+        components: [
+          { name: "question", type: "string", internalType: "string" },
+          { name: "conditionId", type: "bytes32", internalType: "bytes32" },
+          { name: "oracle", type: "address", internalType: "address" },
+          { name: "owner", type: "address", internalType: "address" },
+          { name: "createdAt", type: "uint256", internalType: "uint256" },
+          { name: "duration", type: "uint256", internalType: "uint256" },
+          { name: "outcomeSlotCount", type: "uint256", internalType: "uint256" },
+          { name: "oracleType", type: "uint8", internalType: "enum Sub0.OracleType" },
+          { name: "marketType", type: "uint8", internalType: "enum InvitationManager.InvitationType" }
+        ]
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "predictionVault",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "contract IPredictionVault" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "conditionalToken",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "vault",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "contract IVault" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "create",
+    inputs: [
+      {
+        name: "market",
+        type: "tuple",
+        internalType: "struct Sub0.Market",
+        components: [
+          { name: "question", type: "string", internalType: "string" },
+          { name: "conditionId", type: "bytes32", internalType: "bytes32" },
+          { name: "oracle", type: "address", internalType: "address" },
+          { name: "owner", type: "address", internalType: "address" },
+          { name: "createdAt", type: "uint256", internalType: "uint256" },
+          { name: "duration", type: "uint256", internalType: "uint256" },
+          { name: "outcomeSlotCount", type: "uint256", internalType: "uint256" },
+          { name: "oracleType", type: "uint8", internalType: "enum Sub0.OracleType" },
+          { name: "marketType", type: "uint8", internalType: "enum InvitationManager.InvitationType" }
+        ]
+      }
+    ],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "nonpayable"
+  }
+];
+var PREDICTION_VAULT_ABI = [
+  {
+    type: "function",
+    name: "getConditionId",
+    inputs: [{ name: "questionId", type: "bytes32", internalType: "bytes32" }],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "backendSigner",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "nonceUsed",
+    inputs: [
+      { name: "questionId", type: "bytes32", internalType: "bytes32" },
+      { name: "nonce", type: "uint256", internalType: "uint256" }
+    ],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "seedMarketLiquidity",
+    inputs: [
+      { name: "questionId", type: "bytes32", internalType: "bytes32" },
+      { name: "amountUsdc", type: "uint256", internalType: "uint256" }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "executeTrade",
+    inputs: [
+      {
+        name: "quote",
+        type: "tuple",
+        internalType: "struct IPredictionVault.LMSRQuote",
+        components: [
+          { name: "questionId", type: "bytes32", internalType: "bytes32" },
+          { name: "outcomeIndex", type: "uint256", internalType: "uint256" },
+          { name: "buy", type: "bool", internalType: "bool" },
+          { name: "quantity", type: "uint256", internalType: "uint256" },
+          { name: "tradeCostUsdc", type: "uint256", internalType: "uint256" },
+          { name: "nonce", type: "uint256", internalType: "uint256" },
+          { name: "deadline", type: "uint256", internalType: "uint256" }
+        ]
+      },
+      { name: "signature", type: "bytes", internalType: "bytes" }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
+  }
+];
+var CTF_ABI = [
+  {
+    type: "function",
+    name: "getConditionId",
+    inputs: [
+      { name: "oracle", type: "address", internalType: "address" },
+      { name: "questionId", type: "bytes32", internalType: "bytes32" },
+      { name: "outcomeSlotCount", type: "uint256", internalType: "uint256" }
+    ],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "getCollectionId",
+    inputs: [
+      { name: "parentCollectionId", type: "bytes32", internalType: "bytes32" },
+      { name: "conditionId", type: "bytes32", internalType: "bytes32" },
+      { name: "indexSet", type: "uint256", internalType: "uint256" }
+    ],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "getPositionId",
+    inputs: [
+      { name: "collateralToken", type: "address", internalType: "contract IERC20" },
+      { name: "collectionId", type: "bytes32", internalType: "bytes32" }
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "getOutcomeSlotCount",
+    inputs: [{ name: "conditionId", type: "bytes32", internalType: "bytes32" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "balanceOf",
+    inputs: [
+      { name: "account", type: "address", internalType: "address" },
+      { name: "id", type: "uint256", internalType: "uint256" }
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view"
+  }
+];
+function getEVMClient(chainSelectorName) {
+  const network248 = getNetwork({
+    chainFamily: "evm",
+    chainSelectorName,
+    isTestnet: true
+  });
+  if (!network248) {
+    throw new Error(`Network not found for chainSelectorName: ${chainSelectorName}`);
+  }
+  return new cre.capabilities.EVMClient(network248.chainSelector.selector);
+}
+function callContract(runtime2, chainSelectorName, to, data, blockNumber = LAST_FINALIZED_BLOCK_NUMBER) {
+  const evmClient = getEVMClient(chainSelectorName);
+  const callMsg = encodeCallMsg({
+    from: zeroAddress,
+    to,
+    data
+  });
+  const reply = evmClient.callContract(runtime2, {
+    call: callMsg,
+    blockNumber
+  }).result();
+  return { data: reply.data };
+}
+function decodeCallResult(abi, functionName, data) {
+  return decodeFunctionResult({
+    abi,
+    functionName,
+    data: bytesToHex(data)
+  });
+}
+function buildCallData(abi, functionName, args) {
+  return encodeFunctionData({
+    abi,
+    functionName,
+    args
+  });
+}
+function getNonceUsed(runtime2, config, questionId, nonce) {
+  const data = buildCallData(PREDICTION_VAULT_ABI, "nonceUsed", [questionId, nonce]);
+  const reply = callContract(runtime2, config.chainSelectorName, config.contracts.predictionVault, data);
+  const raw = decodeCallResult(PREDICTION_VAULT_ABI, "nonceUsed", reply.data);
+  return raw[0];
+}
+function signLMSRQuote(params, config, privateKeyHex) {
+  const domain = {
+    name: config.eip712.domainName,
+    version: config.eip712.domainVersion,
+    chainId: config.chainId,
+    verifyingContract: config.contracts.predictionVault
+  };
+  const types4 = {
+    LMSRQuote: [
+      { name: "questionId", type: "bytes32" },
+      { name: "outcomeIndex", type: "uint256" },
+      { name: "buy", type: "bool" },
+      { name: "quantity", type: "uint256" },
+      { name: "tradeCostUsdc", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" }
+    ]
+  };
+  const message = {
+    questionId: params.questionId,
+    outcomeIndex: BigInt(params.outcomeIndex),
+    buy: params.buy,
+    quantity: params.quantity,
+    tradeCostUsdc: params.tradeCostUsdc,
+    nonce: params.nonce,
+    deadline: params.deadline
+  };
+  const key = privateKeyHex.startsWith("0x") ? privateKeyHex : `0x${privateKeyHex}`;
+  const signature = signTypedDataSync({
+    domain,
+    types: types4,
+    primaryType: "LMSRQuote",
+    message,
+    privateKey: key
+  });
+  return {
+    questionId: params.questionId,
+    outcomeIndex: params.outcomeIndex,
+    buy: params.buy,
+    quantity: params.quantity.toString(),
+    tradeCostUsdc: params.tradeCostUsdc.toString(),
+    nonce: params.nonce.toString(),
+    deadline: params.deadline.toString(),
+    signature
+  };
+}
+function encodeSeedMarketLiquidity(questionId, amountUsdc) {
+  return encodeFunctionData({
+    abi: PREDICTION_VAULT_ABI,
+    functionName: "seedMarketLiquidity",
+    args: [questionId, amountUsdc]
+  });
+}
+function submitSeedMarketLiquidity(runtime2, config, questionId, amountUsdc) {
+  const hexPayload = encodeSeedMarketLiquidity(questionId, amountUsdc);
+  const reportRequest = prepareReportRequest(hexPayload);
+  const network248 = getNetwork({
+    chainFamily: "evm",
+    chainSelectorName: config.chainSelectorName,
+    isTestnet: true
+  });
+  if (!network248)
+    throw new Error(`Network not found: ${config.chainSelectorName}`);
+  const evmClient = new cre.capabilities.EVMClient(network248.chainSelector.selector);
+  const receiverHex = config.contracts.predictionVault.replace(/^0x/, "");
+  const receiver = new Uint8Array(20);
+  for (let i2 = 0;i2 < 20; i2++)
+    receiver[i2] = parseInt(receiverHex.slice(i2 * 2, i2 * 2 + 2), 16);
+  const reply = evmClient.writeReport(runtime2, {
+    receiver,
+    report: runtime2.report(reportRequest).result(),
+    $report: true
+  }).result();
+  if (reply.txHash != null && reply.txHash.length > 0) {
+    return typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash);
+  }
+  return "";
+}
+var ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+async function getMarket(ctx, questionId) {
+  const data = buildCallData(SUB0_ABI, "getMarket", [questionId]);
+  const reply = callContract(ctx.runtime, ctx.config.chainSelectorName, ctx.config.contracts.sub0, data);
+  const m = decodeCallResult(SUB0_ABI, "getMarket", reply.data);
+  return {
+    question: m.question,
+    conditionId: m.conditionId,
+    oracle: m.oracle,
+    owner: m.owner,
+    createdAt: m.createdAt,
+    duration: m.duration,
+    outcomeSlotCount: Number(m.outcomeSlotCount),
+    oracleType: m.oracleType,
+    marketType: m.marketType
+  };
+}
+function encodeCreateMarket(params) {
+  const marketTuple = [
+    params.question,
+    ZERO_BYTES32,
+    params.oracle,
+    zeroAddress,
+    0n,
+    BigInt(params.duration),
+    params.outcomeSlotCount,
+    params.oracleType,
+    params.marketType
+  ];
+  return encodeFunctionData({
+    abi: SUB0_ABI,
+    functionName: "create",
+    args: [marketTuple]
+  });
+}
+function computeQuestionId(question, creator, oracle) {
+  const packed = encodePacked(["string", "address", "address"], [question, creator, oracle]);
+  return keccak256(packed);
+}
+function submitCreateMarket(runtime2, config, params) {
+  const hexPayload = encodeCreateMarket(params);
+  const reportRequest = prepareReportRequest(hexPayload);
+  const network248 = getNetwork({
+    chainFamily: "evm",
+    chainSelectorName: config.chainSelectorName,
+    isTestnet: true
+  });
+  if (!network248)
+    throw new Error(`Network not found: ${config.chainSelectorName}`);
+  const evmClient = new cre.capabilities.EVMClient(network248.chainSelector.selector);
+  const receiverHex = config.contracts.sub0.replace(/^0x/, "");
+  const receiver = new Uint8Array(20);
+  for (let i2 = 0;i2 < 20; i2++)
+    receiver[i2] = parseInt(receiverHex.slice(i2 * 2, i2 * 2 + 2), 16);
+  const reply = evmClient.writeReport(runtime2, {
+    receiver,
+    report: runtime2.report(reportRequest).result(),
+    $report: true
+  }).result();
+  if (reply.txHash != null && reply.txHash.length > 0) {
+    return typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash);
+  }
+  return "";
+}
+var ZERO_BYTES322 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+function getCollectionId(ctx, conditionId, outcomeIndex) {
+  const indexSet = 1 << outcomeIndex;
+  const data = buildCallData(CTF_ABI, "getCollectionId", [
+    ZERO_BYTES322,
+    conditionId,
+    BigInt(indexSet)
+  ]);
+  const reply = callContract(ctx.runtime, ctx.config.chainSelectorName, ctx.config.contracts.conditionalTokens, data);
+  const raw = decodeCallResult(CTF_ABI, "getCollectionId", reply.data);
+  return raw[0];
+}
+function getPositionId(ctx, collectionId) {
+  const data = buildCallData(CTF_ABI, "getPositionId", [
+    ctx.config.contracts.usdc,
+    collectionId
+  ]);
+  const reply = callContract(ctx.runtime, ctx.config.chainSelectorName, ctx.config.contracts.conditionalTokens, data);
+  const raw = decodeCallResult(CTF_ABI, "getPositionId", reply.data);
+  return raw[0];
+}
+function balanceOf(ctx, account, positionId) {
+  const data = buildCallData(CTF_ABI, "balanceOf", [account, positionId]);
+  const reply = callContract(ctx.runtime, ctx.config.chainSelectorName, ctx.config.contracts.conditionalTokens, data);
+  const raw = decodeCallResult(CTF_ABI, "balanceOf", reply.data);
+  return raw[0];
+}
+function getVaultBalanceForOutcome(ctx, conditionId, outcomeIndex) {
+  const collectionId = getCollectionId(ctx, conditionId, outcomeIndex);
+  const positionId = getPositionId(ctx, collectionId);
+  return balanceOf(ctx, ctx.config.contracts.predictionVault, positionId);
+}
+var SECRET_NAMESPACE = "sub0";
+var SECRET_ID = "BACKEND_SIGNER_PRIVATE_KEY";
+function parsePayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    questionId: String(raw.questionId ?? ""),
+    outcomeIndex: Number(raw.outcomeIndex ?? 0),
+    buy: Boolean(raw.buy),
+    quantity: String(raw.quantity ?? "0"),
+    tradeCostUsdc: String(raw.tradeCostUsdc ?? "0"),
+    nonce: String(raw.nonce ?? "0"),
+    deadline: String(raw.deadline ?? "0")
+  };
+}
+async function handleQuoteSigning(runtime2, payload) {
+  const config = runtime2.config;
+  const contracts = config.contracts;
+  if (!contracts) {
+    runtime2.log("Quote signing requires config.contracts (chainId, contracts, eip712).");
+    throw new Error("Missing config.contracts for quote signing");
+  }
+  const body = parsePayload(payload.input);
+  const questionId = body.questionId.startsWith("0x") ? body.questionId : `0x${body.questionId}`;
+  const ctx = { runtime: runtime2, config: contracts };
+  const market = await getMarket(ctx, questionId);
+  if (market.outcomeSlotCount === 0) {
+    throw new Error("Market not found or invalid");
+  }
+  if (body.outcomeIndex >= market.outcomeSlotCount) {
+    throw new Error("Outcome index out of range");
+  }
+  const nonce = BigInt(body.nonce);
+  if (getNonceUsed(runtime2, contracts, questionId, nonce)) {
+    throw new Error("Nonce already used");
+  }
+  if (body.buy) {
+    const balance = getVaultBalanceForOutcome(ctx, market.conditionId, body.outcomeIndex);
+    if (balance < BigInt(body.quantity)) {
+      throw new Error("Insufficient vault balance for this outcome");
+    }
+  }
+  const secret = runtime2.getSecret({ id: SECRET_ID, namespace: SECRET_NAMESPACE }).result();
+  const privateKey = secret.value ?? "";
+  if (!privateKey) {
+    throw new Error("Backend signer secret not configured");
+  }
+  const params = {
+    questionId,
+    outcomeIndex: body.outcomeIndex,
+    buy: body.buy,
+    quantity: BigInt(body.quantity),
+    tradeCostUsdc: BigInt(body.tradeCostUsdc),
+    nonce,
+    deadline: BigInt(body.deadline)
+  };
+  const signed = signLMSRQuote(params, contracts, privateKey);
+  runtime2.log("Quote signed successfully.");
+  return signed;
+}
+/*!
+ *  decimal.js v10.6.0
+ *  An arbitrary-precision Decimal type for JavaScript.
+ *  https://github.com/MikeMcl/decimal.js
+ *  Copyright (c) 2025 Michael Mclaughlin <M8ch88l@gmail.com>
+ *  MIT Licence
+ */
+var EXP_LIMIT = 9000000000000000;
+var MAX_DIGITS = 1e9;
+var NUMERALS = "0123456789abcdef";
+var LN10 = "2.3025850929940456840179914546843642076011014886287729760333279009675726096773524802359972050895982983419677840422862486334095254650828067566662873690987816894829072083255546808437998948262331985283935053089653777326288461633662222876982198867465436674744042432743651550489343149393914796194044002221051017141748003688084012647080685567743216228355220114804663715659121373450747856947683463616792101806445070648000277502684916746550586856935673420670581136429224554405758925724208241314695689016758940256776311356919292033376587141660230105703089634572075440370847469940168269282808481184289314848524948644871927809676271275775397027668605952496716674183485704422507197965004714951050492214776567636938662976979522110718264549734772662425709429322582798502585509785265383207606726317164309505995087807523710333101197857547331541421808427543863591778117054309827482385045648019095610299291824318237525357709750539565187697510374970888692180205189339507238539205144634197265287286965110862571492198849978748873771345686209167058";
+var PI = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989380952572010654858632789";
+var DEFAULTS = {
+  precision: 20,
+  rounding: 4,
+  modulo: 1,
+  toExpNeg: -7,
+  toExpPos: 21,
+  minE: -EXP_LIMIT,
+  maxE: EXP_LIMIT,
+  crypto: false
+};
+var inexact;
+var quadrant;
+var external2 = true;
+var decimalError = "[DecimalError] ";
+var invalidArgument = decimalError + "Invalid argument: ";
+var precisionLimitExceeded = decimalError + "Precision limit exceeded";
+var cryptoUnavailable = decimalError + "crypto unavailable";
+var tag = "[object Decimal]";
+var mathfloor = Math.floor;
+var mathpow = Math.pow;
+var isBinary = /^0b([01]+(\.[01]*)?|\.[01]+)(p[+-]?\d+)?$/i;
+var isHex2 = /^0x([0-9a-f]+(\.[0-9a-f]*)?|\.[0-9a-f]+)(p[+-]?\d+)?$/i;
+var isOctal = /^0o([0-7]+(\.[0-7]*)?|\.[0-7]+)(p[+-]?\d+)?$/i;
+var isDecimal = /^(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
+var BASE = 1e7;
+var LOG_BASE = 7;
+var MAX_SAFE_INTEGER = 9007199254740991;
+var LN10_PRECISION = LN10.length - 1;
+var PI_PRECISION = PI.length - 1;
+var P = { toStringTag: tag };
+P.absoluteValue = P.abs = function() {
+  var x = new this.constructor(this);
+  if (x.s < 0)
+    x.s = 1;
+  return finalise(x);
+};
+P.ceil = function() {
+  return finalise(new this.constructor(this), this.e + 1, 2);
+};
+P.clampedTo = P.clamp = function(min, max) {
+  var k, x = this, Ctor = x.constructor;
+  min = new Ctor(min);
+  max = new Ctor(max);
+  if (!min.s || !max.s)
+    return new Ctor(NaN);
+  if (min.gt(max))
+    throw Error(invalidArgument + max);
+  k = x.cmp(min);
+  return k < 0 ? min : x.cmp(max) > 0 ? max : new Ctor(x);
+};
+P.comparedTo = P.cmp = function(y) {
+  var i2, j, xdL, ydL, x = this, xd = x.d, yd = (y = new x.constructor(y)).d, xs = x.s, ys = y.s;
+  if (!xd || !yd) {
+    return !xs || !ys ? NaN : xs !== ys ? xs : xd === yd ? 0 : !xd ^ xs < 0 ? 1 : -1;
+  }
+  if (!xd[0] || !yd[0])
+    return xd[0] ? xs : yd[0] ? -ys : 0;
+  if (xs !== ys)
+    return xs;
+  if (x.e !== y.e)
+    return x.e > y.e ^ xs < 0 ? 1 : -1;
+  xdL = xd.length;
+  ydL = yd.length;
+  for (i2 = 0, j = xdL < ydL ? xdL : ydL;i2 < j; ++i2) {
+    if (xd[i2] !== yd[i2])
+      return xd[i2] > yd[i2] ^ xs < 0 ? 1 : -1;
+  }
+  return xdL === ydL ? 0 : xdL > ydL ^ xs < 0 ? 1 : -1;
+};
+P.cosine = P.cos = function() {
+  var pr, rm, x = this, Ctor = x.constructor;
+  if (!x.d)
+    return new Ctor(NaN);
+  if (!x.d[0])
+    return new Ctor(1);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + Math.max(x.e, x.sd()) + LOG_BASE;
+  Ctor.rounding = 1;
+  x = cosine(Ctor, toLessThanHalfPi(Ctor, x));
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return finalise(quadrant == 2 || quadrant == 3 ? x.neg() : x, pr, rm, true);
+};
+P.cubeRoot = P.cbrt = function() {
+  var e, m, n, r, rep, s, sd, t, t3, t3plusx, x = this, Ctor = x.constructor;
+  if (!x.isFinite() || x.isZero())
+    return new Ctor(x);
+  external2 = false;
+  s = x.s * mathpow(x.s * x, 1 / 3);
+  if (!s || Math.abs(s) == 1 / 0) {
+    n = digitsToString(x.d);
+    e = x.e;
+    if (s = (e - n.length + 1) % 3)
+      n += s == 1 || s == -2 ? "0" : "00";
+    s = mathpow(n, 1 / 3);
+    e = mathfloor((e + 1) / 3) - (e % 3 == (e < 0 ? -1 : 2));
+    if (s == 1 / 0) {
+      n = "5e" + e;
+    } else {
+      n = s.toExponential();
+      n = n.slice(0, n.indexOf("e") + 1) + e;
+    }
+    r = new Ctor(n);
+    r.s = x.s;
+  } else {
+    r = new Ctor(s.toString());
+  }
+  sd = (e = Ctor.precision) + 3;
+  for (;; ) {
+    t = r;
+    t3 = t.times(t).times(t);
+    t3plusx = t3.plus(x);
+    r = divide(t3plusx.plus(x).times(t), t3plusx.plus(t3), sd + 2, 1);
+    if (digitsToString(t.d).slice(0, sd) === (n = digitsToString(r.d)).slice(0, sd)) {
+      n = n.slice(sd - 3, sd + 1);
+      if (n == "9999" || !rep && n == "4999") {
+        if (!rep) {
+          finalise(t, e + 1, 0);
+          if (t.times(t).times(t).eq(x)) {
+            r = t;
+            break;
+          }
+        }
+        sd += 4;
+        rep = 1;
+      } else {
+        if (!+n || !+n.slice(1) && n.charAt(0) == "5") {
+          finalise(r, e + 1, 1);
+          m = !r.times(r).times(r).eq(x);
+        }
+        break;
+      }
+    }
+  }
+  external2 = true;
+  return finalise(r, e, Ctor.rounding, m);
+};
+P.decimalPlaces = P.dp = function() {
+  var w, d = this.d, n = NaN;
+  if (d) {
+    w = d.length - 1;
+    n = (w - mathfloor(this.e / LOG_BASE)) * LOG_BASE;
+    w = d[w];
+    if (w)
+      for (;w % 10 == 0; w /= 10)
+        n--;
+    if (n < 0)
+      n = 0;
+  }
+  return n;
+};
+P.dividedBy = P.div = function(y) {
+  return divide(this, new this.constructor(y));
+};
+P.dividedToIntegerBy = P.divToInt = function(y) {
+  var x = this, Ctor = x.constructor;
+  return finalise(divide(x, new Ctor(y), 0, 1, 1), Ctor.precision, Ctor.rounding);
+};
+P.equals = P.eq = function(y) {
+  return this.cmp(y) === 0;
+};
+P.floor = function() {
+  return finalise(new this.constructor(this), this.e + 1, 3);
+};
+P.greaterThan = P.gt = function(y) {
+  return this.cmp(y) > 0;
+};
+P.greaterThanOrEqualTo = P.gte = function(y) {
+  var k = this.cmp(y);
+  return k == 1 || k === 0;
+};
+P.hyperbolicCosine = P.cosh = function() {
+  var k, n, pr, rm, len2, x = this, Ctor = x.constructor, one = new Ctor(1);
+  if (!x.isFinite())
+    return new Ctor(x.s ? 1 / 0 : NaN);
+  if (x.isZero())
+    return one;
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + Math.max(x.e, x.sd()) + 4;
+  Ctor.rounding = 1;
+  len2 = x.d.length;
+  if (len2 < 32) {
+    k = Math.ceil(len2 / 3);
+    n = (1 / tinyPow(4, k)).toString();
+  } else {
+    k = 16;
+    n = "2.3283064365386962890625e-10";
+  }
+  x = taylorSeries(Ctor, 1, x.times(n), new Ctor(1), true);
+  var cosh2_x, i2 = k, d8 = new Ctor(8);
+  for (;i2--; ) {
+    cosh2_x = x.times(x);
+    x = one.minus(cosh2_x.times(d8.minus(cosh2_x.times(d8))));
+  }
+  return finalise(x, Ctor.precision = pr, Ctor.rounding = rm, true);
+};
+P.hyperbolicSine = P.sinh = function() {
+  var k, pr, rm, len2, x = this, Ctor = x.constructor;
+  if (!x.isFinite() || x.isZero())
+    return new Ctor(x);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + Math.max(x.e, x.sd()) + 4;
+  Ctor.rounding = 1;
+  len2 = x.d.length;
+  if (len2 < 3) {
+    x = taylorSeries(Ctor, 2, x, x, true);
+  } else {
+    k = 1.4 * Math.sqrt(len2);
+    k = k > 16 ? 16 : k | 0;
+    x = x.times(1 / tinyPow(5, k));
+    x = taylorSeries(Ctor, 2, x, x, true);
+    var sinh2_x, d5 = new Ctor(5), d16 = new Ctor(16), d20 = new Ctor(20);
+    for (;k--; ) {
+      sinh2_x = x.times(x);
+      x = x.times(d5.plus(sinh2_x.times(d16.times(sinh2_x).plus(d20))));
+    }
+  }
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return finalise(x, pr, rm, true);
+};
+P.hyperbolicTangent = P.tanh = function() {
+  var pr, rm, x = this, Ctor = x.constructor;
+  if (!x.isFinite())
+    return new Ctor(x.s);
+  if (x.isZero())
+    return new Ctor(x);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + 7;
+  Ctor.rounding = 1;
+  return divide(x.sinh(), x.cosh(), Ctor.precision = pr, Ctor.rounding = rm);
+};
+P.inverseCosine = P.acos = function() {
+  var x = this, Ctor = x.constructor, k = x.abs().cmp(1), pr = Ctor.precision, rm = Ctor.rounding;
+  if (k !== -1) {
+    return k === 0 ? x.isNeg() ? getPi(Ctor, pr, rm) : new Ctor(0) : new Ctor(NaN);
+  }
+  if (x.isZero())
+    return getPi(Ctor, pr + 4, rm).times(0.5);
+  Ctor.precision = pr + 6;
+  Ctor.rounding = 1;
+  x = new Ctor(1).minus(x).div(x.plus(1)).sqrt().atan();
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return x.times(2);
+};
+P.inverseHyperbolicCosine = P.acosh = function() {
+  var pr, rm, x = this, Ctor = x.constructor;
+  if (x.lte(1))
+    return new Ctor(x.eq(1) ? 0 : NaN);
+  if (!x.isFinite())
+    return new Ctor(x);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + Math.max(Math.abs(x.e), x.sd()) + 4;
+  Ctor.rounding = 1;
+  external2 = false;
+  x = x.times(x).minus(1).sqrt().plus(x);
+  external2 = true;
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return x.ln();
+};
+P.inverseHyperbolicSine = P.asinh = function() {
+  var pr, rm, x = this, Ctor = x.constructor;
+  if (!x.isFinite() || x.isZero())
+    return new Ctor(x);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + 2 * Math.max(Math.abs(x.e), x.sd()) + 6;
+  Ctor.rounding = 1;
+  external2 = false;
+  x = x.times(x).plus(1).sqrt().plus(x);
+  external2 = true;
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return x.ln();
+};
+P.inverseHyperbolicTangent = P.atanh = function() {
+  var pr, rm, wpr, xsd, x = this, Ctor = x.constructor;
+  if (!x.isFinite())
+    return new Ctor(NaN);
+  if (x.e >= 0)
+    return new Ctor(x.abs().eq(1) ? x.s / 0 : x.isZero() ? x : NaN);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  xsd = x.sd();
+  if (Math.max(xsd, pr) < 2 * -x.e - 1)
+    return finalise(new Ctor(x), pr, rm, true);
+  Ctor.precision = wpr = xsd - x.e;
+  x = divide(x.plus(1), new Ctor(1).minus(x), wpr + pr, 1);
+  Ctor.precision = pr + 4;
+  Ctor.rounding = 1;
+  x = x.ln();
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return x.times(0.5);
+};
+P.inverseSine = P.asin = function() {
+  var halfPi, k, pr, rm, x = this, Ctor = x.constructor;
+  if (x.isZero())
+    return new Ctor(x);
+  k = x.abs().cmp(1);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  if (k !== -1) {
+    if (k === 0) {
+      halfPi = getPi(Ctor, pr + 4, rm).times(0.5);
+      halfPi.s = x.s;
+      return halfPi;
+    }
+    return new Ctor(NaN);
+  }
+  Ctor.precision = pr + 6;
+  Ctor.rounding = 1;
+  x = x.div(new Ctor(1).minus(x.times(x)).sqrt().plus(1)).atan();
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return x.times(2);
+};
+P.inverseTangent = P.atan = function() {
+  var i2, j, k, n, px, t, r, wpr, x2, x = this, Ctor = x.constructor, pr = Ctor.precision, rm = Ctor.rounding;
+  if (!x.isFinite()) {
+    if (!x.s)
+      return new Ctor(NaN);
+    if (pr + 4 <= PI_PRECISION) {
+      r = getPi(Ctor, pr + 4, rm).times(0.5);
+      r.s = x.s;
+      return r;
+    }
+  } else if (x.isZero()) {
+    return new Ctor(x);
+  } else if (x.abs().eq(1) && pr + 4 <= PI_PRECISION) {
+    r = getPi(Ctor, pr + 4, rm).times(0.25);
+    r.s = x.s;
+    return r;
+  }
+  Ctor.precision = wpr = pr + 10;
+  Ctor.rounding = 1;
+  k = Math.min(28, wpr / LOG_BASE + 2 | 0);
+  for (i2 = k;i2; --i2)
+    x = x.div(x.times(x).plus(1).sqrt().plus(1));
+  external2 = false;
+  j = Math.ceil(wpr / LOG_BASE);
+  n = 1;
+  x2 = x.times(x);
+  r = new Ctor(x);
+  px = x;
+  for (;i2 !== -1; ) {
+    px = px.times(x2);
+    t = r.minus(px.div(n += 2));
+    px = px.times(x2);
+    r = t.plus(px.div(n += 2));
+    if (r.d[j] !== undefined)
+      for (i2 = j;r.d[i2] === t.d[i2] && i2--; )
+        ;
+  }
+  if (k)
+    r = r.times(2 << k - 1);
+  external2 = true;
+  return finalise(r, Ctor.precision = pr, Ctor.rounding = rm, true);
+};
+P.isFinite = function() {
+  return !!this.d;
+};
+P.isInteger = P.isInt = function() {
+  return !!this.d && mathfloor(this.e / LOG_BASE) > this.d.length - 2;
+};
+P.isNaN = function() {
+  return !this.s;
+};
+P.isNegative = P.isNeg = function() {
+  return this.s < 0;
+};
+P.isPositive = P.isPos = function() {
+  return this.s > 0;
+};
+P.isZero = function() {
+  return !!this.d && this.d[0] === 0;
+};
+P.lessThan = P.lt = function(y) {
+  return this.cmp(y) < 0;
+};
+P.lessThanOrEqualTo = P.lte = function(y) {
+  return this.cmp(y) < 1;
+};
+P.logarithm = P.log = function(base) {
+  var isBase10, d, denominator, k, inf, num, sd, r, arg = this, Ctor = arg.constructor, pr = Ctor.precision, rm = Ctor.rounding, guard = 5;
+  if (base == null) {
+    base = new Ctor(10);
+    isBase10 = true;
+  } else {
+    base = new Ctor(base);
+    d = base.d;
+    if (base.s < 0 || !d || !d[0] || base.eq(1))
+      return new Ctor(NaN);
+    isBase10 = base.eq(10);
+  }
+  d = arg.d;
+  if (arg.s < 0 || !d || !d[0] || arg.eq(1)) {
+    return new Ctor(d && !d[0] ? -1 / 0 : arg.s != 1 ? NaN : d ? 0 : 1 / 0);
+  }
+  if (isBase10) {
+    if (d.length > 1) {
+      inf = true;
+    } else {
+      for (k = d[0];k % 10 === 0; )
+        k /= 10;
+      inf = k !== 1;
+    }
+  }
+  external2 = false;
+  sd = pr + guard;
+  num = naturalLogarithm(arg, sd);
+  denominator = isBase10 ? getLn10(Ctor, sd + 10) : naturalLogarithm(base, sd);
+  r = divide(num, denominator, sd, 1);
+  if (checkRoundingDigits(r.d, k = pr, rm)) {
+    do {
+      sd += 10;
+      num = naturalLogarithm(arg, sd);
+      denominator = isBase10 ? getLn10(Ctor, sd + 10) : naturalLogarithm(base, sd);
+      r = divide(num, denominator, sd, 1);
+      if (!inf) {
+        if (+digitsToString(r.d).slice(k + 1, k + 15) + 1 == 100000000000000) {
+          r = finalise(r, pr + 1, 0);
+        }
+        break;
+      }
+    } while (checkRoundingDigits(r.d, k += 10, rm));
+  }
+  external2 = true;
+  return finalise(r, pr, rm);
+};
+P.minus = P.sub = function(y) {
+  var d, e, i2, j, k, len2, pr, rm, xd, xe, xLTy, yd, x = this, Ctor = x.constructor;
+  y = new Ctor(y);
+  if (!x.d || !y.d) {
+    if (!x.s || !y.s)
+      y = new Ctor(NaN);
+    else if (x.d)
+      y.s = -y.s;
+    else
+      y = new Ctor(y.d || x.s !== y.s ? x : NaN);
+    return y;
+  }
+  if (x.s != y.s) {
+    y.s = -y.s;
+    return x.plus(y);
+  }
+  xd = x.d;
+  yd = y.d;
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  if (!xd[0] || !yd[0]) {
+    if (yd[0])
+      y.s = -y.s;
+    else if (xd[0])
+      y = new Ctor(x);
+    else
+      return new Ctor(rm === 3 ? -0 : 0);
+    return external2 ? finalise(y, pr, rm) : y;
+  }
+  e = mathfloor(y.e / LOG_BASE);
+  xe = mathfloor(x.e / LOG_BASE);
+  xd = xd.slice();
+  k = xe - e;
+  if (k) {
+    xLTy = k < 0;
+    if (xLTy) {
+      d = xd;
+      k = -k;
+      len2 = yd.length;
+    } else {
+      d = yd;
+      e = xe;
+      len2 = xd.length;
+    }
+    i2 = Math.max(Math.ceil(pr / LOG_BASE), len2) + 2;
+    if (k > i2) {
+      k = i2;
+      d.length = 1;
+    }
+    d.reverse();
+    for (i2 = k;i2--; )
+      d.push(0);
+    d.reverse();
+  } else {
+    i2 = xd.length;
+    len2 = yd.length;
+    xLTy = i2 < len2;
+    if (xLTy)
+      len2 = i2;
+    for (i2 = 0;i2 < len2; i2++) {
+      if (xd[i2] != yd[i2]) {
+        xLTy = xd[i2] < yd[i2];
+        break;
+      }
+    }
+    k = 0;
+  }
+  if (xLTy) {
+    d = xd;
+    xd = yd;
+    yd = d;
+    y.s = -y.s;
+  }
+  len2 = xd.length;
+  for (i2 = yd.length - len2;i2 > 0; --i2)
+    xd[len2++] = 0;
+  for (i2 = yd.length;i2 > k; ) {
+    if (xd[--i2] < yd[i2]) {
+      for (j = i2;j && xd[--j] === 0; )
+        xd[j] = BASE - 1;
+      --xd[j];
+      xd[i2] += BASE;
+    }
+    xd[i2] -= yd[i2];
+  }
+  for (;xd[--len2] === 0; )
+    xd.pop();
+  for (;xd[0] === 0; xd.shift())
+    --e;
+  if (!xd[0])
+    return new Ctor(rm === 3 ? -0 : 0);
+  y.d = xd;
+  y.e = getBase10Exponent(xd, e);
+  return external2 ? finalise(y, pr, rm) : y;
+};
+P.modulo = P.mod = function(y) {
+  var q, x = this, Ctor = x.constructor;
+  y = new Ctor(y);
+  if (!x.d || !y.s || y.d && !y.d[0])
+    return new Ctor(NaN);
+  if (!y.d || x.d && !x.d[0]) {
+    return finalise(new Ctor(x), Ctor.precision, Ctor.rounding);
+  }
+  external2 = false;
+  if (Ctor.modulo == 9) {
+    q = divide(x, y.abs(), 0, 3, 1);
+    q.s *= y.s;
+  } else {
+    q = divide(x, y, 0, Ctor.modulo, 1);
+  }
+  q = q.times(y);
+  external2 = true;
+  return x.minus(q);
+};
+P.naturalExponential = P.exp = function() {
+  return naturalExponential(this);
+};
+P.naturalLogarithm = P.ln = function() {
+  return naturalLogarithm(this);
+};
+P.negated = P.neg = function() {
+  var x = new this.constructor(this);
+  x.s = -x.s;
+  return finalise(x);
+};
+P.plus = P.add = function(y) {
+  var carry, d, e, i2, k, len2, pr, rm, xd, yd, x = this, Ctor = x.constructor;
+  y = new Ctor(y);
+  if (!x.d || !y.d) {
+    if (!x.s || !y.s)
+      y = new Ctor(NaN);
+    else if (!x.d)
+      y = new Ctor(y.d || x.s === y.s ? x : NaN);
+    return y;
+  }
+  if (x.s != y.s) {
+    y.s = -y.s;
+    return x.minus(y);
+  }
+  xd = x.d;
+  yd = y.d;
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  if (!xd[0] || !yd[0]) {
+    if (!yd[0])
+      y = new Ctor(x);
+    return external2 ? finalise(y, pr, rm) : y;
+  }
+  k = mathfloor(x.e / LOG_BASE);
+  e = mathfloor(y.e / LOG_BASE);
+  xd = xd.slice();
+  i2 = k - e;
+  if (i2) {
+    if (i2 < 0) {
+      d = xd;
+      i2 = -i2;
+      len2 = yd.length;
+    } else {
+      d = yd;
+      e = k;
+      len2 = xd.length;
+    }
+    k = Math.ceil(pr / LOG_BASE);
+    len2 = k > len2 ? k + 1 : len2 + 1;
+    if (i2 > len2) {
+      i2 = len2;
+      d.length = 1;
+    }
+    d.reverse();
+    for (;i2--; )
+      d.push(0);
+    d.reverse();
+  }
+  len2 = xd.length;
+  i2 = yd.length;
+  if (len2 - i2 < 0) {
+    i2 = len2;
+    d = yd;
+    yd = xd;
+    xd = d;
+  }
+  for (carry = 0;i2; ) {
+    carry = (xd[--i2] = xd[i2] + yd[i2] + carry) / BASE | 0;
+    xd[i2] %= BASE;
+  }
+  if (carry) {
+    xd.unshift(carry);
+    ++e;
+  }
+  for (len2 = xd.length;xd[--len2] == 0; )
+    xd.pop();
+  y.d = xd;
+  y.e = getBase10Exponent(xd, e);
+  return external2 ? finalise(y, pr, rm) : y;
+};
+P.precision = P.sd = function(z) {
+  var k, x = this;
+  if (z !== undefined && z !== !!z && z !== 1 && z !== 0)
+    throw Error(invalidArgument + z);
+  if (x.d) {
+    k = getPrecision(x.d);
+    if (z && x.e + 1 > k)
+      k = x.e + 1;
+  } else {
+    k = NaN;
+  }
+  return k;
+};
+P.round = function() {
+  var x = this, Ctor = x.constructor;
+  return finalise(new Ctor(x), x.e + 1, Ctor.rounding);
+};
+P.sine = P.sin = function() {
+  var pr, rm, x = this, Ctor = x.constructor;
+  if (!x.isFinite())
+    return new Ctor(NaN);
+  if (x.isZero())
+    return new Ctor(x);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + Math.max(x.e, x.sd()) + LOG_BASE;
+  Ctor.rounding = 1;
+  x = sine(Ctor, toLessThanHalfPi(Ctor, x));
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return finalise(quadrant > 2 ? x.neg() : x, pr, rm, true);
+};
+P.squareRoot = P.sqrt = function() {
+  var m, n, sd, r, rep, t, x = this, d = x.d, e = x.e, s = x.s, Ctor = x.constructor;
+  if (s !== 1 || !d || !d[0]) {
+    return new Ctor(!s || s < 0 && (!d || d[0]) ? NaN : d ? x : 1 / 0);
+  }
+  external2 = false;
+  s = Math.sqrt(+x);
+  if (s == 0 || s == 1 / 0) {
+    n = digitsToString(d);
+    if ((n.length + e) % 2 == 0)
+      n += "0";
+    s = Math.sqrt(n);
+    e = mathfloor((e + 1) / 2) - (e < 0 || e % 2);
+    if (s == 1 / 0) {
+      n = "5e" + e;
+    } else {
+      n = s.toExponential();
+      n = n.slice(0, n.indexOf("e") + 1) + e;
+    }
+    r = new Ctor(n);
+  } else {
+    r = new Ctor(s.toString());
+  }
+  sd = (e = Ctor.precision) + 3;
+  for (;; ) {
+    t = r;
+    r = t.plus(divide(x, t, sd + 2, 1)).times(0.5);
+    if (digitsToString(t.d).slice(0, sd) === (n = digitsToString(r.d)).slice(0, sd)) {
+      n = n.slice(sd - 3, sd + 1);
+      if (n == "9999" || !rep && n == "4999") {
+        if (!rep) {
+          finalise(t, e + 1, 0);
+          if (t.times(t).eq(x)) {
+            r = t;
+            break;
+          }
+        }
+        sd += 4;
+        rep = 1;
+      } else {
+        if (!+n || !+n.slice(1) && n.charAt(0) == "5") {
+          finalise(r, e + 1, 1);
+          m = !r.times(r).eq(x);
+        }
+        break;
+      }
+    }
+  }
+  external2 = true;
+  return finalise(r, e, Ctor.rounding, m);
+};
+P.tangent = P.tan = function() {
+  var pr, rm, x = this, Ctor = x.constructor;
+  if (!x.isFinite())
+    return new Ctor(NaN);
+  if (x.isZero())
+    return new Ctor(x);
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  Ctor.precision = pr + 10;
+  Ctor.rounding = 1;
+  x = x.sin();
+  x.s = 1;
+  x = divide(x, new Ctor(1).minus(x.times(x)).sqrt(), pr + 10, 0);
+  Ctor.precision = pr;
+  Ctor.rounding = rm;
+  return finalise(quadrant == 2 || quadrant == 4 ? x.neg() : x, pr, rm, true);
+};
+P.times = P.mul = function(y) {
+  var carry, e, i2, k, r, rL, t, xdL, ydL, x = this, Ctor = x.constructor, xd = x.d, yd = (y = new Ctor(y)).d;
+  y.s *= x.s;
+  if (!xd || !xd[0] || !yd || !yd[0]) {
+    return new Ctor(!y.s || xd && !xd[0] && !yd || yd && !yd[0] && !xd ? NaN : !xd || !yd ? y.s / 0 : y.s * 0);
+  }
+  e = mathfloor(x.e / LOG_BASE) + mathfloor(y.e / LOG_BASE);
+  xdL = xd.length;
+  ydL = yd.length;
+  if (xdL < ydL) {
+    r = xd;
+    xd = yd;
+    yd = r;
+    rL = xdL;
+    xdL = ydL;
+    ydL = rL;
+  }
+  r = [];
+  rL = xdL + ydL;
+  for (i2 = rL;i2--; )
+    r.push(0);
+  for (i2 = ydL;--i2 >= 0; ) {
+    carry = 0;
+    for (k = xdL + i2;k > i2; ) {
+      t = r[k] + yd[i2] * xd[k - i2 - 1] + carry;
+      r[k--] = t % BASE | 0;
+      carry = t / BASE | 0;
+    }
+    r[k] = (r[k] + carry) % BASE | 0;
+  }
+  for (;!r[--rL]; )
+    r.pop();
+  if (carry)
+    ++e;
+  else
+    r.shift();
+  y.d = r;
+  y.e = getBase10Exponent(r, e);
+  return external2 ? finalise(y, Ctor.precision, Ctor.rounding) : y;
+};
+P.toBinary = function(sd, rm) {
+  return toStringBinary(this, 2, sd, rm);
+};
+P.toDecimalPlaces = P.toDP = function(dp, rm) {
+  var x = this, Ctor = x.constructor;
+  x = new Ctor(x);
+  if (dp === undefined)
+    return x;
+  checkInt32(dp, 0, MAX_DIGITS);
+  if (rm === undefined)
+    rm = Ctor.rounding;
+  else
+    checkInt32(rm, 0, 8);
+  return finalise(x, dp + x.e + 1, rm);
+};
+P.toExponential = function(dp, rm) {
+  var str, x = this, Ctor = x.constructor;
+  if (dp === undefined) {
+    str = finiteToString(x, true);
+  } else {
+    checkInt32(dp, 0, MAX_DIGITS);
+    if (rm === undefined)
+      rm = Ctor.rounding;
+    else
+      checkInt32(rm, 0, 8);
+    x = finalise(new Ctor(x), dp + 1, rm);
+    str = finiteToString(x, true, dp + 1);
+  }
+  return x.isNeg() && !x.isZero() ? "-" + str : str;
+};
+P.toFixed = function(dp, rm) {
+  var str, y, x = this, Ctor = x.constructor;
+  if (dp === undefined) {
+    str = finiteToString(x);
+  } else {
+    checkInt32(dp, 0, MAX_DIGITS);
+    if (rm === undefined)
+      rm = Ctor.rounding;
+    else
+      checkInt32(rm, 0, 8);
+    y = finalise(new Ctor(x), dp + x.e + 1, rm);
+    str = finiteToString(y, false, dp + y.e + 1);
+  }
+  return x.isNeg() && !x.isZero() ? "-" + str : str;
+};
+P.toFraction = function(maxD) {
+  var d, d0, d1, d2, e, k, n, n0, n1, pr, q, r, x = this, xd = x.d, Ctor = x.constructor;
+  if (!xd)
+    return new Ctor(x);
+  n1 = d0 = new Ctor(1);
+  d1 = n0 = new Ctor(0);
+  d = new Ctor(d1);
+  e = d.e = getPrecision(xd) - x.e - 1;
+  k = e % LOG_BASE;
+  d.d[0] = mathpow(10, k < 0 ? LOG_BASE + k : k);
+  if (maxD == null) {
+    maxD = e > 0 ? d : n1;
+  } else {
+    n = new Ctor(maxD);
+    if (!n.isInt() || n.lt(n1))
+      throw Error(invalidArgument + n);
+    maxD = n.gt(d) ? e > 0 ? d : n1 : n;
+  }
+  external2 = false;
+  n = new Ctor(digitsToString(xd));
+  pr = Ctor.precision;
+  Ctor.precision = e = xd.length * LOG_BASE * 2;
+  for (;; ) {
+    q = divide(n, d, 0, 1, 1);
+    d2 = d0.plus(q.times(d1));
+    if (d2.cmp(maxD) == 1)
+      break;
+    d0 = d1;
+    d1 = d2;
+    d2 = n1;
+    n1 = n0.plus(q.times(d2));
+    n0 = d2;
+    d2 = d;
+    d = n.minus(q.times(d2));
+    n = d2;
+  }
+  d2 = divide(maxD.minus(d0), d1, 0, 1, 1);
+  n0 = n0.plus(d2.times(n1));
+  d0 = d0.plus(d2.times(d1));
+  n0.s = n1.s = x.s;
+  r = divide(n1, d1, e, 1).minus(x).abs().cmp(divide(n0, d0, e, 1).minus(x).abs()) < 1 ? [n1, d1] : [n0, d0];
+  Ctor.precision = pr;
+  external2 = true;
+  return r;
+};
+P.toHexadecimal = P.toHex = function(sd, rm) {
+  return toStringBinary(this, 16, sd, rm);
+};
+P.toNearest = function(y, rm) {
+  var x = this, Ctor = x.constructor;
+  x = new Ctor(x);
+  if (y == null) {
+    if (!x.d)
+      return x;
+    y = new Ctor(1);
+    rm = Ctor.rounding;
+  } else {
+    y = new Ctor(y);
+    if (rm === undefined) {
+      rm = Ctor.rounding;
+    } else {
+      checkInt32(rm, 0, 8);
+    }
+    if (!x.d)
+      return y.s ? x : y;
+    if (!y.d) {
+      if (y.s)
+        y.s = x.s;
+      return y;
+    }
+  }
+  if (y.d[0]) {
+    external2 = false;
+    x = divide(x, y, 0, rm, 1).times(y);
+    external2 = true;
+    finalise(x);
+  } else {
+    y.s = x.s;
+    x = y;
+  }
+  return x;
+};
+P.toNumber = function() {
+  return +this;
+};
+P.toOctal = function(sd, rm) {
+  return toStringBinary(this, 8, sd, rm);
+};
+P.toPower = P.pow = function(y) {
+  var e, k, pr, r, rm, s, x = this, Ctor = x.constructor, yn = +(y = new Ctor(y));
+  if (!x.d || !y.d || !x.d[0] || !y.d[0])
+    return new Ctor(mathpow(+x, yn));
+  x = new Ctor(x);
+  if (x.eq(1))
+    return x;
+  pr = Ctor.precision;
+  rm = Ctor.rounding;
+  if (y.eq(1))
+    return finalise(x, pr, rm);
+  e = mathfloor(y.e / LOG_BASE);
+  if (e >= y.d.length - 1 && (k = yn < 0 ? -yn : yn) <= MAX_SAFE_INTEGER) {
+    r = intPow(Ctor, x, k, pr);
+    return y.s < 0 ? new Ctor(1).div(r) : finalise(r, pr, rm);
+  }
+  s = x.s;
+  if (s < 0) {
+    if (e < y.d.length - 1)
+      return new Ctor(NaN);
+    if ((y.d[e] & 1) == 0)
+      s = 1;
+    if (x.e == 0 && x.d[0] == 1 && x.d.length == 1) {
+      x.s = s;
+      return x;
+    }
+  }
+  k = mathpow(+x, yn);
+  e = k == 0 || !isFinite(k) ? mathfloor(yn * (Math.log("0." + digitsToString(x.d)) / Math.LN10 + x.e + 1)) : new Ctor(k + "").e;
+  if (e > Ctor.maxE + 1 || e < Ctor.minE - 1)
+    return new Ctor(e > 0 ? s / 0 : 0);
+  external2 = false;
+  Ctor.rounding = x.s = 1;
+  k = Math.min(12, (e + "").length);
+  r = naturalExponential(y.times(naturalLogarithm(x, pr + k)), pr);
+  if (r.d) {
+    r = finalise(r, pr + 5, 1);
+    if (checkRoundingDigits(r.d, pr, rm)) {
+      e = pr + 10;
+      r = finalise(naturalExponential(y.times(naturalLogarithm(x, e + k)), e), e + 5, 1);
+      if (+digitsToString(r.d).slice(pr + 1, pr + 15) + 1 == 100000000000000) {
+        r = finalise(r, pr + 1, 0);
+      }
+    }
+  }
+  r.s = s;
+  external2 = true;
+  Ctor.rounding = rm;
+  return finalise(r, pr, rm);
+};
+P.toPrecision = function(sd, rm) {
+  var str, x = this, Ctor = x.constructor;
+  if (sd === undefined) {
+    str = finiteToString(x, x.e <= Ctor.toExpNeg || x.e >= Ctor.toExpPos);
+  } else {
+    checkInt32(sd, 1, MAX_DIGITS);
+    if (rm === undefined)
+      rm = Ctor.rounding;
+    else
+      checkInt32(rm, 0, 8);
+    x = finalise(new Ctor(x), sd, rm);
+    str = finiteToString(x, sd <= x.e || x.e <= Ctor.toExpNeg, sd);
+  }
+  return x.isNeg() && !x.isZero() ? "-" + str : str;
+};
+P.toSignificantDigits = P.toSD = function(sd, rm) {
+  var x = this, Ctor = x.constructor;
+  if (sd === undefined) {
+    sd = Ctor.precision;
+    rm = Ctor.rounding;
+  } else {
+    checkInt32(sd, 1, MAX_DIGITS);
+    if (rm === undefined)
+      rm = Ctor.rounding;
+    else
+      checkInt32(rm, 0, 8);
+  }
+  return finalise(new Ctor(x), sd, rm);
+};
+P.toString = function() {
+  var x = this, Ctor = x.constructor, str = finiteToString(x, x.e <= Ctor.toExpNeg || x.e >= Ctor.toExpPos);
+  return x.isNeg() && !x.isZero() ? "-" + str : str;
+};
+P.truncated = P.trunc = function() {
+  return finalise(new this.constructor(this), this.e + 1, 1);
+};
+P.valueOf = P.toJSON = function() {
+  var x = this, Ctor = x.constructor, str = finiteToString(x, x.e <= Ctor.toExpNeg || x.e >= Ctor.toExpPos);
+  return x.isNeg() ? "-" + str : str;
+};
+function digitsToString(d) {
+  var i2, k, ws, indexOfLastWord = d.length - 1, str = "", w = d[0];
+  if (indexOfLastWord > 0) {
+    str += w;
+    for (i2 = 1;i2 < indexOfLastWord; i2++) {
+      ws = d[i2] + "";
+      k = LOG_BASE - ws.length;
+      if (k)
+        str += getZeroString(k);
+      str += ws;
+    }
+    w = d[i2];
+    ws = w + "";
+    k = LOG_BASE - ws.length;
+    if (k)
+      str += getZeroString(k);
+  } else if (w === 0) {
+    return "0";
+  }
+  for (;w % 10 === 0; )
+    w /= 10;
+  return str + w;
+}
+function checkInt32(i2, min, max) {
+  if (i2 !== ~~i2 || i2 < min || i2 > max) {
+    throw Error(invalidArgument + i2);
+  }
+}
+function checkRoundingDigits(d, i2, rm, repeating) {
+  var di, k, r, rd;
+  for (k = d[0];k >= 10; k /= 10)
+    --i2;
+  if (--i2 < 0) {
+    i2 += LOG_BASE;
+    di = 0;
+  } else {
+    di = Math.ceil((i2 + 1) / LOG_BASE);
+    i2 %= LOG_BASE;
+  }
+  k = mathpow(10, LOG_BASE - i2);
+  rd = d[di] % k | 0;
+  if (repeating == null) {
+    if (i2 < 3) {
+      if (i2 == 0)
+        rd = rd / 100 | 0;
+      else if (i2 == 1)
+        rd = rd / 10 | 0;
+      r = rm < 4 && rd == 99999 || rm > 3 && rd == 49999 || rd == 50000 || rd == 0;
+    } else {
+      r = (rm < 4 && rd + 1 == k || rm > 3 && rd + 1 == k / 2) && (d[di + 1] / k / 100 | 0) == mathpow(10, i2 - 2) - 1 || (rd == k / 2 || rd == 0) && (d[di + 1] / k / 100 | 0) == 0;
+    }
+  } else {
+    if (i2 < 4) {
+      if (i2 == 0)
+        rd = rd / 1000 | 0;
+      else if (i2 == 1)
+        rd = rd / 100 | 0;
+      else if (i2 == 2)
+        rd = rd / 10 | 0;
+      r = (repeating || rm < 4) && rd == 9999 || !repeating && rm > 3 && rd == 4999;
+    } else {
+      r = ((repeating || rm < 4) && rd + 1 == k || !repeating && rm > 3 && rd + 1 == k / 2) && (d[di + 1] / k / 1000 | 0) == mathpow(10, i2 - 3) - 1;
+    }
+  }
+  return r;
+}
+function convertBase(str, baseIn, baseOut) {
+  var j, arr = [0], arrL, i2 = 0, strL = str.length;
+  for (;i2 < strL; ) {
+    for (arrL = arr.length;arrL--; )
+      arr[arrL] *= baseIn;
+    arr[0] += NUMERALS.indexOf(str.charAt(i2++));
+    for (j = 0;j < arr.length; j++) {
+      if (arr[j] > baseOut - 1) {
+        if (arr[j + 1] === undefined)
+          arr[j + 1] = 0;
+        arr[j + 1] += arr[j] / baseOut | 0;
+        arr[j] %= baseOut;
+      }
+    }
+  }
+  return arr.reverse();
+}
+function cosine(Ctor, x) {
+  var k, len2, y;
+  if (x.isZero())
+    return x;
+  len2 = x.d.length;
+  if (len2 < 32) {
+    k = Math.ceil(len2 / 3);
+    y = (1 / tinyPow(4, k)).toString();
+  } else {
+    k = 16;
+    y = "2.3283064365386962890625e-10";
+  }
+  Ctor.precision += k;
+  x = taylorSeries(Ctor, 1, x.times(y), new Ctor(1));
+  for (var i2 = k;i2--; ) {
+    var cos2x = x.times(x);
+    x = cos2x.times(cos2x).minus(cos2x).times(8).plus(1);
+  }
+  Ctor.precision -= k;
+  return x;
+}
+var divide = function() {
+  function multiplyInteger(x, k, base) {
+    var temp, carry = 0, i2 = x.length;
+    for (x = x.slice();i2--; ) {
+      temp = x[i2] * k + carry;
+      x[i2] = temp % base | 0;
+      carry = temp / base | 0;
+    }
+    if (carry)
+      x.unshift(carry);
+    return x;
+  }
+  function compare(a, b, aL, bL) {
+    var i2, r;
+    if (aL != bL) {
+      r = aL > bL ? 1 : -1;
+    } else {
+      for (i2 = r = 0;i2 < aL; i2++) {
+        if (a[i2] != b[i2]) {
+          r = a[i2] > b[i2] ? 1 : -1;
+          break;
+        }
+      }
+    }
+    return r;
+  }
+  function subtract(a, b, aL, base) {
+    var i2 = 0;
+    for (;aL--; ) {
+      a[aL] -= i2;
+      i2 = a[aL] < b[aL] ? 1 : 0;
+      a[aL] = i2 * base + a[aL] - b[aL];
+    }
+    for (;!a[0] && a.length > 1; )
+      a.shift();
+  }
+  return function(x, y, pr, rm, dp, base) {
+    var cmp, e, i2, k, logBase, more, prod, prodL, q, qd, rem, remL, rem0, sd, t, xi, xL, yd0, yL, yz, Ctor = x.constructor, sign = x.s == y.s ? 1 : -1, xd = x.d, yd = y.d;
+    if (!xd || !xd[0] || !yd || !yd[0]) {
+      return new Ctor(!x.s || !y.s || (xd ? yd && xd[0] == yd[0] : !yd) ? NaN : xd && xd[0] == 0 || !yd ? sign * 0 : sign / 0);
+    }
+    if (base) {
+      logBase = 1;
+      e = x.e - y.e;
+    } else {
+      base = BASE;
+      logBase = LOG_BASE;
+      e = mathfloor(x.e / logBase) - mathfloor(y.e / logBase);
+    }
+    yL = yd.length;
+    xL = xd.length;
+    q = new Ctor(sign);
+    qd = q.d = [];
+    for (i2 = 0;yd[i2] == (xd[i2] || 0); i2++)
+      ;
+    if (yd[i2] > (xd[i2] || 0))
+      e--;
+    if (pr == null) {
+      sd = pr = Ctor.precision;
+      rm = Ctor.rounding;
+    } else if (dp) {
+      sd = pr + (x.e - y.e) + 1;
+    } else {
+      sd = pr;
+    }
+    if (sd < 0) {
+      qd.push(1);
+      more = true;
+    } else {
+      sd = sd / logBase + 2 | 0;
+      i2 = 0;
+      if (yL == 1) {
+        k = 0;
+        yd = yd[0];
+        sd++;
+        for (;(i2 < xL || k) && sd--; i2++) {
+          t = k * base + (xd[i2] || 0);
+          qd[i2] = t / yd | 0;
+          k = t % yd | 0;
+        }
+        more = k || i2 < xL;
+      } else {
+        k = base / (yd[0] + 1) | 0;
+        if (k > 1) {
+          yd = multiplyInteger(yd, k, base);
+          xd = multiplyInteger(xd, k, base);
+          yL = yd.length;
+          xL = xd.length;
+        }
+        xi = yL;
+        rem = xd.slice(0, yL);
+        remL = rem.length;
+        for (;remL < yL; )
+          rem[remL++] = 0;
+        yz = yd.slice();
+        yz.unshift(0);
+        yd0 = yd[0];
+        if (yd[1] >= base / 2)
+          ++yd0;
+        do {
+          k = 0;
+          cmp = compare(yd, rem, yL, remL);
+          if (cmp < 0) {
+            rem0 = rem[0];
+            if (yL != remL)
+              rem0 = rem0 * base + (rem[1] || 0);
+            k = rem0 / yd0 | 0;
+            if (k > 1) {
+              if (k >= base)
+                k = base - 1;
+              prod = multiplyInteger(yd, k, base);
+              prodL = prod.length;
+              remL = rem.length;
+              cmp = compare(prod, rem, prodL, remL);
+              if (cmp == 1) {
+                k--;
+                subtract(prod, yL < prodL ? yz : yd, prodL, base);
+              }
+            } else {
+              if (k == 0)
+                cmp = k = 1;
+              prod = yd.slice();
+            }
+            prodL = prod.length;
+            if (prodL < remL)
+              prod.unshift(0);
+            subtract(rem, prod, remL, base);
+            if (cmp == -1) {
+              remL = rem.length;
+              cmp = compare(yd, rem, yL, remL);
+              if (cmp < 1) {
+                k++;
+                subtract(rem, yL < remL ? yz : yd, remL, base);
+              }
+            }
+            remL = rem.length;
+          } else if (cmp === 0) {
+            k++;
+            rem = [0];
+          }
+          qd[i2++] = k;
+          if (cmp && rem[0]) {
+            rem[remL++] = xd[xi] || 0;
+          } else {
+            rem = [xd[xi]];
+            remL = 1;
+          }
+        } while ((xi++ < xL || rem[0] !== undefined) && sd--);
+        more = rem[0] !== undefined;
+      }
+      if (!qd[0])
+        qd.shift();
+    }
+    if (logBase == 1) {
+      q.e = e;
+      inexact = more;
+    } else {
+      for (i2 = 1, k = qd[0];k >= 10; k /= 10)
+        i2++;
+      q.e = i2 + e * logBase - 1;
+      finalise(q, dp ? pr + q.e + 1 : pr, rm, more);
+    }
+    return q;
+  };
+}();
+function finalise(x, sd, rm, isTruncated) {
+  var digits, i2, j, k, rd, roundUp, w, xd, xdi, Ctor = x.constructor;
+  out:
+    if (sd != null) {
+      xd = x.d;
+      if (!xd)
+        return x;
+      for (digits = 1, k = xd[0];k >= 10; k /= 10)
+        digits++;
+      i2 = sd - digits;
+      if (i2 < 0) {
+        i2 += LOG_BASE;
+        j = sd;
+        w = xd[xdi = 0];
+        rd = w / mathpow(10, digits - j - 1) % 10 | 0;
+      } else {
+        xdi = Math.ceil((i2 + 1) / LOG_BASE);
+        k = xd.length;
+        if (xdi >= k) {
+          if (isTruncated) {
+            for (;k++ <= xdi; )
+              xd.push(0);
+            w = rd = 0;
+            digits = 1;
+            i2 %= LOG_BASE;
+            j = i2 - LOG_BASE + 1;
+          } else {
+            break out;
+          }
+        } else {
+          w = k = xd[xdi];
+          for (digits = 1;k >= 10; k /= 10)
+            digits++;
+          i2 %= LOG_BASE;
+          j = i2 - LOG_BASE + digits;
+          rd = j < 0 ? 0 : w / mathpow(10, digits - j - 1) % 10 | 0;
+        }
+      }
+      isTruncated = isTruncated || sd < 0 || xd[xdi + 1] !== undefined || (j < 0 ? w : w % mathpow(10, digits - j - 1));
+      roundUp = rm < 4 ? (rd || isTruncated) && (rm == 0 || rm == (x.s < 0 ? 3 : 2)) : rd > 5 || rd == 5 && (rm == 4 || isTruncated || rm == 6 && (i2 > 0 ? j > 0 ? w / mathpow(10, digits - j) : 0 : xd[xdi - 1]) % 10 & 1 || rm == (x.s < 0 ? 8 : 7));
+      if (sd < 1 || !xd[0]) {
+        xd.length = 0;
+        if (roundUp) {
+          sd -= x.e + 1;
+          xd[0] = mathpow(10, (LOG_BASE - sd % LOG_BASE) % LOG_BASE);
+          x.e = -sd || 0;
+        } else {
+          xd[0] = x.e = 0;
+        }
+        return x;
+      }
+      if (i2 == 0) {
+        xd.length = xdi;
+        k = 1;
+        xdi--;
+      } else {
+        xd.length = xdi + 1;
+        k = mathpow(10, LOG_BASE - i2);
+        xd[xdi] = j > 0 ? (w / mathpow(10, digits - j) % mathpow(10, j) | 0) * k : 0;
+      }
+      if (roundUp) {
+        for (;; ) {
+          if (xdi == 0) {
+            for (i2 = 1, j = xd[0];j >= 10; j /= 10)
+              i2++;
+            j = xd[0] += k;
+            for (k = 1;j >= 10; j /= 10)
+              k++;
+            if (i2 != k) {
+              x.e++;
+              if (xd[0] == BASE)
+                xd[0] = 1;
+            }
+            break;
+          } else {
+            xd[xdi] += k;
+            if (xd[xdi] != BASE)
+              break;
+            xd[xdi--] = 0;
+            k = 1;
+          }
+        }
+      }
+      for (i2 = xd.length;xd[--i2] === 0; )
+        xd.pop();
+    }
+  if (external2) {
+    if (x.e > Ctor.maxE) {
+      x.d = null;
+      x.e = NaN;
+    } else if (x.e < Ctor.minE) {
+      x.e = 0;
+      x.d = [0];
+    }
+  }
+  return x;
+}
+function finiteToString(x, isExp, sd) {
+  if (!x.isFinite())
+    return nonFiniteToString(x);
+  var k, e = x.e, str = digitsToString(x.d), len2 = str.length;
+  if (isExp) {
+    if (sd && (k = sd - len2) > 0) {
+      str = str.charAt(0) + "." + str.slice(1) + getZeroString(k);
+    } else if (len2 > 1) {
+      str = str.charAt(0) + "." + str.slice(1);
+    }
+    str = str + (x.e < 0 ? "e" : "e+") + x.e;
+  } else if (e < 0) {
+    str = "0." + getZeroString(-e - 1) + str;
+    if (sd && (k = sd - len2) > 0)
+      str += getZeroString(k);
+  } else if (e >= len2) {
+    str += getZeroString(e + 1 - len2);
+    if (sd && (k = sd - e - 1) > 0)
+      str = str + "." + getZeroString(k);
+  } else {
+    if ((k = e + 1) < len2)
+      str = str.slice(0, k) + "." + str.slice(k);
+    if (sd && (k = sd - len2) > 0) {
+      if (e + 1 === len2)
+        str += ".";
+      str += getZeroString(k);
+    }
+  }
+  return str;
+}
+function getBase10Exponent(digits, e) {
+  var w = digits[0];
+  for (e *= LOG_BASE;w >= 10; w /= 10)
+    e++;
+  return e;
+}
+function getLn10(Ctor, sd, pr) {
+  if (sd > LN10_PRECISION) {
+    external2 = true;
+    if (pr)
+      Ctor.precision = pr;
+    throw Error(precisionLimitExceeded);
+  }
+  return finalise(new Ctor(LN10), sd, 1, true);
+}
+function getPi(Ctor, sd, rm) {
+  if (sd > PI_PRECISION)
+    throw Error(precisionLimitExceeded);
+  return finalise(new Ctor(PI), sd, rm, true);
+}
+function getPrecision(digits) {
+  var w = digits.length - 1, len2 = w * LOG_BASE + 1;
+  w = digits[w];
+  if (w) {
+    for (;w % 10 == 0; w /= 10)
+      len2--;
+    for (w = digits[0];w >= 10; w /= 10)
+      len2++;
+  }
+  return len2;
+}
+function getZeroString(k) {
+  var zs = "";
+  for (;k--; )
+    zs += "0";
+  return zs;
+}
+function intPow(Ctor, x, n, pr) {
+  var isTruncated, r = new Ctor(1), k = Math.ceil(pr / LOG_BASE + 4);
+  external2 = false;
+  for (;; ) {
+    if (n % 2) {
+      r = r.times(x);
+      if (truncate(r.d, k))
+        isTruncated = true;
+    }
+    n = mathfloor(n / 2);
+    if (n === 0) {
+      n = r.d.length - 1;
+      if (isTruncated && r.d[n] === 0)
+        ++r.d[n];
+      break;
+    }
+    x = x.times(x);
+    truncate(x.d, k);
+  }
+  external2 = true;
+  return r;
+}
+function isOdd(n) {
+  return n.d[n.d.length - 1] & 1;
+}
+function maxOrMin(Ctor, args, n) {
+  var k, y, x = new Ctor(args[0]), i2 = 0;
+  for (;++i2 < args.length; ) {
+    y = new Ctor(args[i2]);
+    if (!y.s) {
+      x = y;
+      break;
+    }
+    k = x.cmp(y);
+    if (k === n || k === 0 && x.s === n) {
+      x = y;
+    }
+  }
+  return x;
+}
+function naturalExponential(x, sd) {
+  var denominator, guard, j, pow, sum, t, wpr, rep = 0, i2 = 0, k = 0, Ctor = x.constructor, rm = Ctor.rounding, pr = Ctor.precision;
+  if (!x.d || !x.d[0] || x.e > 17) {
+    return new Ctor(x.d ? !x.d[0] ? 1 : x.s < 0 ? 0 : 1 / 0 : x.s ? x.s < 0 ? 0 : x : 0 / 0);
+  }
+  if (sd == null) {
+    external2 = false;
+    wpr = pr;
+  } else {
+    wpr = sd;
+  }
+  t = new Ctor(0.03125);
+  while (x.e > -2) {
+    x = x.times(t);
+    k += 5;
+  }
+  guard = Math.log(mathpow(2, k)) / Math.LN10 * 2 + 5 | 0;
+  wpr += guard;
+  denominator = pow = sum = new Ctor(1);
+  Ctor.precision = wpr;
+  for (;; ) {
+    pow = finalise(pow.times(x), wpr, 1);
+    denominator = denominator.times(++i2);
+    t = sum.plus(divide(pow, denominator, wpr, 1));
+    if (digitsToString(t.d).slice(0, wpr) === digitsToString(sum.d).slice(0, wpr)) {
+      j = k;
+      while (j--)
+        sum = finalise(sum.times(sum), wpr, 1);
+      if (sd == null) {
+        if (rep < 3 && checkRoundingDigits(sum.d, wpr - guard, rm, rep)) {
+          Ctor.precision = wpr += 10;
+          denominator = pow = t = new Ctor(1);
+          i2 = 0;
+          rep++;
+        } else {
+          return finalise(sum, Ctor.precision = pr, rm, external2 = true);
+        }
+      } else {
+        Ctor.precision = pr;
+        return sum;
+      }
+    }
+    sum = t;
+  }
+}
+function naturalLogarithm(y, sd) {
+  var c, c0, denominator, e, numerator, rep, sum, t, wpr, x1, x2, n = 1, guard = 10, x = y, xd = x.d, Ctor = x.constructor, rm = Ctor.rounding, pr = Ctor.precision;
+  if (x.s < 0 || !xd || !xd[0] || !x.e && xd[0] == 1 && xd.length == 1) {
+    return new Ctor(xd && !xd[0] ? -1 / 0 : x.s != 1 ? NaN : xd ? 0 : x);
+  }
+  if (sd == null) {
+    external2 = false;
+    wpr = pr;
+  } else {
+    wpr = sd;
+  }
+  Ctor.precision = wpr += guard;
+  c = digitsToString(xd);
+  c0 = c.charAt(0);
+  if (Math.abs(e = x.e) < 1500000000000000) {
+    while (c0 < 7 && c0 != 1 || c0 == 1 && c.charAt(1) > 3) {
+      x = x.times(y);
+      c = digitsToString(x.d);
+      c0 = c.charAt(0);
+      n++;
+    }
+    e = x.e;
+    if (c0 > 1) {
+      x = new Ctor("0." + c);
+      e++;
+    } else {
+      x = new Ctor(c0 + "." + c.slice(1));
+    }
+  } else {
+    t = getLn10(Ctor, wpr + 2, pr).times(e + "");
+    x = naturalLogarithm(new Ctor(c0 + "." + c.slice(1)), wpr - guard).plus(t);
+    Ctor.precision = pr;
+    return sd == null ? finalise(x, pr, rm, external2 = true) : x;
+  }
+  x1 = x;
+  sum = numerator = x = divide(x.minus(1), x.plus(1), wpr, 1);
+  x2 = finalise(x.times(x), wpr, 1);
+  denominator = 3;
+  for (;; ) {
+    numerator = finalise(numerator.times(x2), wpr, 1);
+    t = sum.plus(divide(numerator, new Ctor(denominator), wpr, 1));
+    if (digitsToString(t.d).slice(0, wpr) === digitsToString(sum.d).slice(0, wpr)) {
+      sum = sum.times(2);
+      if (e !== 0)
+        sum = sum.plus(getLn10(Ctor, wpr + 2, pr).times(e + ""));
+      sum = divide(sum, new Ctor(n), wpr, 1);
+      if (sd == null) {
+        if (checkRoundingDigits(sum.d, wpr - guard, rm, rep)) {
+          Ctor.precision = wpr += guard;
+          t = numerator = x = divide(x1.minus(1), x1.plus(1), wpr, 1);
+          x2 = finalise(x.times(x), wpr, 1);
+          denominator = rep = 1;
+        } else {
+          return finalise(sum, Ctor.precision = pr, rm, external2 = true);
+        }
+      } else {
+        Ctor.precision = pr;
+        return sum;
+      }
+    }
+    sum = t;
+    denominator += 2;
+  }
+}
+function nonFiniteToString(x) {
+  return String(x.s * x.s / 0);
+}
+function parseDecimal(x, str) {
+  var e, i2, len2;
+  if ((e = str.indexOf(".")) > -1)
+    str = str.replace(".", "");
+  if ((i2 = str.search(/e/i)) > 0) {
+    if (e < 0)
+      e = i2;
+    e += +str.slice(i2 + 1);
+    str = str.substring(0, i2);
+  } else if (e < 0) {
+    e = str.length;
+  }
+  for (i2 = 0;str.charCodeAt(i2) === 48; i2++)
+    ;
+  for (len2 = str.length;str.charCodeAt(len2 - 1) === 48; --len2)
+    ;
+  str = str.slice(i2, len2);
+  if (str) {
+    len2 -= i2;
+    x.e = e = e - i2 - 1;
+    x.d = [];
+    i2 = (e + 1) % LOG_BASE;
+    if (e < 0)
+      i2 += LOG_BASE;
+    if (i2 < len2) {
+      if (i2)
+        x.d.push(+str.slice(0, i2));
+      for (len2 -= LOG_BASE;i2 < len2; )
+        x.d.push(+str.slice(i2, i2 += LOG_BASE));
+      str = str.slice(i2);
+      i2 = LOG_BASE - str.length;
+    } else {
+      i2 -= len2;
+    }
+    for (;i2--; )
+      str += "0";
+    x.d.push(+str);
+    if (external2) {
+      if (x.e > x.constructor.maxE) {
+        x.d = null;
+        x.e = NaN;
+      } else if (x.e < x.constructor.minE) {
+        x.e = 0;
+        x.d = [0];
+      }
+    }
+  } else {
+    x.e = 0;
+    x.d = [0];
+  }
+  return x;
+}
+function parseOther(x, str) {
+  var base, Ctor, divisor, i2, isFloat, len2, p, xd, xe;
+  if (str.indexOf("_") > -1) {
+    str = str.replace(/(\d)_(?=\d)/g, "$1");
+    if (isDecimal.test(str))
+      return parseDecimal(x, str);
+  } else if (str === "Infinity" || str === "NaN") {
+    if (!+str)
+      x.s = NaN;
+    x.e = NaN;
+    x.d = null;
+    return x;
+  }
+  if (isHex2.test(str)) {
+    base = 16;
+    str = str.toLowerCase();
+  } else if (isBinary.test(str)) {
+    base = 2;
+  } else if (isOctal.test(str)) {
+    base = 8;
+  } else {
+    throw Error(invalidArgument + str);
+  }
+  i2 = str.search(/p/i);
+  if (i2 > 0) {
+    p = +str.slice(i2 + 1);
+    str = str.substring(2, i2);
+  } else {
+    str = str.slice(2);
+  }
+  i2 = str.indexOf(".");
+  isFloat = i2 >= 0;
+  Ctor = x.constructor;
+  if (isFloat) {
+    str = str.replace(".", "");
+    len2 = str.length;
+    i2 = len2 - i2;
+    divisor = intPow(Ctor, new Ctor(base), i2, i2 * 2);
+  }
+  xd = convertBase(str, base, BASE);
+  xe = xd.length - 1;
+  for (i2 = xe;xd[i2] === 0; --i2)
+    xd.pop();
+  if (i2 < 0)
+    return new Ctor(x.s * 0);
+  x.e = getBase10Exponent(xd, xe);
+  x.d = xd;
+  external2 = false;
+  if (isFloat)
+    x = divide(x, divisor, len2 * 4);
+  if (p)
+    x = x.times(Math.abs(p) < 54 ? mathpow(2, p) : Decimal2.pow(2, p));
+  external2 = true;
+  return x;
+}
+function sine(Ctor, x) {
+  var k, len2 = x.d.length;
+  if (len2 < 3) {
+    return x.isZero() ? x : taylorSeries(Ctor, 2, x, x);
+  }
+  k = 1.4 * Math.sqrt(len2);
+  k = k > 16 ? 16 : k | 0;
+  x = x.times(1 / tinyPow(5, k));
+  x = taylorSeries(Ctor, 2, x, x);
+  var sin2_x, d5 = new Ctor(5), d16 = new Ctor(16), d20 = new Ctor(20);
+  for (;k--; ) {
+    sin2_x = x.times(x);
+    x = x.times(d5.plus(sin2_x.times(d16.times(sin2_x).minus(d20))));
+  }
+  return x;
+}
+function taylorSeries(Ctor, n, x, y, isHyperbolic) {
+  var j, t, u, x2, i2 = 1, pr = Ctor.precision, k = Math.ceil(pr / LOG_BASE);
+  external2 = false;
+  x2 = x.times(x);
+  u = new Ctor(y);
+  for (;; ) {
+    t = divide(u.times(x2), new Ctor(n++ * n++), pr, 1);
+    u = isHyperbolic ? y.plus(t) : y.minus(t);
+    y = divide(t.times(x2), new Ctor(n++ * n++), pr, 1);
+    t = u.plus(y);
+    if (t.d[k] !== undefined) {
+      for (j = k;t.d[j] === u.d[j] && j--; )
+        ;
+      if (j == -1)
+        break;
+    }
+    j = u;
+    u = y;
+    y = t;
+    t = j;
+    i2++;
+  }
+  external2 = true;
+  t.d.length = k + 1;
+  return t;
+}
+function tinyPow(b, e) {
+  var n = b;
+  while (--e)
+    n *= b;
+  return n;
+}
+function toLessThanHalfPi(Ctor, x) {
+  var t, isNeg = x.s < 0, pi = getPi(Ctor, Ctor.precision, 1), halfPi = pi.times(0.5);
+  x = x.abs();
+  if (x.lte(halfPi)) {
+    quadrant = isNeg ? 4 : 1;
+    return x;
+  }
+  t = x.divToInt(pi);
+  if (t.isZero()) {
+    quadrant = isNeg ? 3 : 2;
+  } else {
+    x = x.minus(t.times(pi));
+    if (x.lte(halfPi)) {
+      quadrant = isOdd(t) ? isNeg ? 2 : 3 : isNeg ? 4 : 1;
+      return x;
+    }
+    quadrant = isOdd(t) ? isNeg ? 1 : 4 : isNeg ? 3 : 2;
+  }
+  return x.minus(pi).abs();
+}
+function toStringBinary(x, baseOut, sd, rm) {
+  var base, e, i2, k, len2, roundUp, str, xd, y, Ctor = x.constructor, isExp = sd !== undefined;
+  if (isExp) {
+    checkInt32(sd, 1, MAX_DIGITS);
+    if (rm === undefined)
+      rm = Ctor.rounding;
+    else
+      checkInt32(rm, 0, 8);
+  } else {
+    sd = Ctor.precision;
+    rm = Ctor.rounding;
+  }
+  if (!x.isFinite()) {
+    str = nonFiniteToString(x);
+  } else {
+    str = finiteToString(x);
+    i2 = str.indexOf(".");
+    if (isExp) {
+      base = 2;
+      if (baseOut == 16) {
+        sd = sd * 4 - 3;
+      } else if (baseOut == 8) {
+        sd = sd * 3 - 2;
+      }
+    } else {
+      base = baseOut;
+    }
+    if (i2 >= 0) {
+      str = str.replace(".", "");
+      y = new Ctor(1);
+      y.e = str.length - i2;
+      y.d = convertBase(finiteToString(y), 10, base);
+      y.e = y.d.length;
+    }
+    xd = convertBase(str, 10, base);
+    e = len2 = xd.length;
+    for (;xd[--len2] == 0; )
+      xd.pop();
+    if (!xd[0]) {
+      str = isExp ? "0p+0" : "0";
+    } else {
+      if (i2 < 0) {
+        e--;
+      } else {
+        x = new Ctor(x);
+        x.d = xd;
+        x.e = e;
+        x = divide(x, y, sd, rm, 0, base);
+        xd = x.d;
+        e = x.e;
+        roundUp = inexact;
+      }
+      i2 = xd[sd];
+      k = base / 2;
+      roundUp = roundUp || xd[sd + 1] !== undefined;
+      roundUp = rm < 4 ? (i2 !== undefined || roundUp) && (rm === 0 || rm === (x.s < 0 ? 3 : 2)) : i2 > k || i2 === k && (rm === 4 || roundUp || rm === 6 && xd[sd - 1] & 1 || rm === (x.s < 0 ? 8 : 7));
+      xd.length = sd;
+      if (roundUp) {
+        for (;++xd[--sd] > base - 1; ) {
+          xd[sd] = 0;
+          if (!sd) {
+            ++e;
+            xd.unshift(1);
+          }
+        }
+      }
+      for (len2 = xd.length;!xd[len2 - 1]; --len2)
+        ;
+      for (i2 = 0, str = "";i2 < len2; i2++)
+        str += NUMERALS.charAt(xd[i2]);
+      if (isExp) {
+        if (len2 > 1) {
+          if (baseOut == 16 || baseOut == 8) {
+            i2 = baseOut == 16 ? 4 : 3;
+            for (--len2;len2 % i2; len2++)
+              str += "0";
+            xd = convertBase(str, base, baseOut);
+            for (len2 = xd.length;!xd[len2 - 1]; --len2)
+              ;
+            for (i2 = 1, str = "1.";i2 < len2; i2++)
+              str += NUMERALS.charAt(xd[i2]);
+          } else {
+            str = str.charAt(0) + "." + str.slice(1);
+          }
+        }
+        str = str + (e < 0 ? "p" : "p+") + e;
+      } else if (e < 0) {
+        for (;++e; )
+          str = "0" + str;
+        str = "0." + str;
+      } else {
+        if (++e > len2)
+          for (e -= len2;e--; )
+            str += "0";
+        else if (e < len2)
+          str = str.slice(0, e) + "." + str.slice(e);
+      }
+    }
+    str = (baseOut == 16 ? "0x" : baseOut == 2 ? "0b" : baseOut == 8 ? "0o" : "") + str;
+  }
+  return x.s < 0 ? "-" + str : str;
+}
+function truncate(arr, len2) {
+  if (arr.length > len2) {
+    arr.length = len2;
+    return true;
+  }
+}
+function abs(x) {
+  return new this(x).abs();
+}
+function acos(x) {
+  return new this(x).acos();
+}
+function acosh(x) {
+  return new this(x).acosh();
+}
+function add(x, y) {
+  return new this(x).plus(y);
+}
+function asin(x) {
+  return new this(x).asin();
+}
+function asinh(x) {
+  return new this(x).asinh();
+}
+function atan(x) {
+  return new this(x).atan();
+}
+function atanh(x) {
+  return new this(x).atanh();
+}
+function atan2(y, x) {
+  y = new this(y);
+  x = new this(x);
+  var r, pr = this.precision, rm = this.rounding, wpr = pr + 4;
+  if (!y.s || !x.s) {
+    r = new this(NaN);
+  } else if (!y.d && !x.d) {
+    r = getPi(this, wpr, 1).times(x.s > 0 ? 0.25 : 0.75);
+    r.s = y.s;
+  } else if (!x.d || y.isZero()) {
+    r = x.s < 0 ? getPi(this, pr, rm) : new this(0);
+    r.s = y.s;
+  } else if (!y.d || x.isZero()) {
+    r = getPi(this, wpr, 1).times(0.5);
+    r.s = y.s;
+  } else if (x.s < 0) {
+    this.precision = wpr;
+    this.rounding = 1;
+    r = this.atan(divide(y, x, wpr, 1));
+    x = getPi(this, wpr, 1);
+    this.precision = pr;
+    this.rounding = rm;
+    r = y.s < 0 ? r.minus(x) : r.plus(x);
+  } else {
+    r = this.atan(divide(y, x, wpr, 1));
+  }
+  return r;
+}
+function cbrt(x) {
+  return new this(x).cbrt();
+}
+function ceil(x) {
+  return finalise(x = new this(x), x.e + 1, 2);
+}
+function clamp(x, min, max) {
+  return new this(x).clamp(min, max);
+}
+function config(obj) {
+  if (!obj || typeof obj !== "object")
+    throw Error(decimalError + "Object expected");
+  var i2, p, v, useDefaults = obj.defaults === true, ps = [
+    "precision",
+    1,
+    MAX_DIGITS,
+    "rounding",
+    0,
+    8,
+    "toExpNeg",
+    -EXP_LIMIT,
+    0,
+    "toExpPos",
+    0,
+    EXP_LIMIT,
+    "maxE",
+    0,
+    EXP_LIMIT,
+    "minE",
+    -EXP_LIMIT,
+    0,
+    "modulo",
+    0,
+    9
+  ];
+  for (i2 = 0;i2 < ps.length; i2 += 3) {
+    if (p = ps[i2], useDefaults)
+      this[p] = DEFAULTS[p];
+    if ((v = obj[p]) !== undefined) {
+      if (mathfloor(v) === v && v >= ps[i2 + 1] && v <= ps[i2 + 2])
+        this[p] = v;
+      else
+        throw Error(invalidArgument + p + ": " + v);
+    }
+  }
+  if (p = "crypto", useDefaults)
+    this[p] = DEFAULTS[p];
+  if ((v = obj[p]) !== undefined) {
+    if (v === true || v === false || v === 0 || v === 1) {
+      if (v) {
+        if (typeof crypto != "undefined" && crypto && (crypto.getRandomValues || crypto.randomBytes)) {
+          this[p] = true;
+        } else {
+          throw Error(cryptoUnavailable);
+        }
+      } else {
+        this[p] = false;
+      }
+    } else {
+      throw Error(invalidArgument + p + ": " + v);
+    }
+  }
+  return this;
+}
+function cos(x) {
+  return new this(x).cos();
+}
+function cosh(x) {
+  return new this(x).cosh();
+}
+function clone2(obj) {
+  var i2, p, ps;
+  function Decimal2(v) {
+    var e, i3, t, x = this;
+    if (!(x instanceof Decimal2))
+      return new Decimal2(v);
+    x.constructor = Decimal2;
+    if (isDecimalInstance(v)) {
+      x.s = v.s;
+      if (external2) {
+        if (!v.d || v.e > Decimal2.maxE) {
+          x.e = NaN;
+          x.d = null;
+        } else if (v.e < Decimal2.minE) {
+          x.e = 0;
+          x.d = [0];
+        } else {
+          x.e = v.e;
+          x.d = v.d.slice();
+        }
+      } else {
+        x.e = v.e;
+        x.d = v.d ? v.d.slice() : v.d;
+      }
+      return;
+    }
+    t = typeof v;
+    if (t === "number") {
+      if (v === 0) {
+        x.s = 1 / v < 0 ? -1 : 1;
+        x.e = 0;
+        x.d = [0];
+        return;
+      }
+      if (v < 0) {
+        v = -v;
+        x.s = -1;
+      } else {
+        x.s = 1;
+      }
+      if (v === ~~v && v < 1e7) {
+        for (e = 0, i3 = v;i3 >= 10; i3 /= 10)
+          e++;
+        if (external2) {
+          if (e > Decimal2.maxE) {
+            x.e = NaN;
+            x.d = null;
+          } else if (e < Decimal2.minE) {
+            x.e = 0;
+            x.d = [0];
+          } else {
+            x.e = e;
+            x.d = [v];
+          }
+        } else {
+          x.e = e;
+          x.d = [v];
+        }
+        return;
+      }
+      if (v * 0 !== 0) {
+        if (!v)
+          x.s = NaN;
+        x.e = NaN;
+        x.d = null;
+        return;
+      }
+      return parseDecimal(x, v.toString());
+    }
+    if (t === "string") {
+      if ((i3 = v.charCodeAt(0)) === 45) {
+        v = v.slice(1);
+        x.s = -1;
+      } else {
+        if (i3 === 43)
+          v = v.slice(1);
+        x.s = 1;
+      }
+      return isDecimal.test(v) ? parseDecimal(x, v) : parseOther(x, v);
+    }
+    if (t === "bigint") {
+      if (v < 0) {
+        v = -v;
+        x.s = -1;
+      } else {
+        x.s = 1;
+      }
+      return parseDecimal(x, v.toString());
+    }
+    throw Error(invalidArgument + v);
+  }
+  Decimal2.prototype = P;
+  Decimal2.ROUND_UP = 0;
+  Decimal2.ROUND_DOWN = 1;
+  Decimal2.ROUND_CEIL = 2;
+  Decimal2.ROUND_FLOOR = 3;
+  Decimal2.ROUND_HALF_UP = 4;
+  Decimal2.ROUND_HALF_DOWN = 5;
+  Decimal2.ROUND_HALF_EVEN = 6;
+  Decimal2.ROUND_HALF_CEIL = 7;
+  Decimal2.ROUND_HALF_FLOOR = 8;
+  Decimal2.EUCLID = 9;
+  Decimal2.config = Decimal2.set = config;
+  Decimal2.clone = clone2;
+  Decimal2.isDecimal = isDecimalInstance;
+  Decimal2.abs = abs;
+  Decimal2.acos = acos;
+  Decimal2.acosh = acosh;
+  Decimal2.add = add;
+  Decimal2.asin = asin;
+  Decimal2.asinh = asinh;
+  Decimal2.atan = atan;
+  Decimal2.atanh = atanh;
+  Decimal2.atan2 = atan2;
+  Decimal2.cbrt = cbrt;
+  Decimal2.ceil = ceil;
+  Decimal2.clamp = clamp;
+  Decimal2.cos = cos;
+  Decimal2.cosh = cosh;
+  Decimal2.div = div;
+  Decimal2.exp = exp;
+  Decimal2.floor = floor;
+  Decimal2.hypot = hypot;
+  Decimal2.ln = ln;
+  Decimal2.log = log;
+  Decimal2.log10 = log10;
+  Decimal2.log2 = log2;
+  Decimal2.max = max;
+  Decimal2.min = min;
+  Decimal2.mod = mod3;
+  Decimal2.mul = mul;
+  Decimal2.pow = pow;
+  Decimal2.random = random;
+  Decimal2.round = round;
+  Decimal2.sign = sign;
+  Decimal2.sin = sin;
+  Decimal2.sinh = sinh;
+  Decimal2.sqrt = sqrt;
+  Decimal2.sub = sub;
+  Decimal2.sum = sum;
+  Decimal2.tan = tan;
+  Decimal2.tanh = tanh;
+  Decimal2.trunc = trunc;
+  if (obj === undefined)
+    obj = {};
+  if (obj) {
+    if (obj.defaults !== true) {
+      ps = ["precision", "rounding", "toExpNeg", "toExpPos", "maxE", "minE", "modulo", "crypto"];
+      for (i2 = 0;i2 < ps.length; )
+        if (!obj.hasOwnProperty(p = ps[i2++]))
+          obj[p] = this[p];
+    }
+  }
+  Decimal2.config(obj);
+  return Decimal2;
+}
+function div(x, y) {
+  return new this(x).div(y);
+}
+function exp(x) {
+  return new this(x).exp();
+}
+function floor(x) {
+  return finalise(x = new this(x), x.e + 1, 3);
+}
+function hypot() {
+  var i2, n, t = new this(0);
+  external2 = false;
+  for (i2 = 0;i2 < arguments.length; ) {
+    n = new this(arguments[i2++]);
+    if (!n.d) {
+      if (n.s) {
+        external2 = true;
+        return new this(1 / 0);
+      }
+      t = n;
+    } else if (t.d) {
+      t = t.plus(n.times(n));
+    }
+  }
+  external2 = true;
+  return t.sqrt();
+}
+function isDecimalInstance(obj) {
+  return obj instanceof Decimal2 || obj && obj.toStringTag === tag || false;
+}
+function ln(x) {
+  return new this(x).ln();
+}
+function log(x, y) {
+  return new this(x).log(y);
+}
+function log2(x) {
+  return new this(x).log(2);
+}
+function log10(x) {
+  return new this(x).log(10);
+}
+function max() {
+  return maxOrMin(this, arguments, -1);
+}
+function min() {
+  return maxOrMin(this, arguments, 1);
+}
+function mod3(x, y) {
+  return new this(x).mod(y);
+}
+function mul(x, y) {
+  return new this(x).mul(y);
+}
+function pow(x, y) {
+  return new this(x).pow(y);
+}
+function random(sd) {
+  var d, e, k, n, i2 = 0, r = new this(1), rd = [];
+  if (sd === undefined)
+    sd = this.precision;
+  else
+    checkInt32(sd, 1, MAX_DIGITS);
+  k = Math.ceil(sd / LOG_BASE);
+  if (!this.crypto) {
+    for (;i2 < k; )
+      rd[i2++] = Math.random() * 1e7 | 0;
+  } else if (crypto.getRandomValues) {
+    d = crypto.getRandomValues(new Uint32Array(k));
+    for (;i2 < k; ) {
+      n = d[i2];
+      if (n >= 4290000000) {
+        d[i2] = crypto.getRandomValues(new Uint32Array(1))[0];
+      } else {
+        rd[i2++] = n % 1e7;
+      }
+    }
+  } else if (crypto.randomBytes) {
+    d = crypto.randomBytes(k *= 4);
+    for (;i2 < k; ) {
+      n = d[i2] + (d[i2 + 1] << 8) + (d[i2 + 2] << 16) + ((d[i2 + 3] & 127) << 24);
+      if (n >= 2140000000) {
+        crypto.randomBytes(4).copy(d, i2);
+      } else {
+        rd.push(n % 1e7);
+        i2 += 4;
+      }
+    }
+    i2 = k / 4;
+  } else {
+    throw Error(cryptoUnavailable);
+  }
+  k = rd[--i2];
+  sd %= LOG_BASE;
+  if (k && sd) {
+    n = mathpow(10, LOG_BASE - sd);
+    rd[i2] = (k / n | 0) * n;
+  }
+  for (;rd[i2] === 0; i2--)
+    rd.pop();
+  if (i2 < 0) {
+    e = 0;
+    rd = [0];
+  } else {
+    e = -1;
+    for (;rd[0] === 0; e -= LOG_BASE)
+      rd.shift();
+    for (k = 1, n = rd[0];n >= 10; n /= 10)
+      k++;
+    if (k < LOG_BASE)
+      e -= LOG_BASE - k;
+  }
+  r.e = e;
+  r.d = rd;
+  return r;
+}
+function round(x) {
+  return finalise(x = new this(x), x.e + 1, this.rounding);
+}
+function sign(x) {
+  x = new this(x);
+  return x.d ? x.d[0] ? x.s : 0 * x.s : x.s || NaN;
+}
+function sin(x) {
+  return new this(x).sin();
+}
+function sinh(x) {
+  return new this(x).sinh();
+}
+function sqrt(x) {
+  return new this(x).sqrt();
+}
+function sub(x, y) {
+  return new this(x).sub(y);
+}
+function sum() {
+  var i2 = 0, args = arguments, x = new this(args[i2]);
+  external2 = false;
+  for (;x.s && ++i2 < args.length; )
+    x = x.plus(args[i2]);
+  external2 = true;
+  return finalise(x, this.precision, this.rounding);
+}
+function tan(x) {
+  return new this(x).tan();
+}
+function tanh(x) {
+  return new this(x).tanh();
+}
+function trunc(x) {
+  return finalise(x = new this(x), x.e + 1, 1);
+}
+P[Symbol.for("nodejs.util.inspect.custom")] = P.toString;
+P[Symbol.toStringTag] = "Decimal";
+var Decimal2 = P.constructor = clone2(DEFAULTS);
+LN10 = new Decimal2(LN10);
+PI = new Decimal2(PI);
+var decimal_default = Decimal2;
+function costFunction(q, b) {
+  if (b.lte(0)) {
+    throw new Error("LMSR bParameter must be positive");
+  }
+  let sum2 = new decimal_default(0);
+  for (let i2 = 0;i2 < q.length; i2++) {
+    sum2 = sum2.plus(decimal_default.exp(q[i2].div(b)));
+  }
+  if (sum2.lte(0)) {
+    throw new Error("LMSR sum of exponentials must be positive");
+  }
+  return b.times(decimal_default.ln(sum2));
+}
+function costToBuy(q, outcomeIndex, quantity, b) {
+  if (outcomeIndex < 0 || outcomeIndex >= q.length) {
+    throw new Error("LMSR outcomeIndex out of range");
+  }
+  const qPrime = q.map((qi, i2) => i2 === outcomeIndex ? qi.plus(quantity) : qi);
+  const cBefore = costFunction(q, b);
+  const cAfter = costFunction(qPrime, b);
+  return cAfter.minus(cBefore);
+}
+function costToUsdcUnits(costOutcomeWei, outcomeTokenDecimals, usdcDecimals) {
+  const divisor = new decimal_default(10).pow(outcomeTokenDecimals);
+  const multiplier = new decimal_default(10).pow(usdcDecimals);
+  const usdc = costOutcomeWei.times(multiplier).div(divisor);
+  return BigInt(usdc.round(0, decimal_default.ROUND_CEIL).toString());
+}
+var DON_SIGNER_NAMESPACE = "sub0";
+var DON_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
+var DEFAULT_DEADLINE_SECONDS = 900;
+function parseLmsrPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    marketId: String(raw.marketId ?? ""),
+    outcomeIndex: Number(raw.outcomeIndex ?? 0),
+    quantity: String(raw.quantity ?? "0"),
+    bParameter: String(raw.bParameter ?? raw.b ?? "1")
+  };
+}
+function ensureQuestionId(marketId) {
+  const s = marketId.trim();
+  if (s.startsWith("0x") && s.length === 66)
+    return s;
+  if (s.length === 64)
+    return `0x${s}`;
+  throw new Error("Invalid marketId: expected 32-byte hex (64 or 66 chars)");
+}
+function randomNonce() {
+  const buf = new Uint8Array(32);
+  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.getRandomValues) {
+    globalThis.crypto.getRandomValues(buf);
+  } else {
+    for (let i2 = 0;i2 < 32; i2++)
+      buf[i2] = Math.floor(Math.random() * 256);
+  }
+  let hex = "0x";
+  for (let i2 = 0;i2 < buf.length; i2++)
+    hex += buf[i2].toString(16).padStart(2, "0");
+  return BigInt(hex);
+}
+async function handleLmsrPricing(runtime2, payload) {
+  const config2 = runtime2.config?.contracts;
+  if (!config2) {
+    runtime2.log("lmsrPricing requires config.contracts");
+    throw new Error("Missing config.contracts");
+  }
+  const body = parseLmsrPayload(payload.input);
+  if (!body.marketId)
+    throw new Error("Missing body.marketId");
+  if (!body.quantity || body.quantity === "0")
+    throw new Error("Missing or zero body.quantity");
+  const questionId = ensureQuestionId(body.marketId);
+  const ctx = { runtime: runtime2, config: config2 };
+  const market = await getMarket(ctx, questionId);
+  if (market.outcomeSlotCount === 0) {
+    throw new Error("Market not found or invalid");
+  }
+  if (body.outcomeIndex < 0 || body.outcomeIndex >= market.outcomeSlotCount) {
+    throw new Error("Outcome index out of range");
+  }
+  const bParam = new decimal_default(body.bParameter);
+  if (bParam.lte(0)) {
+    throw new Error("bParameter must be positive");
+  }
+  const qRaw = [];
+  for (let i2 = 0;i2 < market.outcomeSlotCount; i2++) {
+    const balance = getVaultBalanceForOutcome(ctx, market.conditionId, i2);
+    qRaw.push(balance);
+  }
+  const q = qRaw.map((qi) => new decimal_default(qi.toString()));
+  const quantityDec = new decimal_default(body.quantity);
+  const costOutcomeWei = costToBuy(q, body.outcomeIndex, quantityDec, bParam);
+  const outcomeDecimals = config2.conventions?.outcomeTokenDecimals ?? 18;
+  const usdcDecimals = config2.conventions?.usdcDecimals ?? 6;
+  const tradeCostUsdcBigInt = costToUsdcUnits(costOutcomeWei, outcomeDecimals, usdcDecimals);
+  let nonce = randomNonce();
+  const maxAttempts = 10;
+  for (let attempt = 0;attempt < maxAttempts; attempt++) {
+    if (!getNonceUsed(runtime2, config2, questionId, nonce))
+      break;
+    nonce = randomNonce();
+  }
+  if (getNonceUsed(runtime2, config2, questionId, nonce)) {
+    throw new Error("Could not generate unused nonce");
+  }
+  const deadlineSeconds = runtime2.config?.deadlineSeconds ?? DEFAULT_DEADLINE_SECONDS;
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
+  const secret = runtime2.getSecret({ id: DON_SIGNER_ID, namespace: DON_SIGNER_NAMESPACE }).result();
+  const privateKey = secret.value ?? "";
+  if (!privateKey) {
+    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY in namespace sub0)");
+  }
+  const signed = signLMSRQuote({
+    questionId,
+    outcomeIndex: body.outcomeIndex,
+    buy: true,
+    quantity: BigInt(body.quantity),
+    tradeCostUsdc: tradeCostUsdcBigInt,
+    nonce,
+    deadline
+  }, config2, privateKey);
+  runtime2.log("LMSR quote signed successfully.");
+  return {
+    tradeCostUsdc: signed.tradeCostUsdc,
+    donSignature: signed.signature,
+    deadline: signed.deadline,
+    nonce: signed.nonce
+  };
+}
+function randomPrivateKeyBytes() {
+  const out = new Uint8Array(32);
+  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.getRandomValues) {
+    globalThis.crypto.getRandomValues(out);
+  } else {
+    for (let i2 = 0;i2 < 32; i2++)
+      out[i2] = Math.floor(Math.random() * 256);
+  }
+  return out;
+}
+function createWalletSync() {
+  const privKeyBytes = randomPrivateKeyBytes();
+  const pubKey = secp256k12.getPublicKey(privKeyBytes, false);
+  const pubKeyNoPrefix = pubKey.slice(1);
+  const hash2 = keccak256(pubKeyNoPrefix);
+  const addressHex = `0x${hash2.slice(-40)}`;
+  const address = getAddress(addressHex);
+  const privateKey = bytesToHex2(privKeyBytes);
+  return { address, privateKey };
+}
+function createRandomAddress() {
+  return createWalletSync().address;
+}
+function parseCreateAgentKeyPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const agentId = typeof raw.agentId === "string" ? raw.agentId.trim() : "";
+  if (!agentId) {
+    throw new Error("Missing or invalid body.agentId");
+  }
+  return { agentId };
+}
+function handleCreateAgentKey(runtime2, payload) {
+  const body = parseCreateAgentKeyPayload(payload.input);
+  const address = createRandomAddress();
+  runtime2.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
+  return { address };
+}
+function parseCreateMarketPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    question: String(raw.question ?? ""),
+    oracle: String(raw.oracle ?? ""),
+    duration: Number(raw.duration ?? 0),
+    outcomeSlotCount: Number(raw.outcomeSlotCount ?? 2),
+    oracleType: Number(raw.oracleType ?? 1),
+    marketType: Number(raw.marketType ?? 0),
+    amountUsdc: raw.amountUsdc != null ? String(raw.amountUsdc) : undefined,
+    creatorAddress: String(raw.creatorAddress ?? "")
+  };
+}
+function parseSeedPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    questionId: String(raw.questionId ?? ""),
+    amountUsdc: String(raw.amountUsdc ?? "0")
+  };
+}
+async function handleCreateMarket(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts) {
+    runtime2.log("Create market requires config.contracts.");
+    throw new Error("Missing config.contracts for platform actions");
+  }
+  const body = parseCreateMarketPayload(payload.input);
+  if (!body.question?.trim())
+    throw new Error("question is required");
+  if (body.outcomeSlotCount < 2 || body.outcomeSlotCount > 255)
+    throw new Error("outcomeSlotCount must be 2-255");
+  const duration = Number(body.duration);
+  if (duration <= 0)
+    throw new Error("duration must be positive");
+  const oracle = body.oracle.startsWith("0x") ? body.oracle : `0x${body.oracle}`;
+  if (oracle.length !== 42)
+    throw new Error("oracle must be a valid 20-byte address");
+  const creatorAddress = body.creatorAddress?.trim();
+  if (!creatorAddress)
+    throw new Error("creatorAddress is required (address that signs create tx, e.g. CRE platform key)");
+  const creator = creatorAddress.startsWith("0x") ? creatorAddress : `0x${creatorAddress}`;
+  if (creator.length !== 42)
+    throw new Error("creatorAddress must be a valid 20-byte address");
+  const questionId = computeQuestionId(body.question.trim(), creator, oracle);
+  const createMarketTxHash = submitCreateMarket(runtime2, contracts, {
+    question: body.question.trim(),
+    oracle,
+    duration,
+    outcomeSlotCount: body.outcomeSlotCount,
+    oracleType: body.oracleType,
+    marketType: body.marketType
+  });
+  runtime2.log("Create market submitted.");
+  let seedTxHash = "";
+  const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
+  if (amountUsdc > 0n) {
+    seedTxHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
+    runtime2.log("Seed market liquidity submitted for new market.");
+  }
+  const ctx = { runtime: runtime2, config: contracts };
+  const market = await getMarket(ctx, questionId);
+  const out = {
+    status: "ok",
+    result: "createMarket",
+    questionId,
+    question: market?.question ?? "",
+    conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
+    oracle: market?.oracle ?? "0x0000000000000000000000000000000000000000",
+    owner: market?.owner ?? "0x0000000000000000000000000000000000000000",
+    createdAt: market?.createdAt != null ? String(market.createdAt) : "0",
+    duration: market?.duration != null ? String(market.duration) : "0",
+    outcomeSlotCount: String(market?.outcomeSlotCount ?? 0),
+    oracleType: String(market?.oracleType ?? 0),
+    marketType: String(market?.marketType ?? 0)
+  };
+  if (createMarketTxHash)
+    out.createMarketTxHash = createMarketTxHash;
+  if (seedTxHash)
+    out.seedTxHash = seedTxHash;
+  return out;
+}
+function handleSeedLiquidity(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts) {
+    runtime2.log("Seed liquidity requires config.contracts.");
+    throw new Error("Missing config.contracts for platform actions");
+  }
+  const body = parseSeedPayload(payload.input);
+  const questionId = body.questionId.startsWith("0x") ? body.questionId : `0x${body.questionId}`;
+  const amountUsdc = BigInt(body.amountUsdc);
+  if (amountUsdc <= 0n) {
+    throw new Error("amountUsdc must be positive");
+  }
+  const txHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
+  runtime2.log("Seed market liquidity submitted.");
+  const out = { status: "ok" };
+  if (txHash)
+    out.txHash = txHash;
+  return out;
+}
+function handlePlatformCron(runtime2) {
+  runtime2.log("Platform cron: no action (use HTTP to seed liquidity or trigger actions).");
+  return "ok";
+}
+var onCronTrigger = (runtime2) => {
+  return handlePlatformCron(runtime2);
+};
+var onHTTPTrigger = async (runtime2, payload) => {
+  const body = (() => {
+    try {
+      const text = new TextDecoder().decode(payload.input);
+      return JSON.parse(text);
+    } catch {
+      return {};
+    }
+  })();
+  verifyApiKey(runtime2, body);
+  const action = body.action;
+  if (action === "quote" || action === "order") {
+    const signed = await handleQuoteSigning(runtime2, payload);
+    return signed;
+  }
+  if (action === "lmsrPricing") {
+    return { ...await handleLmsrPricing(runtime2, payload) };
+  }
+  if (action === "createAgentKey") {
+    return { ...handleCreateAgentKey(runtime2, payload) };
+  }
+  if (action === "createMarket") {
+    return await handleCreateMarket(runtime2, payload);
+  }
+  if (action === "seed") {
+    return handleSeedLiquidity(runtime2, payload);
+  }
+  runtime2.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'.");
+  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'");
+};
+var initWorkflow = (config2) => {
+  const cron = new CronCapability;
+  const http = new HTTPCapability;
+  return [
+    handler(cron.trigger({ schedule: config2.schedule }), onCronTrigger),
+    handler(http.trigger({}), onHTTPTrigger)
+  ];
+};
+async function main() {
+  const runner = await Runner.newRunner();
+  await runner.run(initWorkflow);
+}
+main().catch(sendErrorResponse);
+export {
+  main
+};

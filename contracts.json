@@ -1,0 +1,46 @@
+{
+  "staging-settings": {
+    "chainId": 84532,
+    "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+    "contracts": {
+      "sub0": "0x7bf8ea2f79A6cA9dbc870ACa0e003d1CCb885306",
+      "predictionVault": "0xc2631ab40ed1a7D64f30C744188742Fb8DaEd48B",
+      "conditionalTokens": "0x1845ec008D0791b075a04ef76807733065714653",
+      "vault": "0x2Fe3ff45A327c3CF82d55CAa1b1f9641B4c70b55",
+      "usdc": "0xD44b22769E09D79791703d0225119E8d7D09b736",
+      "hub": "0xc393C4C586E2c72842e7BCF8C7FF73d79DdEF16b"
+    },
+    "eip712": {
+      "domainName": "Sub0PredictionVault",
+      "domainVersion": "1",
+      "quoteTypeName": "LMSRQuote(bytes32 questionId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,uint256 nonce,uint256 deadline)"
+    },
+    "conventions": {
+      "usdcDecimals": 6,
+      "outcomeTokenDecimals": 18,
+      "parentCollectionId": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "production-settings": {
+    "chainId": 84532,
+    "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+    "contracts": {
+      "sub0": "0x7bf8ea2f79A6cA9dbc870ACa0e003d1CCb885306",
+      "predictionVault": "0xc2631ab40ed1a7D64f30C744188742Fb8DaEd48B",
+      "conditionalTokens": "0x1845ec008D0791b075a04ef76807733065714653",
+      "vault": "0x2Fe3ff45A327c3CF82d55CAa1b1f9641B4c70b55",
+      "usdc": "0xD44b22769E09D79791703d0225119E8d7D09b736",
+      "hub": "0xc393C4C586E2c72842e7BCF8C7FF73d79DdEF16b"
+    },
+    "eip712": {
+      "domainName": "Sub0PredictionVault",
+      "domainVersion": "1",
+      "quoteTypeName": "LMSRQuote(bytes32 questionId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,uint256 nonce,uint256 deadline)"
+    },
+    "conventions": {
+      "usdcDecimals": 6,
+      "outcomeTokenDecimals": 18,
+      "parentCollectionId": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  }
+}
