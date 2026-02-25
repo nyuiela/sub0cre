@@ -7,6 +7,7 @@ import {
   cre,
   encodeCallMsg,
   getNetwork,
+  LATEST_BLOCK_NUMBER,
   LAST_FINALIZED_BLOCK_NUMBER,
   bytesToHex,
 } from "@chainlink/cre-sdk";
@@ -73,3 +74,5 @@ export type EvmContext = {
   runtime: Runtime<unknown>;
   config: ChainContractConfig;
 };
+
+export { LATEST_BLOCK_NUMBER, LAST_FINALIZED_BLOCK_NUMBER };

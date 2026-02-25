@@ -1,11 +1,12 @@
 /**
  * Fetches agent-generated market payloads from the backend, creates each on-chain via Sub0,
  * then calls the backend onchain-created callback with questionId, txHash, and agentSource.
- * Trigger: HTTP action "createMarketsFromBackend". Requires config.backendUrl and optional secret BACKEND_API_KEY.
+ * Trigger: HTTP action "createMarketsFromBackend". Uses Confidential HTTP: API key injected from vault only.
  */
 
-import { cre, type Runtime } from "@chainlink/cre-sdk";
+import type { Runtime } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "../types/config";
+import { sendConfidentialBackendRequest } from "../lib/confidentialHttp";
 import { handleCreateMarket } from "./platformActions";
 
 const AGENT_MARKETS_PATH = "/api/internal/agent-markets";
@@ -37,34 +38,20 @@ export async function handleCreateMarketsFromBackend(
     throw new Error("createMarketsFromBackend requires config.contracts");
   }
 
-  let apiKey = "";
-  const secretId = config.backendApiKeySecretId ?? "BACKEND_API_KEY";
-  try {
-    const secret = runtime.getSecret({ id: secretId, namespace: "sub0" }).result();
-    apiKey = secret?.value?.trim() ?? "";
-  } catch {
-    runtime.log("Backend API key secret not set; request may 401.");
-  }
-
   const getUrl = `${backendUrl.replace(/\/$/, "")}${AGENT_MARKETS_PATH}?count=${DEFAULT_COUNT}`;
-  runtime.log(`Fetching agent markets from ${getUrl}`);
+  runtime.log("Fetching agent markets (confidential HTTP).");
 
-  const httpClient = new cre.capabilities.HTTPClient();
-  const getRes = httpClient
-    .sendRequest(runtime, {
-      url: getUrl,
-      method: "GET",
-      headers: apiKey ? { "x-api-key": apiKey } : {},
-      body: new Uint8Array(0),
-    })
-    .result();
+  const getRes = sendConfidentialBackendRequest(runtime, {
+    url: getUrl,
+    method: "GET",
+  });
 
   if (getRes.statusCode < 200 || getRes.statusCode >= 300) {
-    const bodyText = new TextDecoder().decode(getRes.body ?? new Uint8Array(0));
+    const bodyText = new TextDecoder().decode(getRes.body);
     throw new Error(`Backend agent-markets failed: ${getRes.statusCode} ${bodyText}`);
   }
 
-  const getBody = new TextDecoder().decode(getRes.body ?? new Uint8Array(0));
+  const getBody = new TextDecoder().decode(getRes.body);
   let data: BackendMarketPayload[] = [];
   try {
     const parsed = JSON.parse(getBody) as { data?: BackendMarketPayload[] };
@@ -110,17 +97,11 @@ export async function handleCreateMarketsFromBackend(
         marketType: Number(payload.marketType),
         agentSource: payload.agentSource ?? undefined,
       };
-      const postRes = httpClient
-        .sendRequest(runtime, {
-          url: postUrl,
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(apiKey ? { "x-api-key": apiKey } : {}),
-          },
-          body: new TextEncoder().encode(JSON.stringify(callbackBody)),
-        })
-        .result();
+      const postRes = sendConfidentialBackendRequest(runtime, {
+        url: postUrl,
+        method: "POST",
+        body: new TextEncoder().encode(JSON.stringify(callbackBody)),
+      });
       if (postRes.statusCode >= 200 && postRes.statusCode < 300) {
         created++;
       } else {

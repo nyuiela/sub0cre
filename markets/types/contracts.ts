@@ -10,6 +10,8 @@ export interface ChainContracts {
   vault: string;
   usdc: string;
   hub: string;
+  /** Agent settlement receiver (CRE writes resolution report here). Optional. */
+  agentSettlementReceiver?: string;
 }
 
 export interface EIP712Config {

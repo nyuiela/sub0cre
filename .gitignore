@@ -4,3 +4,4 @@
 ./markets/node_modules/*
 
 byoa-chainlink.integration.md
+./markets/node_modules/

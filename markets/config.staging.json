@@ -4,15 +4,14 @@
   "backendApiKeySecretId": "BACKEND_API_KEY",
   "contracts": {
     "chainId": 84532,
-    "chainSelectorName": "ethereum-testnet-sepolia-base-1",
-    "gasLimit": "500000",
+    "chainSelectorName": "ethereum-testnet-sepolia",
     "contracts": {
-      "sub0": "0x19b16C6846b42Bd4D0Ca96eFb55B9aA66EaF55ef",
-      "predictionVault": "0x6c9AdCe305eb4aC110101d1CD22B7d057513f4Dd",
-      "conditionalTokens": "0x07db3e01bfe5930a1E1AD440567b77836492D494",
-      "vault": "0xa3369Ff2F72B31d74d1a8361C314348042285067",
-      "usdc": "0x787b3A81127ACA558A8804bFBf7816c49FaA68FA",
-      "hub": "0xAd1bFA27b7eaF10E8c30dCE91Ba8846279f73F9e"
+      "sub0": "0x8D19D6c95bC3F5999B43AaB8b943BbBd1AcEcbfe",
+      "predictionVault": "0x437097ACFf70654F1EeFC789a6B8a99AC9292679",
+      "conditionalTokens": "0x4F43285a236b717265cca2680fd54D7B6E6c1888",
+      "vault": "0xEAc29a24Ce1cb8d755e410eF16fb0D3A0A136B8f",
+      "usdc": "0xaA808eA75890533059F9e38c8379C613229d4c34",
+      "hub": "0x8c4F6347362a2EC50c1EBE07518092F20e82f34E"
     },
     "eip712": {
       "domainName": "Sub0PredictionVault",
