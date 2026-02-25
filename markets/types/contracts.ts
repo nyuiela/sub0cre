@@ -27,6 +27,8 @@ export interface Conventions {
 export interface ChainContractConfig {
   chainId: number;
   chainSelectorName: string;
+  /** Gas limit for writeReport (e.g. create market). Default 500000 if omitted. */
+  gasLimit?: string;
   contracts: ChainContracts;
   eip712: EIP712Config;
   conventions: Conventions;

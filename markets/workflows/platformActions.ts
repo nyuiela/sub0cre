@@ -55,6 +55,7 @@ function parseSeedPayload(input: Uint8Array): SeedLiquidityPayload {
 
 /**
  * HTTP handler: create market onchain via Sub0.create(Market). Platform only; requires config.contracts and env key with GAME_CREATOR_ROLE for Public markets.
+ * Response: when getMarket reads at last finalized block it will not see the just-submitted tx, so we fall back to payload-derived fields (question, oracle, owner, duration, etc.). Use sim-create-broadcast or --broadcast to send txs to the deployed contract.
  */
 export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array }): Promise<Record<string, string>> {
   const config = runtime.config;
@@ -89,31 +90,49 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
     oracleType: body.oracleType,
     marketType: body.marketType,
   });
-  runtime.log("Create market submitted.");
+  if (createMarketTxHash) {
+    runtime.log(`Create market submitted. Transaction: ${createMarketTxHash}`);
+  } else {
+    runtime.log("Create market submitted (no tx hash; use --broadcast for real onchain write).");
+  }
 
   let seedTxHash = "";
   const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
   if (amountUsdc > 0n) {
     seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
-    runtime.log("Seed market liquidity submitted for new market.");
+    if (seedTxHash) {
+      runtime.log(`Seed market liquidity submitted for new market. Transaction: ${seedTxHash}`);
+    } else {
+      runtime.log("Seed market liquidity submitted (no tx hash; use --broadcast for real onchain write).");
+    }
   }
 
   const ctx = { runtime, config: contracts };
-  const market = await getMarket(ctx, questionId);
+  let market: Awaited<ReturnType<typeof getMarket>> | undefined;
+  try {
+    market = await getMarket(ctx, questionId);
+  } catch {
+    market = undefined;
+  }
+
+  const fromChain =
+    market != null &&
+    (market.question?.length > 0 ||
+      (market.conditionId != null && market.conditionId !== "0x0000000000000000000000000000000000000000000000000000000000000000"));
 
   const out: Record<string, string> = {
     status: "ok",
     result: "createMarket",
     questionId,
-    question: market?.question ?? "",
+    question: fromChain ? (market?.question ?? "") : body.question.trim(),
     conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
-    oracle: market?.oracle ?? "0x0000000000000000000000000000000000000000",
-    owner: market?.owner ?? "0x0000000000000000000000000000000000000000",
+    oracle: fromChain ? (market?.oracle ?? "") : oracle,
+    owner: fromChain ? (market?.owner ?? "") : creator,
     createdAt: market?.createdAt != null ? String(market.createdAt) : "0",
-    duration: market?.duration != null ? String(market.duration) : "0",
-    outcomeSlotCount: String(market?.outcomeSlotCount ?? 0),
-    oracleType: String(market?.oracleType ?? 0),
-    marketType: String(market?.marketType ?? 0),
+    duration: fromChain && market?.duration != null ? String(market.duration) : String(duration),
+    outcomeSlotCount: String(market?.outcomeSlotCount ?? body.outcomeSlotCount),
+    oracleType: String(market?.oracleType ?? body.oracleType),
+    marketType: String(market?.marketType ?? body.marketType),
   };
   if (createMarketTxHash) out.createMarketTxHash = createMarketTxHash;
   if (seedTxHash) out.seedTxHash = seedTxHash;

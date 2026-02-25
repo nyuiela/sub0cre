@@ -121,8 +121,8 @@ Payload files live under `payloads/` (e.g. `create-market-payload.json`, `seed-p
 | Command                                                                                                                               | Description                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `cre workflow simulate markets --target staging-settings`                                                                             | Compile and run workflow; interactive trigger selection        |
-| `cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/<file>.json --target staging-settings` | Run HTTP trigger with a JSON payload file                      |
-| `cre workflow simulate markets --broadcast --target staging-settings`                                                                 | Same as above but broadcast real onchain transactions          |
+| `cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/<file>.json --target staging-settings` | Run HTTP trigger with a JSON payload file (no real txs)        |
+| `cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/<file>.json --target staging-settings --broadcast` | Same but broadcast real onchain transactions (required for create market to hit deployed Sub0) |
 | `cre workflow deploy markets --target staging-settings`                                                                               | Deploy workflow to the registry                                |
 | `cre workflow activate markets --target staging-settings`                                                                             | Activate workflow on the registry                              |
 | `cre secrets create ...`                                                                                                              | Create secrets for the workflow (e.g. backend signer, API key) |
@@ -223,6 +223,7 @@ HTTP trigger expects a JSON body with `action` and, when applicable, `apiKey`.
 | `quote` / `order` | Sign LMSR quote (EIP-712) for `executeTrade`. Uses backend signer from secrets. Payload: `questionId`, `outcomeIndex`, `buy`, `quantity`, `tradeCostUsdc`, `nonce`, `deadline`.          |
 | `lmsrPricing`     | DON computes LMSR cost from on-chain balances, signs quote. Payload: `marketId`, `outcomeIndex`, `quantity`, `bParameter`. Returns `tradeCostUsdc`, `donSignature`, `deadline`, `nonce`. |
 | `createAgentKey`  | Generate agent wallet in enclave (sync); returns `address` only. Payload: `agentId`.                                                                                                     |
+| `createMarketsFromBackend` | Fetches agent markets from backend `GET /api/internal/agent-markets`, creates each on-chain, then POSTs `questionId` + `createMarketTxHash` + `agentSource` to backend `POST /api/internal/markets/onchain-created`. Requires `config.backendUrl` and optional secret `BACKEND_API_KEY` (namespace `sub0`). |
 
 **Confidential trade** (executeConfidentialTrade) is a **standalone** workflow entrypoint (`markets/executeConfidentialTrade.ts`), not exposed as an action in `main.ts`, due to async signing. Use the dedicated entrypoint and payload `execute-confidential-trade-payload.json` when integrating with the confidential flow.
 
@@ -268,11 +269,42 @@ HTTP trigger expects a JSON body with `action` and, when applicable, `apiKey`.
 | `BACKEND_SIGNER_PRIVATE_KEY` | DON/backend signer for LMSR quotes (EIP-712). Must match PredictionVault’s `backendSigner`.           |
 | `CRE_TARGET`                 | Optional; default target (e.g. `staging-settings`).                                                   |
 
+### Sub0 CRE forwarder (required for create market)
+
+CRE does not call your Sub0 contract directly. It sends the report to a **Chainlink Keystone Forwarder** contract; the Forwarder then calls `Sub0.onReport()`. So when your workflow runs with `--broadcast`, the transaction you see on the block explorer is **to the Forwarder**, not to Sub0. The Forwarder is the one that calls Sub0; therefore Sub0 must trust the **Forwarder contract address**.
+
+1. **Get the Forwarder address:** Open the successful writeReport transaction on the block explorer (e.g. [sepolia.basescan.org](https://sepolia.basescan.org)). The **"To"** address of that transaction is the Keystone Forwarder contract. Use that address.
+2. **On Sub0 (owner):** Call `setCreForwarderAddress(forwarderAddress)` with that Forwarder contract address.
+3. **Grant role:** Grant `GAME_CREATOR_ROLE` to that same Forwarder address on the permission manager so the Forwarder can create Public markets when it calls `onReport`.
+
+Without this, when the Forwarder calls `Sub0.onReport()`, Sub0 reverts with `CREForwarderNotSet()` or `CREInvalidSender`, so the market is never created even though the Forwarder received the report and the outer transaction succeeded.
+
+**Use the Sub0 proxy address in CRE config:** After deploying with `just deploy`, the log shows "Sub0 (proxy): 0x..." and "Sub0 (implementation): 0x...". In `markets/config.staging.json` and `config.production.json` (and contracts.json if used), set `contracts.sub0` to the **proxy** address, not the implementation. The Forwarder must call the proxy so that `onReport` runs in proxy context (with storage where the forwarder address and owner are set); calling the implementation directly reverts (ReportProcessed result = false).
+
+**Run set-cre-forwarder after every deploy:** A new deploy does not set the CRE forwarder on the new proxy. If you skip this step, `onReport` reverts with CREForwarderNotSet and ReportProcessed shows result = false. From `sub0contract`: ensure `SUB0_ADDRESS` in `.env` is the proxy from the deploy log, then run `just set-cre-forwarder`.
+
+**Script to set forwarder and grant role:** From the `sub0contract` directory, run the Foundry script (requires `PRIVATE_KEY` = Sub0 owner and `SUB0_ADDRESS`; optional `CRE_FORWARDER_ADDRESS`; defaults to Base Sepolia forwarder if omitted):
+
+```bash
+cd sub0contract
+export PRIVATE_KEY=0x...   # Sub0 owner key
+export SUB0_ADDRESS=0x3b3be6228e251675Bd75b929C4256D940e11C5dC
+# Optional: export CRE_FORWARDER_ADDRESS=0x82300bd7c3958625581cc2F77bC6464dcEcDF3e5
+forge script script/setCreForwarder.s.sol:SetCreForwarder -vvvv --rpc-url <RPC_URL> --broadcast
+```
+
+Or use `just set-cre-forwarder` if your justfile defines it (see `sub0contract/justfile`). The forwarder address is **public per chain** (Chainlink docs or the "To" of any successful writeReport tx); you do not need to run a workflow simulation to discover it.
+
+**Reading transmission info (workflowExecutionId, reportId):** The CRE SDK `writeReport` reply does not return `workflowExecutionId` or `reportId`. Those are used on-chain by the Forwarder. To call the Forwarder's `getTransmissionInfo(receiver, workflowExecutionId, reportId)` or `getTransmitter(...)` you must obtain the ids from the **ReportProcessed** event: use the `txHash` returned by the workflow, fetch the transaction receipt, decode the Forwarder's `ReportProcessed(receiver, workflowExecutionId, reportId, result)` log, then call the Forwarder view with that `receiver` (your Sub0 address), `workflowExecutionId`, and `reportId`. The Forwarder ABI is in `markets/lib/abi/forwarder.json` and exported as `FORWARDER_ABI` from `lib/abis.ts`.
+
 ### Optional
 
-| Variable       | Purpose                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------- |
-| `HTTP_API_KEY` | If set in secrets (e.g. namespace `sub0`), HTTP trigger requires `body.apiKey` to match. |
+| Variable           | Purpose                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `HTTP_API_KEY`     | If set in secrets (e.g. namespace `sub0`), HTTP trigger requires `body.apiKey` to match.  |
+| `BACKEND_API_KEY`  | For `createMarketsFromBackend`: API key sent to backend for agent-markets and onchain-created. Store in CRE secrets (namespace `sub0`, id `BACKEND_API_KEY` or `config.backendApiKeySecretId`). |
+
+**PLATFORM_ORACLE_ADDRESS / PLATFORM_CREATOR_ADDRESS / DEFAULT_COLLATERAL_TOKEN:** These are used by the **backend** when it generates agent market payloads (Gemini + Grok). The backend sends full payloads to CRE (including oracle and creator), so CRE does not need these in secrets for createMarketsFromBackend. Optionally they can be moved to CRE secrets or confidential compute later so the backend only sends question/duration/agentSource and CRE injects oracle/creator.
 
 ### Declarations
 

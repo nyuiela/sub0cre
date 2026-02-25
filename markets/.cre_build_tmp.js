@@ -21931,7 +21931,18 @@ function computeQuestionId(question, creator, oracle) {
   const packed = encodePacked(["string", "address", "address"], [question, creator, oracle]);
   return keccak256(packed);
 }
+var DEFAULT_GAS_LIMIT = "500000";
+function blockExplorerTxUrl(chainSelectorName, txHash) {
+  if (chainSelectorName === "ethereum-testnet-sepolia-base-1") {
+    return `https://sepolia.basescan.org/tx/${txHash}`;
+  }
+  return `https://etherscan.io/tx/${txHash}`;
+}
 function submitCreateMarket(runtime2, config, params) {
+  const receiverAddress = config.contracts.sub0;
+  const gasLimit = config.gasLimit ?? DEFAULT_GAS_LIMIT;
+  runtime2.log(`Writing report to Sub0 consumer: ${receiverAddress}`);
+  runtime2.log(`Writing report to consumer contract - question: ${params.question}, oracle: ${params.oracle}, duration: ${params.duration}`);
   const hexPayload = encodeCreateMarket(params);
   const reportRequest = prepareReportRequest(hexPayload);
   const network248 = getNetwork({
@@ -21942,18 +21953,26 @@ function submitCreateMarket(runtime2, config, params) {
   if (!network248)
     throw new Error(`Network not found: ${config.chainSelectorName}`);
   const evmClient = new cre.capabilities.EVMClient(network248.chainSelector.selector);
-  const receiverHex = config.contracts.sub0.replace(/^0x/, "");
-  const receiver = new Uint8Array(20);
-  for (let i2 = 0;i2 < 20; i2++)
-    receiver[i2] = parseInt(receiverHex.slice(i2 * 2, i2 * 2 + 2), 16);
   const reply = evmClient.writeReport(runtime2, {
-    receiver,
+    receiver: receiverAddress,
     report: runtime2.report(reportRequest).result(),
-    $report: true
+    gasConfig: { gasLimit }
   }).result();
-  if (reply.txHash != null && reply.txHash.length > 0) {
-    return typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash);
+  runtime2.log("Waiting for write report response");
+  const txHash = reply.txHash != null && reply.txHash.length > 0 ? typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash) : "";
+  if (reply.errorMessage != null && String(reply.errorMessage).trim().length > 0) {
+    runtime2.log(`Write report error: ${reply.errorMessage}`);
   }
+  if (reply.txStatus !== undefined && reply.txStatus !== TxStatus.SUCCESS) {
+    runtime2.log(`Write report tx status: ${reply.txStatus}`);
+  }
+  if (txHash.length > 0) {
+    const txUrl = blockExplorerTxUrl(config.chainSelectorName, txHash);
+    runtime2.log(`Write report transaction succeeded: ${txHash}`);
+    runtime2.log(`View transaction at ${txUrl}`);
+    return txHash;
+  }
+  runtime2.log("Write report completed but no transaction hash returned (e.g. dry run without --broadcast)");
   return "";
 }
 var ZERO_BYTES322 = "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -24584,28 +24603,42 @@ async function handleCreateMarket(runtime2, payload) {
     oracleType: body.oracleType,
     marketType: body.marketType
   });
-  runtime2.log("Create market submitted.");
+  if (createMarketTxHash) {
+    runtime2.log(`Create market submitted. Transaction: ${createMarketTxHash}`);
+  } else {
+    runtime2.log("Create market submitted (no tx hash; use --broadcast for real onchain write).");
+  }
   let seedTxHash = "";
   const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
   if (amountUsdc > 0n) {
     seedTxHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
-    runtime2.log("Seed market liquidity submitted for new market.");
+    if (seedTxHash) {
+      runtime2.log(`Seed market liquidity submitted for new market. Transaction: ${seedTxHash}`);
+    } else {
+      runtime2.log("Seed market liquidity submitted (no tx hash; use --broadcast for real onchain write).");
+    }
   }
   const ctx = { runtime: runtime2, config: contracts };
-  const market = await getMarket(ctx, questionId);
+  let market;
+  try {
+    market = await getMarket(ctx, questionId);
+  } catch {
+    market = undefined;
+  }
+  const fromChain = market != null && (market.question?.length > 0 || market.conditionId != null && market.conditionId !== "0x0000000000000000000000000000000000000000000000000000000000000000");
   const out = {
     status: "ok",
     result: "createMarket",
     questionId,
-    question: market?.question ?? "",
+    question: fromChain ? market?.question ?? "" : body.question.trim(),
     conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
-    oracle: market?.oracle ?? "0x0000000000000000000000000000000000000000",
-    owner: market?.owner ?? "0x0000000000000000000000000000000000000000",
+    oracle: fromChain ? market?.oracle ?? "" : oracle,
+    owner: fromChain ? market?.owner ?? "" : creator,
     createdAt: market?.createdAt != null ? String(market.createdAt) : "0",
-    duration: market?.duration != null ? String(market.duration) : "0",
-    outcomeSlotCount: String(market?.outcomeSlotCount ?? 0),
-    oracleType: String(market?.oracleType ?? 0),
-    marketType: String(market?.marketType ?? 0)
+    duration: fromChain && market?.duration != null ? String(market.duration) : String(duration),
+    outcomeSlotCount: String(market?.outcomeSlotCount ?? body.outcomeSlotCount),
+    oracleType: String(market?.oracleType ?? body.oracleType),
+    marketType: String(market?.marketType ?? body.marketType)
   };
   if (createMarketTxHash)
     out.createMarketTxHash = createMarketTxHash;
@@ -24637,6 +24670,111 @@ function handlePlatformCron(runtime2) {
   runtime2.log("Platform cron: no action (use HTTP to seed liquidity or trigger actions).");
   return "ok";
 }
+var AGENT_MARKETS_PATH = "/api/internal/agent-markets";
+var ONCHAIN_CREATED_PATH = "/api/internal/markets/onchain-created";
+var DEFAULT_COUNT = 10;
+async function handleCreateMarketsFromBackend(runtime2) {
+  const config2 = runtime2.config;
+  const backendUrl = config2.backendUrl?.trim();
+  if (!backendUrl) {
+    throw new Error("createMarketsFromBackend requires config.backendUrl");
+  }
+  if (!config2.contracts) {
+    throw new Error("createMarketsFromBackend requires config.contracts");
+  }
+  let apiKey = "";
+  const secretId = config2.backendApiKeySecretId ?? "BACKEND_API_KEY";
+  try {
+    const secret = runtime2.getSecret({ id: secretId, namespace: "sub0" }).result();
+    apiKey = secret?.value?.trim() ?? "";
+  } catch {
+    runtime2.log("Backend API key secret not set; request may 401.");
+  }
+  const getUrl = `${backendUrl.replace(/\/$/, "")}${AGENT_MARKETS_PATH}?count=${DEFAULT_COUNT}`;
+  runtime2.log(`Fetching agent markets from ${getUrl}`);
+  const httpClient = new cre.capabilities.HTTPClient;
+  const getRes = httpClient.sendRequest(runtime2, {
+    url: getUrl,
+    method: "GET",
+    headers: apiKey ? { "x-api-key": apiKey } : {},
+    body: new Uint8Array(0)
+  }).result();
+  if (getRes.statusCode < 200 || getRes.statusCode >= 300) {
+    const bodyText = new TextDecoder().decode(getRes.body ?? new Uint8Array(0));
+    throw new Error(`Backend agent-markets failed: ${getRes.statusCode} ${bodyText}`);
+  }
+  const getBody = new TextDecoder().decode(getRes.body ?? new Uint8Array(0));
+  let data = [];
+  try {
+    const parsed = JSON.parse(getBody);
+    data = Array.isArray(parsed?.data) ? parsed.data : [];
+  } catch {
+    throw new Error("Backend agent-markets response is not valid JSON with data array");
+  }
+  if (data.length === 0) {
+    runtime2.log("No agent markets returned.");
+    return { status: "ok", result: "createMarketsFromBackend", created: "0", errors: "0" };
+  }
+  runtime2.log(`Creating ${data.length} markets on-chain and notifying backend.`);
+  let created = 0;
+  let errors2 = 0;
+  const postUrl = `${backendUrl.replace(/\/$/, "")}${ONCHAIN_CREATED_PATH}`;
+  for (let i2 = 0;i2 < data.length; i2++) {
+    const payload = data[i2];
+    if (!payload?.question?.trim()) {
+      errors2++;
+      continue;
+    }
+    try {
+      const input = new TextEncoder().encode(JSON.stringify(payload));
+      const result = await handleCreateMarket(runtime2, { input });
+      const questionId = result.questionId;
+      const createMarketTxHash = result.createMarketTxHash ?? "";
+      if (!questionId) {
+        errors2++;
+        continue;
+      }
+      const callbackBody = {
+        questionId,
+        createMarketTxHash,
+        question: payload.question,
+        oracle: payload.oracle,
+        creatorAddress: payload.creatorAddress,
+        duration: Number(payload.duration),
+        outcomeSlotCount: Number(payload.outcomeSlotCount),
+        oracleType: Number(payload.oracleType),
+        marketType: Number(payload.marketType),
+        agentSource: payload.agentSource ?? undefined
+      };
+      const postRes = httpClient.sendRequest(runtime2, {
+        url: postUrl,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...apiKey ? { "x-api-key": apiKey } : {}
+        },
+        body: new TextEncoder().encode(JSON.stringify(callbackBody))
+      }).result();
+      if (postRes.statusCode >= 200 && postRes.statusCode < 300) {
+        created++;
+      } else {
+        runtime2.log(`Onchain-created callback failed for ${questionId}: ${postRes.statusCode}`);
+        errors2++;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      runtime2.log(`Create market failed for "${payload.question?.slice(0, 40)}...": ${msg}`);
+      errors2++;
+    }
+  }
+  return {
+    status: "ok",
+    result: "createMarketsFromBackend",
+    created: String(created),
+    errors: String(errors2),
+    total: String(data.length)
+  };
+}
 var onCronTrigger = (runtime2) => {
   return handlePlatformCron(runtime2);
 };
@@ -24667,8 +24805,11 @@ var onHTTPTrigger = async (runtime2, payload) => {
   if (action === "seed") {
     return handleSeedLiquidity(runtime2, payload);
   }
-  runtime2.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'.");
-  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'");
+  if (action === "createMarketsFromBackend") {
+    return await handleCreateMarketsFromBackend(runtime2);
+  }
+  runtime2.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'seed', or 'createMarketsFromBackend'.");
+  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'seed', or 'createMarketsFromBackend'");
 };
 var initWorkflow = (config2) => {
   const cron = new CronCapability;

@@ -21,6 +21,7 @@ import { handleQuoteSigning } from "./workflows/quoteSigning";
 import { handleLmsrPricing } from "./workflows/lmsrPricing";
 import { handleCreateAgentKey } from "./workflows/createAgentKey";
 import { handleCreateMarket, handleSeedLiquidity, handlePlatformCron } from "./workflows/platformActions";
+import { handleCreateMarketsFromBackend } from "./workflows/createMarketsFromBackend";
 
 const onCronTrigger = (runtime: Runtime<WorkflowConfig>): string => {
   return handlePlatformCron(runtime);
@@ -60,9 +61,12 @@ const onHTTPTrigger = async (
   if (action === "seed") {
     return handleSeedLiquidity(runtime, payload);
   }
+  if (action === "createMarketsFromBackend") {
+    return await handleCreateMarketsFromBackend(runtime);
+  }
 
-  runtime.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'.");
-  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'");
+  runtime.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'seed', or 'createMarketsFromBackend'.");
+  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'seed', or 'createMarketsFromBackend'");
 };
 
 const initWorkflow = (config: WorkflowConfig) => {
