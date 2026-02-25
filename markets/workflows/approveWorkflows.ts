@@ -32,6 +32,9 @@ const ERC20_APPROVE_ABI = [
 
 const DEFAULT_GAS_LIMIT = 300000n;
 const DEFAULT_NONCE = 0;
+/** Default EIP-1559 gas (2 Gwei) for signing when not fetching from RPC. */
+const DEFAULT_MAX_FEE_PER_GAS = 2n * 10n ** 9n;
+const DEFAULT_MAX_PRIORITY_FEE_PER_GAS = 1n * 10n ** 9n;
 
 function toAddress(value: string): `0x${string}` {
   const s = String(value ?? "").trim();
@@ -146,12 +149,15 @@ export async function handleApproveErc20(
 
   const account = privateKeyToAccount(privateKey);
   const signedTx = await account.signTransaction({
+    type: "eip1559",
     to: tokenAddress,
     data,
     value: 0n,
     gas: DEFAULT_GAS_LIMIT,
     nonce: DEFAULT_NONCE,
     chainId: contracts.chainId,
+    maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
+    maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS,
   });
 
   runtime.log(`ERC20 approve signed; signer=${signerAddress}, token=${tokenAddress}, spender=${spender}`);
@@ -203,12 +209,15 @@ export async function handleApproveConditionalToken(
 
   const account = privateKeyToAccount(privateKey);
   const signedTx = await account.signTransaction({
+    type: "eip1559",
     to: ctAddress,
     data,
     value: 0n,
     gas: DEFAULT_GAS_LIMIT,
     nonce: DEFAULT_NONCE,
     chainId: contracts.chainId,
+    maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
+    maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS,
   });
 
   runtime.log(

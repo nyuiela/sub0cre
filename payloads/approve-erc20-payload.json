@@ -1,5 +1,6 @@
 {
   "action": "approveErc20",
+  "agentId": "my-agent-1",
   "apiKey": "your-api-key-if-configured",
   "signer": "backend",
   "spender": "0x37Ad1be17Be247854F9D4F8Af95eeEFFDe0b179E",

@@ -15,6 +15,7 @@ const SECRET_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 
 export interface QuoteRequestPayload {
   questionId: string;
+  conditionId: string;
   outcomeIndex: number;
   buy: boolean;
   quantity: string;
@@ -28,6 +29,7 @@ function parsePayload(input: Uint8Array): QuoteRequestPayload {
   const raw = JSON.parse(text) as Record<string, unknown>;
   return {
     questionId: String(raw.questionId ?? ""),
+    conditionId: raw.conditionId as `0x${string}`,
     outcomeIndex: Number(raw.outcomeIndex ?? 0),
     buy: Boolean(raw.buy),
     quantity: String(raw.quantity ?? "0"),
@@ -37,15 +39,18 @@ function parsePayload(input: Uint8Array): QuoteRequestPayload {
   };
 }
 
-export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array }): Promise<unknown> {
+export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array })
+// : Promise<unknown>
+{
   const config = runtime.config;
   const contracts = config.contracts;
   if (!contracts) {
     runtime.log("Quote signing requires config.contracts (chainId, contracts, eip712).");
     throw new Error("Missing config.contracts for quote signing");
   }
-
+  runtime.log(`collectionId: ${payload.input}`);
   const body = parsePayload(payload.input);
+  runtime.log(`body: ${JSON.stringify(body)}`);
   if (!body.questionId?.trim()) {
     throw new Error("questionId is required (32-byte hex)");
   }
@@ -67,7 +72,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   }
 
   if (body.buy) {
-    const balance = getVaultBalanceForOutcome(ctx, market.conditionId, body.outcomeIndex);
+    const balance = getVaultBalanceForOutcome(ctx, body.conditionId as `0x${string}`, body.outcomeIndex);
     if (balance < BigInt(body.quantity)) {
       throw new Error("Insufficient vault balance for this outcome");
     }

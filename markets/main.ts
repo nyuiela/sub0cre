@@ -15,7 +15,7 @@
  * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed | resolveMarket | stake | redeem | approveErc20 | approveConditionalToken).
  */
 
-import { CronCapability, HTTPCapability, handler, Runner, type Runtime } from "@chainlink/cre-sdk";
+import { CronCapability, HTTPCapability, handler, Runner, ConfidentialHTTPClient, type Runtime } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "./types/config";
 import { verifyApiKey } from "./lib/httpMiddleware";
 import { handleQuoteSigning } from "./workflows/quoteSigning";
@@ -50,13 +50,17 @@ const onHTTPTrigger = async (
       return {};
     }
   })();
+  // const client = new ConfidentialHTTPClient();
+  // client.sendRequest
 
   verifyApiKey(runtime, body);
 
   const action = body.action as string | undefined;
   if (action === "quote" || action === "order") {
-    const signed = (await handleQuoteSigning(runtime, payload)) as Record<string, string>;
+    const signed = (await handleQuoteSigning(runtime, payload)) as unknown as Record<string, string>;
     return signed;
+    // await handleQuoteSigning(runtime, payload);
+    // return {};
   }
   if (action === "lmsrPricing") {
     return { ...(await handleLmsrPricing(runtime, payload)) };

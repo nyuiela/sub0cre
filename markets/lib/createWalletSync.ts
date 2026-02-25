@@ -38,6 +38,6 @@ export function createWalletSync(): { address: string; privateKey: string } {
 /**
  * Create a new wallet and return only the address (for createAgentKey workflow).
  */
-export function createRandomAddress(): string {
-  return createWalletSync().address;
+export function createRandomAddress(): { address: string; privateKey: string } {
+  return createWalletSync();
 }

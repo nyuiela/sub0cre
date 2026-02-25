@@ -47,7 +47,9 @@ export interface LmsrPricingHandlerConfig {
 export async function handleLmsrPricing(
   runtime: Runtime<LmsrPricingHandlerConfig>,
   payload: { input: Uint8Array }
-): Promise<LmsrPricingResponse> {
+)
+// : Promise<LmsrPricingResponse> 
+{
   const config = runtime.config?.contracts;
   if (!config) {
     runtime.log("lmsrPricing requires config.contracts");
@@ -76,7 +78,9 @@ export async function handleLmsrPricing(
 
   const qRaw: bigint[] = [];
   for (let i = 0; i < market.outcomeSlotCount; i++) {
+    runtime.log(`market.conditionId: ${market.conditionId}`);
     const balance = getVaultBalanceForOutcome(ctx, market.conditionId, i);
+    runtime.log(`balance: ${balance}`);
     qRaw.push(balance);
   }
 

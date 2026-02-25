@@ -5,7 +5,7 @@
   "marketId": "0x3e523bdeaeef92d3e289282b4994e74877c25793fb92ac3fbfe796d47c643394",
   "outcomeIndex": 0,
   "buy": true,
-  "quantity": "1000000000000000000",
+  "quantity": "10000",
   "tradeCostUsdc": "500000",
   "nonce": "0",
   "deadline": "9999999999"

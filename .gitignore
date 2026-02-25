@@ -1,3 +1,26 @@
-*.env
+# Book output
+book/book/
 
-./markets/node_modules
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# # Foundry
+# markets/contracts/cache/
+# markets/contracts/out/
+# markets/contracts/lib/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CRE build artifacts
+*.wasm
+tmp.js

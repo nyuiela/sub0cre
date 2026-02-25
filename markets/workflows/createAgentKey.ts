@@ -3,9 +3,10 @@
  * Used by main (action createAgentKey) and by standalone createAgentKey workflow.
  */
 
-import type { Runtime } from "@chainlink/cre-sdk";
+import type { Runtime, } from "@chainlink/cre-sdk";
 import type { CreateAgentKeyPayload, CreateAgentKeyResponse } from "../types/confidential";
 import { createRandomAddress } from "../lib/createWalletSync";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 export function parseCreateAgentKeyPayload(input: Uint8Array): CreateAgentKeyPayload {
   const text = new TextDecoder().decode(input);
@@ -23,9 +24,34 @@ export function handleCreateAgentKey(
 ): CreateAgentKeyResponse {
   const body = parseCreateAgentKeyPayload(payload.input);
 
-  const address = createRandomAddress();
+  const masterKeySecret = runtime.getSecret({ id: "TEE_MASTER_ENCRYPTION_KEY" }).result();
+  const masterKey = masterKeySecret?.value?.trim();
+
+  const { address, privateKey } = createRandomAddress();
+  // const encryptedAgentKey = AES.encrypt(privateKey, masterKey as string).toString();
 
   runtime.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
 
-  return { address, txHash: "" };
+  return { address, encryptedKeyBlob: "" };
 }
+
+// export function handleCreateAgentKey(runtime: Runtime<unknown>, payload: any): CreateAgentKeyResponse {
+//   // 1. Fetch the ONE master key from CRE Secrets
+//   const masterKeySecret = runtime.getSecret({ id: "TEE_MASTER_ENCRYPTION_KEY" }).result();
+//   const masterKey = masterKeySecret?.value?.trim();
+
+//   // 2. Generate the Agent's raw private key in the enclave
+//   const rawPrivateKey = generatePrivateKey();
+//   runtime.log(`Agent key generated for agentId=, address`);
+//   const account = privateKeyToAccount(rawPrivateKey);
+
+//   // 3. Encrypt the private key using the Master Key
+//   const encryptedAgentKey = AES.encrypt(rawPrivateKey, masterKey as string).toString();
+
+//   // 4. Return the public address and the encrypted blob to your backend
+//   return {
+//     address: account.address,
+//     // encryptedKeyBlob: encryptedAgentKey
+//     encryptedKeyBlob: ""
+//   };
+// }

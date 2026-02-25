@@ -1,15 +1,32 @@
+// {
+//   "compilerOptions": {
+//     "target": "esnext",
+//     "module": "ESNext",
+//     "moduleResolution": "bundler",
+//     "lib": ["ESNext"],
+//     "outDir": "./dist",
+//     "strict": true,
+//     "esModuleInterop": true,
+//     "skipLibCheck": true,
+//     "forceConsistentCasingInFileNames": true,
+//     "resolveJsonModule": true
+//   },
+//   "include": ["main.ts", "types/**/*.ts", "lib/**/*.ts", "workflows/**/*.ts"]
+// }
+
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ESNext"],
-    "outDir": "./dist",
-    "strict": true,
     "esModuleInterop": true,
+    "strict": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "."
   },
-  "include": ["main.ts", "types/**/*.ts", "lib/**/*.ts", "workflows/**/*.ts"]
+  "include": ["main.ts", "types/**/*.ts", "lib/**/*.ts", "workflows/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
