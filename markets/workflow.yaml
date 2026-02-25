@@ -17,17 +17,16 @@
 # ==========================================================================
 staging-settings:
   user-workflow:
-    workflow-name: "cal-workflow-staging"
+    workflow-name: "sub0cre"
   workflow-artifacts:
     workflow-path: "./main.ts"
     config-path: "./config.staging.json"
     secrets-path: ""
-    
 
 # ==========================================================================
 production-settings:
   user-workflow:
-    workflow-name: "cal-workflow-production"
+    workflow-name: "sub0cre"
   workflow-artifacts:
     workflow-path: "./main.ts"
     config-path: "./config.production.json"

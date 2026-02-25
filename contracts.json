@@ -1,7 +1,7 @@
 {
   "staging-settings": {
     "chainId": 84532,
-    "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+    "chainSelectorName": "ethereum-testnet-sepolia",
     "contracts": {
       "sub0": "0x7bf8ea2f79A6cA9dbc870ACa0e003d1CCb885306",
       "predictionVault": "0xc2631ab40ed1a7D64f30C744188742Fb8DaEd48B",
@@ -23,7 +23,7 @@
   },
   "production-settings": {
     "chainId": 84532,
-    "chainSelectorName": "ethereum-testnet-sepolia-base-1",
+    "chainSelectorName": "ethereum-testnet-sepolia",
     "contracts": {
       "sub0": "0x7bf8ea2f79A6cA9dbc870ACa0e003d1CCb885306",
       "predictionVault": "0xc2631ab40ed1a7D64f30C744188742Fb8DaEd48B",

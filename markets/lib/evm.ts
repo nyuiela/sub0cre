@@ -8,6 +8,7 @@ import {
   encodeCallMsg,
   getNetwork,
   LAST_FINALIZED_BLOCK_NUMBER,
+  LATEST_BLOCK_NUMBER,
   bytesToHex,
 } from "@chainlink/cre-sdk";
 import {
@@ -31,12 +32,14 @@ export function getEVMClient(chainSelectorName: string) {
   return new cre.capabilities.EVMClient(network.chainSelector.selector);
 }
 
-export function callContract<T>(
+export type BlockNumberOption = { absVal: string; sign: string };
+
+export function callContract(
   runtime: Runtime<unknown>,
   chainSelectorName: string,
   to: Address,
   data: `0x${string}`,
-  blockNumber: { absVal: string; sign: string } = LAST_FINALIZED_BLOCK_NUMBER
+  blockNumber: BlockNumberOption = LATEST_BLOCK_NUMBER
 ): { data: Uint8Array } {
   const evmClient = getEVMClient(chainSelectorName);
   const callMsg = encodeCallMsg({
@@ -73,3 +76,5 @@ export type EvmContext = {
   runtime: Runtime<unknown>;
   config: ChainContractConfig;
 };
+
+export { LATEST_BLOCK_NUMBER, LAST_FINALIZED_BLOCK_NUMBER };

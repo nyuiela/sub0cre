@@ -7,11 +7,12 @@
  * - lmsrPricing: DON computes LMSR cost from on-chain q, signs quote (dual-signature relayer).
  * - createAgentKey: Generate agent wallet in enclave (sync, no ethers), return address only.
  * - createMarket: Sub0.create(Market). Optional amountUsdc + creatorAddress run seed workflow after create.
+ * - getMarket: Read market by questionId (payload.questionId). Returns market fields.
  * - seed: PredictionVault.seedMarketLiquidity(questionId, amountUsdc).
  *
  * executeConfidentialTrade remains standalone (async signing); use executeConfidentialTrade.ts.
  *
- * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | seed).
+ * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed).
  */
 
 import { CronCapability, HTTPCapability, handler, Runner, type Runtime } from "@chainlink/cre-sdk";
@@ -20,7 +21,7 @@ import { verifyApiKey } from "./lib/httpMiddleware";
 import { handleQuoteSigning } from "./workflows/quoteSigning";
 import { handleLmsrPricing } from "./workflows/lmsrPricing";
 import { handleCreateAgentKey } from "./workflows/createAgentKey";
-import { handleCreateMarket, handleSeedLiquidity, handlePlatformCron } from "./workflows/platformActions";
+import { handleCreateMarket, handleGetMarket, handleSeedLiquidity, handlePlatformCron } from "./workflows/platformActions";
 
 const onCronTrigger = (runtime: Runtime<WorkflowConfig>): string => {
   return handlePlatformCron(runtime);
@@ -57,12 +58,15 @@ const onHTTPTrigger = async (
   if (action === "createMarket") {
     return await handleCreateMarket(runtime, payload);
   }
+  if (action === "getMarket") {
+    return await handleGetMarket(runtime, payload);
+  }
   if (action === "seed") {
     return handleSeedLiquidity(runtime, payload);
   }
 
-  runtime.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'.");
-  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'");
+  runtime.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'.");
+  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'");
 };
 
 const initWorkflow = (config: WorkflowConfig) => {

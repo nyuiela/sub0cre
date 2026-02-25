@@ -18,6 +18,10 @@ sim:
 sim-create *args:
     cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/create-market-payload.json --target {{TARGET}} {{args}}
 
+# Simulate Get Market by questionId
+sim-get-market *args:
+    cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/get-market-payload.json --target {{TARGET}} {{args}}
+
 # Simulate Liquidity Seeding (append --broadcast to execute on-chain)
 sim-seed *args:
     cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/seed-payload.json --target {{TARGET}} {{args}}

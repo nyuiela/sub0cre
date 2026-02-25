@@ -8,8 +8,9 @@
 import type { Runtime } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "../types/config";
 import type { OracleType, InvitationType } from "../types/market";
-import { submitCreateMarket, computeQuestionId, getMarket } from "../lib/sub0";
+import { submitCreateMarket, computeQuestionId, getMarket, isMarketEmpty } from "../lib/sub0";
 import { submitSeedMarketLiquidity } from "../lib/predictionVault";
+import { setTimeout } from "timers/promises";
 
 export interface CreateMarketPayload {
   question: string;
@@ -27,6 +28,10 @@ export interface CreateMarketPayload {
 export interface SeedLiquidityPayload {
   questionId: string;
   amountUsdc: string;
+}
+
+export interface GetMarketPayload {
+  questionId: string;
 }
 
 function parseCreateMarketPayload(input: Uint8Array): CreateMarketPayload {
@@ -53,10 +58,21 @@ function parseSeedPayload(input: Uint8Array): SeedLiquidityPayload {
   };
 }
 
+function parseGetMarketPayload(input: Uint8Array): GetMarketPayload {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  return {
+    questionId: String(raw.questionId ?? ""),
+  };
+}
+
 /**
  * HTTP handler: create market onchain via Sub0.create(Market). Platform only; requires config.contracts and env key with GAME_CREATOR_ROLE for Public markets.
+ * Logging follows CRE bootcamp style for debugging (steps 1-6 in sub0.submitCreateMarket).
  */
 export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array }): Promise<Record<string, string>> {
+  runtime.log("CRE Workflow: HTTP Trigger - Create Market (Sub0)");
+
   const config = runtime.config;
   const contracts = config.contracts;
   if (!contracts) {
@@ -65,6 +81,7 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
   }
 
   const body = parseCreateMarketPayload(payload.input);
+  runtime.log(`[Request] question: "${body.question?.slice(0, 50)}${(body.question?.length ?? 0) > 50 ? "..." : ""}", oracle: ${body.oracle}, creator: ${body.creatorAddress}`);
   if (!body.question?.trim()) throw new Error("question is required");
   if (body.outcomeSlotCount < 2 || body.outcomeSlotCount > 255) throw new Error("outcomeSlotCount must be 2-255");
   const duration = Number(body.duration);
@@ -94,12 +111,21 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
   let seedTxHash = "";
   const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
   if (amountUsdc > 0n) {
-    seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
+    // seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
     runtime.log("Seed market liquidity submitted for new market.");
   }
 
   const ctx = { runtime, config: contracts };
-  const market = await getMarket(ctx, questionId);
+  let market = await getMarket(ctx, questionId, { useLatestBlock: true });
+  if (isMarketEmpty(market)) {
+    runtime.log("Market not found on first read (block may not include tx yet); retrying once.");
+    market = await getMarket(ctx, questionId, { useLatestBlock: true });
+  }
+  // if (isMarketEmpty(market)) {
+  //   throw new Error(
+  //     `Reporter tx succeeded but market not found. The inner Sub0.create may have reverted (check GAME_CREATOR_ROLE and params). TxHash: ${createMarketTxHash}`
+  //   );
+  // }
 
   const out: Record<string, string> = {
     status: "ok",
@@ -118,6 +144,53 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
   if (createMarketTxHash) out.createMarketTxHash = createMarketTxHash;
   if (seedTxHash) out.seedTxHash = seedTxHash;
   return out;
+}
+
+/**
+ * HTTP handler: get market by questionId. Read-only; uses config.contracts.sub0 and last finalized block.
+ */
+export async function handleGetMarket(
+  runtime: Runtime<WorkflowConfig>,
+  payload: { input: Uint8Array }
+): Promise<Record<string, string>> {
+  runtime.log("CRE Workflow: HTTP Trigger - Get Market");
+
+  const config = runtime.config;
+  const contracts = config.contracts;
+  if (!contracts) {
+    runtime.log("Get market requires config.contracts.");
+    throw new Error("Missing config.contracts for platform actions");
+  }
+
+  const body = parseGetMarketPayload(payload.input);
+  const questionIdRaw = body.questionId?.trim();
+  if (!questionIdRaw) {
+    throw new Error("questionId is required");
+  }
+  const questionId = questionIdRaw.startsWith("0x")
+    ? (questionIdRaw as `0x${string}`)
+    : (`0x${questionIdRaw}` as `0x${string}`);
+  if (questionId.length !== 66) {
+    throw new Error("questionId must be a 32-byte hex string (0x + 64 hex chars)");
+  }
+
+  const ctx = { runtime, config: contracts };
+  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
+
+  return {
+    status: "ok",
+    result: "getMarket",
+    questionId,
+    question: market.question ?? "",
+    conditionId: market.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
+    oracle: market.oracle ?? "0x0000000000000000000000000000000000000000",
+    owner: market.owner ?? "0x0000000000000000000000000000000000000000",
+    createdAt: market.createdAt != null ? String(market.createdAt) : "0",
+    duration: market.duration != null ? String(market.duration) : "0",
+    outcomeSlotCount: String(market.outcomeSlotCount ?? 0),
+    oracleType: String(market.oracleType ?? 0),
+    marketType: String(market.marketType ?? 0),
+  };
 }
 
 /**

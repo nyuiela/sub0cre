@@ -10,11 +10,74 @@ var __export = (target, all) => {
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
+var version = "1.0.8";
+var BaseError;
+var init_errors = __esm(() => {
+  BaseError = class BaseError2 extends Error {
+    constructor(shortMessage, args = {}) {
+      const details = args.cause instanceof BaseError2 ? args.cause.details : args.cause?.message ? args.cause.message : args.details;
+      const docsPath = args.cause instanceof BaseError2 ? args.cause.docsPath || args.docsPath : args.docsPath;
+      const message = [
+        shortMessage || "An error occurred.",
+        "",
+        ...args.metaMessages ? [...args.metaMessages, ""] : [],
+        ...docsPath ? [`Docs: https://abitype.dev${docsPath}`] : [],
+        ...details ? [`Details: ${details}`] : [],
+        `Version: abitype@${version}`
+      ].join(`
+`);
+      super(message);
+      Object.defineProperty(this, "details", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "docsPath", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "metaMessages", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "shortMessage", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: undefined
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "AbiTypeError"
+      });
+      if (args.cause)
+        this.cause = args.cause;
+      this.details = details;
+      this.docsPath = docsPath;
+      this.metaMessages = args.metaMessages;
+      this.shortMessage = shortMessage;
+    }
+  };
+});
 function execTyped(regex, string) {
   const match = regex.exec(string);
   return match?.groups;
 }
-var init_regex = () => {};
+var bytesRegex;
+var integerRegex;
+var isTupleRegex;
+var init_regex = __esm(() => {
+  bytesRegex = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
+  integerRegex = /^u?int(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
+  isTupleRegex = /^\(.+?\).*?$/;
+});
 function formatAbiParameter(abiParameter) {
   let type = abiParameter.type;
   if (tupleRegex.test(abiParameter.type) && "components" in abiParameter) {
@@ -74,8 +137,522 @@ function formatAbiItem(abiItem) {
 var init_formatAbiItem = __esm(() => {
   init_formatAbiParameters();
 });
+function isStructSignature(signature) {
+  return structSignatureRegex.test(signature);
+}
+function execStructSignature(signature) {
+  return execTyped(structSignatureRegex, signature);
+}
+var structSignatureRegex;
+var modifiers;
+var eventModifiers;
+var functionModifiers;
+var init_signatures = __esm(() => {
+  init_regex();
+  structSignatureRegex = /^struct (?<name>[a-zA-Z$_][a-zA-Z0-9$_]*) \{(?<properties>.*?)\}$/;
+  modifiers = new Set([
+    "memory",
+    "indexed",
+    "storage",
+    "calldata"
+  ]);
+  eventModifiers = new Set(["indexed"]);
+  functionModifiers = new Set([
+    "calldata",
+    "memory",
+    "storage"
+  ]);
+});
+var UnknownTypeError;
+var UnknownSolidityTypeError;
+var init_abiItem = __esm(() => {
+  init_errors();
+  UnknownTypeError = class UnknownTypeError2 extends BaseError {
+    constructor({ type }) {
+      super("Unknown type.", {
+        metaMessages: [
+          `Type "${type}" is not a valid ABI type. Perhaps you forgot to include a struct signature?`
+        ]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "UnknownTypeError"
+      });
+    }
+  };
+  UnknownSolidityTypeError = class UnknownSolidityTypeError2 extends BaseError {
+    constructor({ type }) {
+      super("Unknown type.", {
+        metaMessages: [`Type "${type}" is not a valid ABI type.`]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "UnknownSolidityTypeError"
+      });
+    }
+  };
+});
+var InvalidAbiParametersError;
+var InvalidParameterError;
+var SolidityProtectedKeywordError;
+var InvalidModifierError;
+var InvalidFunctionModifierError;
+var InvalidAbiTypeParameterError;
+var init_abiParameter = __esm(() => {
+  init_errors();
+  InvalidAbiParametersError = class InvalidAbiParametersError2 extends BaseError {
+    constructor({ params }) {
+      super("Failed to parse ABI parameters.", {
+        details: `parseAbiParameters(${JSON.stringify(params, null, 2)})`,
+        docsPath: "/api/human#parseabiparameters-1"
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidAbiParametersError"
+      });
+    }
+  };
+  InvalidParameterError = class InvalidParameterError2 extends BaseError {
+    constructor({ param }) {
+      super("Invalid ABI parameter.", {
+        details: param
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidParameterError"
+      });
+    }
+  };
+  SolidityProtectedKeywordError = class SolidityProtectedKeywordError2 extends BaseError {
+    constructor({ param, name }) {
+      super("Invalid ABI parameter.", {
+        details: param,
+        metaMessages: [
+          `"${name}" is a protected Solidity keyword. More info: https://docs.soliditylang.org/en/latest/cheatsheet.html`
+        ]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "SolidityProtectedKeywordError"
+      });
+    }
+  };
+  InvalidModifierError = class InvalidModifierError2 extends BaseError {
+    constructor({ param, type, modifier }) {
+      super("Invalid ABI parameter.", {
+        details: param,
+        metaMessages: [
+          `Modifier "${modifier}" not allowed${type ? ` in "${type}" type` : ""}.`
+        ]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidModifierError"
+      });
+    }
+  };
+  InvalidFunctionModifierError = class InvalidFunctionModifierError2 extends BaseError {
+    constructor({ param, type, modifier }) {
+      super("Invalid ABI parameter.", {
+        details: param,
+        metaMessages: [
+          `Modifier "${modifier}" not allowed${type ? ` in "${type}" type` : ""}.`,
+          `Data location can only be specified for array, struct, or mapping types, but "${modifier}" was given.`
+        ]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidFunctionModifierError"
+      });
+    }
+  };
+  InvalidAbiTypeParameterError = class InvalidAbiTypeParameterError2 extends BaseError {
+    constructor({ abiParameter }) {
+      super("Invalid ABI parameter.", {
+        details: JSON.stringify(abiParameter, null, 2),
+        metaMessages: ["ABI parameter type is invalid."]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidAbiTypeParameterError"
+      });
+    }
+  };
+});
+var InvalidSignatureError;
+var InvalidStructSignatureError;
+var init_signature = __esm(() => {
+  init_errors();
+  InvalidSignatureError = class InvalidSignatureError2 extends BaseError {
+    constructor({ signature, type }) {
+      super(`Invalid ${type} signature.`, {
+        details: signature
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidSignatureError"
+      });
+    }
+  };
+  InvalidStructSignatureError = class InvalidStructSignatureError2 extends BaseError {
+    constructor({ signature }) {
+      super("Invalid struct signature.", {
+        details: signature,
+        metaMessages: ["No properties exist."]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidStructSignatureError"
+      });
+    }
+  };
+});
+var CircularReferenceError;
+var init_struct = __esm(() => {
+  init_errors();
+  CircularReferenceError = class CircularReferenceError2 extends BaseError {
+    constructor({ type }) {
+      super("Circular reference detected.", {
+        metaMessages: [`Struct "${type}" is a circular reference.`]
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "CircularReferenceError"
+      });
+    }
+  };
+});
+var InvalidParenthesisError;
+var init_splitParameters = __esm(() => {
+  init_errors();
+  InvalidParenthesisError = class InvalidParenthesisError2 extends BaseError {
+    constructor({ current, depth }) {
+      super("Unbalanced parentheses.", {
+        metaMessages: [
+          `"${current.trim()}" has too many ${depth > 0 ? "opening" : "closing"} parentheses.`
+        ],
+        details: `Depth "${depth}"`
+      });
+      Object.defineProperty(this, "name", {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: "InvalidParenthesisError"
+      });
+    }
+  };
+});
+function getParameterCacheKey(param, type, structs) {
+  let structKey = "";
+  if (structs)
+    for (const struct of Object.entries(structs)) {
+      if (!struct)
+        continue;
+      let propertyKey = "";
+      for (const property of struct[1]) {
+        propertyKey += `[${property.type}${property.name ? `:${property.name}` : ""}]`;
+      }
+      structKey += `(${struct[0]}{${propertyKey}})`;
+    }
+  if (type)
+    return `${type}:${param}${structKey}`;
+  return param;
+}
+var parameterCache;
+var init_cache = __esm(() => {
+  parameterCache = new Map([
+    ["address", { type: "address" }],
+    ["bool", { type: "bool" }],
+    ["bytes", { type: "bytes" }],
+    ["bytes32", { type: "bytes32" }],
+    ["int", { type: "int256" }],
+    ["int256", { type: "int256" }],
+    ["string", { type: "string" }],
+    ["uint", { type: "uint256" }],
+    ["uint8", { type: "uint8" }],
+    ["uint16", { type: "uint16" }],
+    ["uint24", { type: "uint24" }],
+    ["uint32", { type: "uint32" }],
+    ["uint64", { type: "uint64" }],
+    ["uint96", { type: "uint96" }],
+    ["uint112", { type: "uint112" }],
+    ["uint160", { type: "uint160" }],
+    ["uint192", { type: "uint192" }],
+    ["uint256", { type: "uint256" }],
+    ["address owner", { type: "address", name: "owner" }],
+    ["address to", { type: "address", name: "to" }],
+    ["bool approved", { type: "bool", name: "approved" }],
+    ["bytes _data", { type: "bytes", name: "_data" }],
+    ["bytes data", { type: "bytes", name: "data" }],
+    ["bytes signature", { type: "bytes", name: "signature" }],
+    ["bytes32 hash", { type: "bytes32", name: "hash" }],
+    ["bytes32 r", { type: "bytes32", name: "r" }],
+    ["bytes32 root", { type: "bytes32", name: "root" }],
+    ["bytes32 s", { type: "bytes32", name: "s" }],
+    ["string name", { type: "string", name: "name" }],
+    ["string symbol", { type: "string", name: "symbol" }],
+    ["string tokenURI", { type: "string", name: "tokenURI" }],
+    ["uint tokenId", { type: "uint256", name: "tokenId" }],
+    ["uint8 v", { type: "uint8", name: "v" }],
+    ["uint256 balance", { type: "uint256", name: "balance" }],
+    ["uint256 tokenId", { type: "uint256", name: "tokenId" }],
+    ["uint256 value", { type: "uint256", name: "value" }],
+    [
+      "event:address indexed from",
+      { type: "address", name: "from", indexed: true }
+    ],
+    ["event:address indexed to", { type: "address", name: "to", indexed: true }],
+    [
+      "event:uint indexed tokenId",
+      { type: "uint256", name: "tokenId", indexed: true }
+    ],
+    [
+      "event:uint256 indexed tokenId",
+      { type: "uint256", name: "tokenId", indexed: true }
+    ]
+  ]);
+});
+function parseAbiParameter(param, options) {
+  const parameterCacheKey = getParameterCacheKey(param, options?.type, options?.structs);
+  if (parameterCache.has(parameterCacheKey))
+    return parameterCache.get(parameterCacheKey);
+  const isTuple = isTupleRegex.test(param);
+  const match = execTyped(isTuple ? abiParameterWithTupleRegex : abiParameterWithoutTupleRegex, param);
+  if (!match)
+    throw new InvalidParameterError({ param });
+  if (match.name && isSolidityKeyword(match.name))
+    throw new SolidityProtectedKeywordError({ param, name: match.name });
+  const name = match.name ? { name: match.name } : {};
+  const indexed = match.modifier === "indexed" ? { indexed: true } : {};
+  const structs = options?.structs ?? {};
+  let type;
+  let components = {};
+  if (isTuple) {
+    type = "tuple";
+    const params = splitParameters(match.type);
+    const components_ = [];
+    const length = params.length;
+    for (let i2 = 0;i2 < length; i2++) {
+      components_.push(parseAbiParameter(params[i2], { structs }));
+    }
+    components = { components: components_ };
+  } else if (match.type in structs) {
+    type = "tuple";
+    components = { components: structs[match.type] };
+  } else if (dynamicIntegerRegex.test(match.type)) {
+    type = `${match.type}256`;
+  } else {
+    type = match.type;
+    if (!(options?.type === "struct") && !isSolidityType(type))
+      throw new UnknownSolidityTypeError({ type });
+  }
+  if (match.modifier) {
+    if (!options?.modifiers?.has?.(match.modifier))
+      throw new InvalidModifierError({
+        param,
+        type: options?.type,
+        modifier: match.modifier
+      });
+    if (functionModifiers.has(match.modifier) && !isValidDataLocation(type, !!match.array))
+      throw new InvalidFunctionModifierError({
+        param,
+        type: options?.type,
+        modifier: match.modifier
+      });
+  }
+  const abiParameter = {
+    type: `${type}${match.array ?? ""}`,
+    ...name,
+    ...indexed,
+    ...components
+  };
+  parameterCache.set(parameterCacheKey, abiParameter);
+  return abiParameter;
+}
+function splitParameters(params, result = [], current = "", depth = 0) {
+  const length = params.trim().length;
+  for (let i2 = 0;i2 < length; i2++) {
+    const char = params[i2];
+    const tail = params.slice(i2 + 1);
+    switch (char) {
+      case ",":
+        return depth === 0 ? splitParameters(tail, [...result, current.trim()]) : splitParameters(tail, result, `${current}${char}`, depth);
+      case "(":
+        return splitParameters(tail, result, `${current}${char}`, depth + 1);
+      case ")":
+        return splitParameters(tail, result, `${current}${char}`, depth - 1);
+      default:
+        return splitParameters(tail, result, `${current}${char}`, depth);
+    }
+  }
+  if (current === "")
+    return result;
+  if (depth !== 0)
+    throw new InvalidParenthesisError({ current, depth });
+  result.push(current.trim());
+  return result;
+}
+function isSolidityType(type) {
+  return type === "address" || type === "bool" || type === "function" || type === "string" || bytesRegex.test(type) || integerRegex.test(type);
+}
+function isSolidityKeyword(name) {
+  return name === "address" || name === "bool" || name === "function" || name === "string" || name === "tuple" || bytesRegex.test(name) || integerRegex.test(name) || protectedKeywordsRegex.test(name);
+}
+function isValidDataLocation(type, isArray) {
+  return isArray || type === "bytes" || type === "string" || type === "tuple";
+}
+var abiParameterWithoutTupleRegex;
+var abiParameterWithTupleRegex;
+var dynamicIntegerRegex;
+var protectedKeywordsRegex;
+var init_utils = __esm(() => {
+  init_regex();
+  init_abiItem();
+  init_abiParameter();
+  init_splitParameters();
+  init_cache();
+  init_signatures();
+  abiParameterWithoutTupleRegex = /^(?<type>[a-zA-Z$_][a-zA-Z0-9$_]*)(?<array>(?:\[\d*?\])+?)?(?:\s(?<modifier>calldata|indexed|memory|storage{1}))?(?:\s(?<name>[a-zA-Z$_][a-zA-Z0-9$_]*))?$/;
+  abiParameterWithTupleRegex = /^\((?<type>.+?)\)(?<array>(?:\[\d*?\])+?)?(?:\s(?<modifier>calldata|indexed|memory|storage{1}))?(?:\s(?<name>[a-zA-Z$_][a-zA-Z0-9$_]*))?$/;
+  dynamicIntegerRegex = /^u?int$/;
+  protectedKeywordsRegex = /^(?:after|alias|anonymous|apply|auto|byte|calldata|case|catch|constant|copyof|default|defined|error|event|external|false|final|function|immutable|implements|in|indexed|inline|internal|let|mapping|match|memory|mutable|null|of|override|partial|private|promise|public|pure|reference|relocatable|return|returns|sizeof|static|storage|struct|super|supports|switch|this|true|try|typedef|typeof|var|view|virtual)$/;
+});
+function parseStructs(signatures) {
+  const shallowStructs = {};
+  const signaturesLength = signatures.length;
+  for (let i2 = 0;i2 < signaturesLength; i2++) {
+    const signature = signatures[i2];
+    if (!isStructSignature(signature))
+      continue;
+    const match = execStructSignature(signature);
+    if (!match)
+      throw new InvalidSignatureError({ signature, type: "struct" });
+    const properties = match.properties.split(";");
+    const components = [];
+    const propertiesLength = properties.length;
+    for (let k = 0;k < propertiesLength; k++) {
+      const property = properties[k];
+      const trimmed = property.trim();
+      if (!trimmed)
+        continue;
+      const abiParameter = parseAbiParameter(trimmed, {
+        type: "struct"
+      });
+      components.push(abiParameter);
+    }
+    if (!components.length)
+      throw new InvalidStructSignatureError({ signature });
+    shallowStructs[match.name] = components;
+  }
+  const resolvedStructs = {};
+  const entries = Object.entries(shallowStructs);
+  const entriesLength = entries.length;
+  for (let i2 = 0;i2 < entriesLength; i2++) {
+    const [name, parameters] = entries[i2];
+    resolvedStructs[name] = resolveStructs(parameters, shallowStructs);
+  }
+  return resolvedStructs;
+}
+function resolveStructs(abiParameters, structs, ancestors = new Set) {
+  const components = [];
+  const length = abiParameters.length;
+  for (let i2 = 0;i2 < length; i2++) {
+    const abiParameter = abiParameters[i2];
+    const isTuple = isTupleRegex.test(abiParameter.type);
+    if (isTuple)
+      components.push(abiParameter);
+    else {
+      const match = execTyped(typeWithoutTupleRegex, abiParameter.type);
+      if (!match?.type)
+        throw new InvalidAbiTypeParameterError({ abiParameter });
+      const { array, type } = match;
+      if (type in structs) {
+        if (ancestors.has(type))
+          throw new CircularReferenceError({ type });
+        components.push({
+          ...abiParameter,
+          type: `tuple${array ?? ""}`,
+          components: resolveStructs(structs[type] ?? [], structs, new Set([...ancestors, type]))
+        });
+      } else {
+        if (isSolidityType(type))
+          components.push(abiParameter);
+        else
+          throw new UnknownTypeError({ type });
+      }
+    }
+  }
+  return components;
+}
+var typeWithoutTupleRegex;
+var init_structs = __esm(() => {
+  init_regex();
+  init_abiItem();
+  init_abiParameter();
+  init_signature();
+  init_struct();
+  init_signatures();
+  init_utils();
+  typeWithoutTupleRegex = /^(?<type>[a-zA-Z$_][a-zA-Z0-9$_]*)(?<array>(?:\[\d*?\])+?)?$/;
+});
+function parseAbiParameters(params) {
+  const abiParameters = [];
+  if (typeof params === "string") {
+    const parameters = splitParameters(params);
+    const length = parameters.length;
+    for (let i2 = 0;i2 < length; i2++) {
+      abiParameters.push(parseAbiParameter(parameters[i2], { modifiers }));
+    }
+  } else {
+    const structs = parseStructs(params);
+    const length = params.length;
+    for (let i2 = 0;i2 < length; i2++) {
+      const signature = params[i2];
+      if (isStructSignature(signature))
+        continue;
+      const parameters = splitParameters(signature);
+      const length2 = parameters.length;
+      for (let k = 0;k < length2; k++) {
+        abiParameters.push(parseAbiParameter(parameters[k], { modifiers, structs }));
+      }
+    }
+  }
+  if (abiParameters.length === 0)
+    throw new InvalidAbiParametersError({ params });
+  return abiParameters;
+}
+var init_parseAbiParameters = __esm(() => {
+  init_abiParameter();
+  init_signatures();
+  init_structs();
+  init_utils();
+  init_utils();
+});
 var init_exports = __esm(() => {
   init_formatAbiItem();
+  init_parseAbiParameters();
 });
 function formatAbiItem2(abiItem, { includeName = false } = {}) {
   if (abiItem.type !== "function" && abiItem.type !== "event" && abiItem.type !== "error")
@@ -109,7 +686,7 @@ function size(value2) {
   return value2.length;
 }
 var init_size = () => {};
-var version = "2.34.0";
+var version2 = "2.34.0";
 function walk(err, fn) {
   if (fn?.(err))
     return err;
@@ -118,23 +695,23 @@ function walk(err, fn) {
   return fn ? null : err;
 }
 var errorConfig;
-var BaseError;
+var BaseError2;
 var init_base = __esm(() => {
   errorConfig = {
     getDocsUrl: ({ docsBaseUrl, docsPath = "", docsSlug }) => docsPath ? `${docsBaseUrl ?? "https://viem.sh"}${docsPath}${docsSlug ? `#${docsSlug}` : ""}` : undefined,
-    version: `viem@${version}`
+    version: `viem@${version2}`
   };
-  BaseError = class BaseError2 extends Error {
+  BaseError2 = class BaseError22 extends Error {
     constructor(shortMessage, args = {}) {
       const details = (() => {
-        if (args.cause instanceof BaseError2)
+        if (args.cause instanceof BaseError22)
           return args.cause.details;
         if (args.cause?.message)
           return args.cause.message;
         return args.details;
       })();
       const docsPath = (() => {
-        if (args.cause instanceof BaseError2)
+        if (args.cause instanceof BaseError22)
           return args.cause.docsPath || args.docsPath;
         return args.docsPath;
       })();
@@ -190,7 +767,7 @@ var init_base = __esm(() => {
       this.metaMessages = args.metaMessages;
       this.name = args.name ?? this.name;
       this.shortMessage = shortMessage;
-      this.version = version;
+      this.version = version2;
     }
     walk(fn) {
       return walk(this, fn);
@@ -215,7 +792,7 @@ var init_abi = __esm(() => {
   init_formatAbiItem2();
   init_size();
   init_base();
-  AbiDecodingDataSizeTooSmallError = class AbiDecodingDataSizeTooSmallError2 extends BaseError {
+  AbiDecodingDataSizeTooSmallError = class AbiDecodingDataSizeTooSmallError2 extends BaseError2 {
     constructor({ data, params, size: size2 }) {
       super([`Data size of ${size2} bytes is too small for given parameters.`].join(`
 `), {
@@ -248,14 +825,14 @@ var init_abi = __esm(() => {
       this.size = size2;
     }
   };
-  AbiDecodingZeroDataError = class AbiDecodingZeroDataError2 extends BaseError {
+  AbiDecodingZeroDataError = class AbiDecodingZeroDataError2 extends BaseError2 {
     constructor() {
       super('Cannot decode zero data ("0x") with ABI parameters.', {
         name: "AbiDecodingZeroDataError"
       });
     }
   };
-  AbiEncodingArrayLengthMismatchError = class AbiEncodingArrayLengthMismatchError2 extends BaseError {
+  AbiEncodingArrayLengthMismatchError = class AbiEncodingArrayLengthMismatchError2 extends BaseError2 {
     constructor({ expectedLength, givenLength, type }) {
       super([
         `ABI encoding array length mismatch for type ${type}.`,
@@ -265,12 +842,12 @@ var init_abi = __esm(() => {
 `), { name: "AbiEncodingArrayLengthMismatchError" });
     }
   };
-  AbiEncodingBytesSizeMismatchError = class AbiEncodingBytesSizeMismatchError2 extends BaseError {
+  AbiEncodingBytesSizeMismatchError = class AbiEncodingBytesSizeMismatchError2 extends BaseError2 {
     constructor({ expectedSize, value: value2 }) {
       super(`Size of bytes "${value2}" (bytes${size(value2)}) does not match expected size (bytes${expectedSize}).`, { name: "AbiEncodingBytesSizeMismatchError" });
     }
   };
-  AbiEncodingLengthMismatchError = class AbiEncodingLengthMismatchError2 extends BaseError {
+  AbiEncodingLengthMismatchError = class AbiEncodingLengthMismatchError2 extends BaseError2 {
     constructor({ expectedLength, givenLength }) {
       super([
         "ABI encoding params/values length mismatch.",
@@ -280,7 +857,7 @@ var init_abi = __esm(() => {
 `), { name: "AbiEncodingLengthMismatchError" });
     }
   };
-  AbiFunctionNotFoundError = class AbiFunctionNotFoundError2 extends BaseError {
+  AbiFunctionNotFoundError = class AbiFunctionNotFoundError2 extends BaseError2 {
     constructor(functionName, { docsPath } = {}) {
       super([
         `Function ${functionName ? `"${functionName}" ` : ""}not found on ABI.`,
@@ -292,7 +869,7 @@ var init_abi = __esm(() => {
       });
     }
   };
-  AbiFunctionOutputsNotFoundError = class AbiFunctionOutputsNotFoundError2 extends BaseError {
+  AbiFunctionOutputsNotFoundError = class AbiFunctionOutputsNotFoundError2 extends BaseError2 {
     constructor(functionName, { docsPath }) {
       super([
         `Function "${functionName}" does not contain any \`outputs\` on ABI.`,
@@ -305,7 +882,7 @@ var init_abi = __esm(() => {
       });
     }
   };
-  AbiItemAmbiguityError = class AbiItemAmbiguityError2 extends BaseError {
+  AbiItemAmbiguityError = class AbiItemAmbiguityError2 extends BaseError2 {
     constructor(x, y) {
       super("Found ambiguous types in overloaded ABI items.", {
         metaMessages: [
@@ -319,14 +896,14 @@ var init_abi = __esm(() => {
       });
     }
   };
-  BytesSizeMismatchError = class BytesSizeMismatchError2 extends BaseError {
+  BytesSizeMismatchError = class BytesSizeMismatchError2 extends BaseError2 {
     constructor({ expectedSize, givenSize }) {
       super(`Expected bytes${expectedSize}, got bytes${givenSize}.`, {
         name: "BytesSizeMismatchError"
       });
     }
   };
-  InvalidAbiEncodingTypeError = class InvalidAbiEncodingTypeError2 extends BaseError {
+  InvalidAbiEncodingTypeError = class InvalidAbiEncodingTypeError2 extends BaseError2 {
     constructor(type, { docsPath }) {
       super([
         `Type "${type}" is not a valid encoding type.`,
@@ -335,7 +912,7 @@ var init_abi = __esm(() => {
 `), { docsPath, name: "InvalidAbiEncodingType" });
     }
   };
-  InvalidAbiDecodingTypeError = class InvalidAbiDecodingTypeError2 extends BaseError {
+  InvalidAbiDecodingTypeError = class InvalidAbiDecodingTypeError2 extends BaseError2 {
     constructor(type, { docsPath }) {
       super([
         `Type "${type}" is not a valid decoding type.`,
@@ -344,7 +921,7 @@ var init_abi = __esm(() => {
 `), { docsPath, name: "InvalidAbiDecodingType" });
     }
   };
-  InvalidArrayError = class InvalidArrayError2 extends BaseError {
+  InvalidArrayError = class InvalidArrayError2 extends BaseError2 {
     constructor(value2) {
       super([`Value "${value2}" is not a valid array.`].join(`
 `), {
@@ -352,7 +929,7 @@ var init_abi = __esm(() => {
       });
     }
   };
-  InvalidDefinitionTypeError = class InvalidDefinitionTypeError2 extends BaseError {
+  InvalidDefinitionTypeError = class InvalidDefinitionTypeError2 extends BaseError2 {
     constructor(type) {
       super([
         `"${type}" is not a valid definition type.`,
@@ -361,7 +938,7 @@ var init_abi = __esm(() => {
 `), { name: "InvalidDefinitionTypeError" });
     }
   };
-  UnsupportedPackedAbiType = class UnsupportedPackedAbiType2 extends BaseError {
+  UnsupportedPackedAbiType = class UnsupportedPackedAbiType2 extends BaseError2 {
     constructor(type) {
       super(`Type "${type}" is not supported for packed encoding.`, {
         name: "UnsupportedPackedAbiType"
@@ -373,12 +950,12 @@ var SliceOffsetOutOfBoundsError;
 var SizeExceedsPaddingSizeError;
 var init_data = __esm(() => {
   init_base();
-  SliceOffsetOutOfBoundsError = class SliceOffsetOutOfBoundsError2 extends BaseError {
+  SliceOffsetOutOfBoundsError = class SliceOffsetOutOfBoundsError2 extends BaseError2 {
     constructor({ offset, position, size: size2 }) {
       super(`Slice ${position === "start" ? "starting" : "ending"} at offset "${offset}" is out-of-bounds (size: ${size2}).`, { name: "SliceOffsetOutOfBoundsError" });
     }
   };
-  SizeExceedsPaddingSizeError = class SizeExceedsPaddingSizeError2 extends BaseError {
+  SizeExceedsPaddingSizeError = class SizeExceedsPaddingSizeError2 extends BaseError2 {
     constructor({ size: size2, targetSize, type }) {
       super(`${type.charAt(0).toUpperCase()}${type.slice(1).toLowerCase()} size (${size2}) exceeds padding size (${targetSize}).`, { name: "SizeExceedsPaddingSizeError" });
     }
@@ -425,19 +1002,19 @@ var InvalidBytesBooleanError;
 var SizeOverflowError;
 var init_encoding = __esm(() => {
   init_base();
-  IntegerOutOfRangeError = class IntegerOutOfRangeError2 extends BaseError {
+  IntegerOutOfRangeError = class IntegerOutOfRangeError2 extends BaseError2 {
     constructor({ max, min, signed, size: size2, value: value2 }) {
       super(`Number "${value2}" is not in safe ${size2 ? `${size2 * 8}-bit ${signed ? "signed" : "unsigned"} ` : ""}integer range ${max ? `(${min} to ${max})` : `(above ${min})`}`, { name: "IntegerOutOfRangeError" });
     }
   };
-  InvalidBytesBooleanError = class InvalidBytesBooleanError2 extends BaseError {
+  InvalidBytesBooleanError = class InvalidBytesBooleanError2 extends BaseError2 {
     constructor(bytes) {
       super(`Bytes value "${bytes}" is not a valid boolean. The bytes array must contain a single byte of either a 0 or 1 value.`, {
         name: "InvalidBytesBooleanError"
       });
     }
   };
-  SizeOverflowError = class SizeOverflowError2 extends BaseError {
+  SizeOverflowError = class SizeOverflowError2 extends BaseError2 {
     constructor({ givenSize, maxSize }) {
       super(`Size cannot exceed ${maxSize} bytes. Given size: ${givenSize} bytes.`, { name: "SizeOverflowError" });
     }
@@ -600,7 +1177,7 @@ function hexToBytes2(hex_, opts = {}) {
     const nibbleLeft = charCodeToBase16(hexString.charCodeAt(j++));
     const nibbleRight = charCodeToBase16(hexString.charCodeAt(j++));
     if (nibbleLeft === undefined || nibbleRight === undefined) {
-      throw new BaseError(`Invalid byte sequence ("${hexString[j - 2]}${hexString[j - 1]}" in "${hexString}").`);
+      throw new BaseError2(`Invalid byte sequence ("${hexString[j - 2]}${hexString[j - 1]}" in "${hexString}").`);
     }
     bytes[index] = nibbleLeft * 16 + nibbleRight;
   }
@@ -810,7 +1387,7 @@ var swap32IfBE;
 var hasHexBuiltin;
 var hexes2;
 var asciis;
-var init_utils = __esm(() => {
+var init_utils2 = __esm(() => {
   init_crypto();
   /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   isLE = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
@@ -878,7 +1455,7 @@ var gen = (suffix, blockLen, outputLen) => createHasher(() => new Keccak(blockLe
 var keccak_256;
 var init_sha3 = __esm(() => {
   init__u64();
-  init_utils();
+  init_utils2();
   _0n = BigInt(0);
   _1n = BigInt(1);
   _2n = BigInt(2);
@@ -1074,7 +1651,7 @@ function normalizeSignature(signature) {
     current += char;
   }
   if (!valid)
-    throw new BaseError("Unable to normalize signature.");
+    throw new BaseError2("Unable to normalize signature.");
   return result;
 }
 var init_normalizeSignature = __esm(() => {
@@ -1107,7 +1684,7 @@ var init_toEventSelector = __esm(() => {
 var InvalidAddressError;
 var init_address = __esm(() => {
   init_base();
-  InvalidAddressError = class InvalidAddressError2 extends BaseError {
+  InvalidAddressError = class InvalidAddressError2 extends BaseError2 {
     constructor({ address }) {
       super(`Address "${address}" is invalid.`, {
         metaMessages: [
@@ -1274,12 +1851,12 @@ var init_slice = __esm(() => {
   init_size();
 });
 var arrayRegex;
-var bytesRegex;
-var integerRegex;
+var bytesRegex2;
+var integerRegex2;
 var init_regex2 = __esm(() => {
   arrayRegex = /^(.*)\[([0-9]*)\]$/;
-  bytesRegex = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
-  integerRegex = /^(u?int)(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
+  bytesRegex2 = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
+  integerRegex2 = /^(u?int)(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
 });
 function encodeAbiParameters(params, values) {
   if (params.length !== values.length)
@@ -1322,7 +1899,7 @@ function prepareParam({ param, value: value2 }) {
   }
   if (param.type.startsWith("uint") || param.type.startsWith("int")) {
     const signed = param.type.startsWith("int");
-    const [, , size2 = "256"] = integerRegex.exec(param.type) ?? [];
+    const [, , size2 = "256"] = integerRegex2.exec(param.type) ?? [];
     return encodeNumber(value2, {
       signed,
       size: Number(size2)
@@ -1426,7 +2003,7 @@ function encodeBytes(value2, { param }) {
 }
 function encodeBool(value2) {
   if (typeof value2 !== "boolean")
-    throw new BaseError(`Invalid boolean value: "${value2}" (type: ${typeof value2}). Expected: \`true\` or \`false\`.`);
+    throw new BaseError2(`Invalid boolean value: "${value2}" (type: ${typeof value2}). Expected: \`true\` or \`false\`.`);
   return { dynamic: false, encoded: padHex(boolToHex(value2)) };
 }
 function encodeNumber(value2, { signed, size: size2 = 256 }) {
@@ -1670,19 +2247,19 @@ var PositionOutOfBoundsError;
 var RecursiveReadLimitExceededError;
 var init_cursor = __esm(() => {
   init_base();
-  NegativeOffsetError = class NegativeOffsetError2 extends BaseError {
+  NegativeOffsetError = class NegativeOffsetError2 extends BaseError2 {
     constructor({ offset }) {
       super(`Offset \`${offset}\` cannot be negative.`, {
         name: "NegativeOffsetError"
       });
     }
   };
-  PositionOutOfBoundsError = class PositionOutOfBoundsError2 extends BaseError {
+  PositionOutOfBoundsError = class PositionOutOfBoundsError2 extends BaseError2 {
     constructor({ length, position }) {
       super(`Position \`${position}\` is out of bounds (\`0 < position < ${length}\`).`, { name: "PositionOutOfBoundsError" });
     }
   };
-  RecursiveReadLimitExceededError = class RecursiveReadLimitExceededError2 extends BaseError {
+  RecursiveReadLimitExceededError = class RecursiveReadLimitExceededError2 extends BaseError2 {
     constructor({ count, limit }) {
       super(`Recursive read limit of \`${limit}\` exceeded (recursive read count: \`${count}\`).`, { name: "RecursiveReadLimitExceededError" });
     }
@@ -2115,7 +2692,7 @@ function Maj(a, b, c) {
 var HashMD;
 var SHA256_IV;
 var init__md = __esm(() => {
-  init_utils();
+  init_utils2();
   HashMD = class HashMD2 extends Hash {
     constructor(blockLen, outputLen, padOffset, isLE2) {
       super();
@@ -2223,7 +2800,7 @@ var SHA256;
 var sha256;
 var init_sha2 = __esm(() => {
   init__md();
-  init_utils();
+  init_utils2();
   SHA256_K = /* @__PURE__ */ Uint32Array.from([
     1116352408,
     1899447441,
@@ -2539,9 +3116,9 @@ var _0n2;
 var _1n2;
 var isPosBig = (n) => typeof n === "bigint" && _0n2 <= n;
 var bitMask = (n) => (_1n2 << BigInt(n)) - _1n2;
-var init_utils2 = __esm(() => {
-  init_utils();
-  init_utils();
+var init_utils3 = __esm(() => {
+  init_utils2();
+  init_utils2();
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   _0n2 = /* @__PURE__ */ BigInt(0);
   _1n2 = /* @__PURE__ */ BigInt(1);
@@ -2549,7 +3126,7 @@ var init_utils2 = __esm(() => {
 var HMAC;
 var hmac = (hash2, key, message) => new HMAC(hash2, key).update(message).digest();
 var init_hmac = __esm(() => {
-  init_utils();
+  init_utils2();
   HMAC = class HMAC2 extends Hash {
     constructor(hash2, _key) {
       super();
@@ -2937,7 +3514,7 @@ var _9n;
 var _16n;
 var FIELD_FIELDS;
 var init_modular = __esm(() => {
-  init_utils2();
+  init_utils3();
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   _0n3 = BigInt(0);
   _1n3 = BigInt(1);
@@ -3219,7 +3796,7 @@ var _1n4;
 var pointPrecomputes;
 var pointWindowSizes;
 var init_curve = __esm(() => {
-  init_utils2();
+  init_utils3();
   init_modular();
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   _0n4 = BigInt(0);
@@ -4092,8 +4669,8 @@ var _3n2;
 var _4n2;
 var init_weierstrass = __esm(() => {
   init_hmac();
-  init_utils();
   init_utils2();
+  init_utils3();
   init_curve();
   init_modular();
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
@@ -14872,11 +15449,11 @@ function datetimeRegex(args) {
   regex = `${regex}(${opts.join("|")})`;
   return new RegExp(`^${regex}$`);
 }
-function isValidIP(ip, version2) {
-  if ((version2 === "v4" || !version2) && ipv4Regex.test(ip)) {
+function isValidIP(ip, version3) {
+  if ((version3 === "v4" || !version3) && ipv4Regex.test(ip)) {
     return true;
   }
-  if ((version2 === "v6" || !version2) && ipv6Regex.test(ip)) {
+  if ((version3 === "v6" || !version3) && ipv6Regex.test(ip)) {
     return true;
   }
   return false;
@@ -14903,11 +15480,11 @@ function isValidJWT(jwt, alg) {
     return false;
   }
 }
-function isValidCidr(ip, version2) {
-  if ((version2 === "v4" || !version2) && ipv4CidrRegex.test(ip)) {
+function isValidCidr(ip, version3) {
+  if ((version3 === "v4" || !version3) && ipv4CidrRegex.test(ip)) {
     return true;
   }
-  if ((version2 === "v6" || !version2) && ipv6CidrRegex.test(ip)) {
+  if ((version3 === "v6" || !version3) && ipv6CidrRegex.test(ip)) {
     return true;
   }
   return false;
@@ -18474,11 +19051,12 @@ function verifyApiKey(runtime2, body) {
     return;
   }
 }
+init_exports();
 init_abi();
 init_address();
 init_base();
 
-class InvalidDomainError extends BaseError {
+class InvalidDomainError extends BaseError2 {
   constructor({ domain }) {
     super(`Invalid domain "${stringify(domain)}".`, {
       metaMessages: ["Must be a valid EIP-712 domain."]
@@ -18486,7 +19064,7 @@ class InvalidDomainError extends BaseError {
   }
 }
 
-class InvalidPrimaryTypeError extends BaseError {
+class InvalidPrimaryTypeError extends BaseError2 {
   constructor({ primaryType, types: types4 }) {
     super(`Invalid primary type \`${primaryType}\` must be one of \`${JSON.stringify(Object.keys(types4))}\`.`, {
       docsPath: "/api/glossary/Errors#typeddatainvalidprimarytypeerror",
@@ -18495,7 +19073,7 @@ class InvalidPrimaryTypeError extends BaseError {
   }
 }
 
-class InvalidStructTypeError extends BaseError {
+class InvalidStructTypeError extends BaseError2 {
   constructor({ type }) {
     super(`Struct type "${type}" is invalid.`, {
       metaMessages: ["Struct type must not be a Solidity type."],
@@ -18627,7 +19205,7 @@ function validateTypedData(parameters) {
     for (const param of struct) {
       const { name, type } = param;
       const value2 = data[name];
-      const integerMatch = type.match(integerRegex);
+      const integerMatch = type.match(integerRegex2);
       if (integerMatch && (typeof value2 === "number" || typeof value2 === "bigint")) {
         const [_type, base, size_] = integerMatch;
         numberToHex(value2, {
@@ -18637,7 +19215,7 @@ function validateTypedData(parameters) {
       }
       if (type === "address" && typeof value2 === "string" && !isAddress(value2))
         throw new InvalidAddressError({ address: value2 });
-      const bytesMatch = type.match(bytesRegex);
+      const bytesMatch = type.match(bytesRegex2);
       if (bytesMatch) {
         const [_type, size_] = bytesMatch;
         if (size_ && size(value2) !== Number.parseInt(size_))
@@ -18719,7 +19297,7 @@ function encode(type, value2, isArray = false) {
     return value2;
   if (type === "bool")
     return pad(boolToHex(value2), { size: isArray ? 32 : 1 });
-  const intMatch = type.match(integerRegex);
+  const intMatch = type.match(integerRegex2);
   if (intMatch) {
     const [_type, baseType, bits = "256"] = intMatch;
     const size2 = Number.parseInt(bits) / 8;
@@ -18728,7 +19306,7 @@ function encode(type, value2, isArray = false) {
       signed: baseType === "int"
     });
   }
-  const bytesMatch = type.match(bytesRegex);
+  const bytesMatch = type.match(bytesRegex2);
   if (bytesMatch) {
     const [_type, size2] = bytesMatch;
     if (Number.parseInt(size2) !== (value2.length - 2) / 2)
@@ -18769,6 +19347,7 @@ function serializeSignature({ r, s, to = "hex", v, yParity }) {
   return hexToBytes2(signature);
 }
 init_decodeFunctionResult();
+init_encodeAbiParameters();
 init_encodeFunctionData();
 init_toBytes();
 init_toHex();
@@ -18915,6 +19494,34 @@ var sub0_default = [
     ],
     outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
     stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "getExpectedAuthor",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getExpectedWorkflowId",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getExpectedWorkflowName",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes10", internalType: "bytes10" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getForwarderAddress",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -19073,6 +19680,11 @@ var sub0_default = [
             name: "predictionVault",
             type: "address",
             internalType: "address"
+          },
+          {
+            name: "creForwarder",
+            type: "address",
+            internalType: "address"
           }
         ]
       }
@@ -19122,6 +19734,16 @@ var sub0_default = [
       }
     ],
     stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "onReport",
+    inputs: [
+      { name: "metadata", type: "bytes", internalType: "bytes" },
+      { name: "report", type: "bytes", internalType: "bytes" }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -19246,9 +19868,46 @@ var sub0_default = [
             name: "predictionVault",
             type: "address",
             internalType: "address"
+          },
+          {
+            name: "creForwarder",
+            type: "address",
+            internalType: "address"
           }
         ]
       }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "setExpectedAuthor",
+    inputs: [
+      { name: "_author", type: "address", internalType: "address" }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "setExpectedWorkflowId",
+    inputs: [{ name: "_id", type: "bytes32", internalType: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "setExpectedWorkflowName",
+    inputs: [{ name: "_name", type: "string", internalType: "string" }],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "setForwarderAddress",
+    inputs: [
+      { name: "_forwarder", type: "address", internalType: "address" }
     ],
     outputs: [],
     stateMutability: "nonpayable"
@@ -19273,6 +19932,15 @@ var sub0_default = [
     ],
     outputs: [],
     stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "supportsInterface",
+    inputs: [
+      { name: "interfaceId", type: "bytes4", internalType: "bytes4" }
+    ],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
+    stateMutability: "pure"
   },
   {
     type: "function",
@@ -19344,6 +20012,82 @@ var sub0_default = [
         type: "uint256[]",
         indexed: false,
         internalType: "uint256[]"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "ExpectedAuthorUpdated",
+    inputs: [
+      {
+        name: "previousAuthor",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "newAuthor",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "ExpectedWorkflowIdUpdated",
+    inputs: [
+      {
+        name: "previousId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32"
+      },
+      {
+        name: "newId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "ExpectedWorkflowNameUpdated",
+    inputs: [
+      {
+        name: "previousName",
+        type: "bytes10",
+        indexed: true,
+        internalType: "bytes10"
+      },
+      {
+        name: "newName",
+        type: "bytes10",
+        indexed: true,
+        internalType: "bytes10"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "ForwarderAddressUpdated",
+    inputs: [
+      {
+        name: "previousForwarder",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "newForwarder",
+        type: "address",
+        indexed: true,
+        internalType: "address"
       }
     ],
     anonymous: false
@@ -19450,6 +20194,19 @@ var sub0_default = [
   },
   {
     type: "event",
+    name: "SecurityWarning",
+    inputs: [
+      {
+        name: "message",
+        type: "string",
+        indexed: false,
+        internalType: "string"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
     name: "Staked",
     inputs: [
       {
@@ -19506,6 +20263,20 @@ var sub0_default = [
       { name: "conditionId", type: "bytes32", internalType: "bytes32" }
     ]
   },
+  { type: "error", name: "CREForwarderNotSet", inputs: [] },
+  {
+    type: "error",
+    name: "CREInvalidSender",
+    inputs: [
+      { name: "sender", type: "address", internalType: "address" },
+      {
+        name: "expectedForwarder",
+        type: "address",
+        internalType: "address"
+      }
+    ]
+  },
+  { type: "error", name: "CREReportTooShort", inputs: [] },
   {
     type: "error",
     name: "ERC1967InvalidImplementation",
@@ -19521,11 +20292,20 @@ var sub0_default = [
   { type: "error", name: "FailedCall", inputs: [] },
   {
     type: "error",
+    name: "InvalidAuthor",
+    inputs: [
+      { name: "received", type: "address", internalType: "address" },
+      { name: "expected", type: "address", internalType: "address" }
+    ]
+  },
+  {
+    type: "error",
     name: "InvalidBetDuration",
     inputs: [
       { name: "betDuration", type: "uint256", internalType: "uint256" }
     ]
   },
+  { type: "error", name: "InvalidForwarderAddress", inputs: [] },
   { type: "error", name: "InvalidInitialization", inputs: [] },
   {
     type: "error",
@@ -19577,6 +20357,14 @@ var sub0_default = [
   },
   {
     type: "error",
+    name: "InvalidSender",
+    inputs: [
+      { name: "sender", type: "address", internalType: "address" },
+      { name: "expected", type: "address", internalType: "address" }
+    ]
+  },
+  {
+    type: "error",
     name: "InvalidTokenDecimal",
     inputs: [
       { name: "token", type: "address", internalType: "address" }
@@ -19586,6 +20374,22 @@ var sub0_default = [
     type: "error",
     name: "InvalidUser",
     inputs: [{ name: "user", type: "address", internalType: "address" }]
+  },
+  {
+    type: "error",
+    name: "InvalidWorkflowId",
+    inputs: [
+      { name: "received", type: "bytes32", internalType: "bytes32" },
+      { name: "expected", type: "bytes32", internalType: "bytes32" }
+    ]
+  },
+  {
+    type: "error",
+    name: "InvalidWorkflowName",
+    inputs: [
+      { name: "received", type: "bytes10", internalType: "bytes10" },
+      { name: "expected", type: "bytes10", internalType: "bytes10" }
+    ]
   },
   {
     type: "error",
@@ -19667,6 +20471,11 @@ var sub0_default = [
     type: "error",
     name: "UserNotInvited",
     inputs: [{ name: "user", type: "address", internalType: "address" }]
+  },
+  {
+    type: "error",
+    name: "WorkflowNameRequiresAuthorValidation",
+    inputs: []
   },
   { type: "error", name: "ZeroAddress", inputs: [] }
 ];
@@ -21781,7 +22590,7 @@ function getEVMClient(chainSelectorName) {
   }
   return new cre.capabilities.EVMClient(network248.chainSelector.selector);
 }
-function callContract(runtime2, chainSelectorName, to, data, blockNumber = LAST_FINALIZED_BLOCK_NUMBER) {
+function callContract(runtime2, chainSelectorName, to, data, blockNumber = LATEST_BLOCK_NUMBER) {
   const evmClient = getEVMClient(chainSelectorName);
   const callMsg = encodeCallMsg({
     from: zeroAddress,
@@ -21892,10 +22701,33 @@ function submitSeedMarketLiquidity(runtime2, config, questionId, amountUsdc) {
   }
   return "";
 }
+var DEFAULT_WRITE_GAS_LIMIT = "600000";
+var RECEIVER_EXECUTION_REVERTED = 1;
 var ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
-async function getMarket(ctx, questionId) {
+var ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+var EMPTY_MARKET = {
+  question: "",
+  conditionId: ZERO_BYTES32,
+  oracle: ZERO_ADDRESS,
+  owner: ZERO_ADDRESS,
+  createdAt: 0n,
+  duration: 0n,
+  outcomeSlotCount: 0,
+  oracleType: 0,
+  marketType: 0
+};
+function isMarketEmpty(market) {
+  return (market.conditionId === ZERO_BYTES32 || !market.conditionId) && (market.question === "" || !market.question?.trim());
+}
+var CREATE_MARKET_PARAMS = parseAbiParameters("(string question, bytes32 conditionId, address oracle, address owner, uint256 createdAt, uint256 duration, uint256 outcomeSlotCount, uint8 oracleType, uint8 marketType)");
+async function getMarket(ctx, questionId, options) {
   const data = buildCallData(SUB0_ABI, "getMarket", [questionId]);
-  const reply = callContract(ctx.runtime, ctx.config.chainSelectorName, ctx.config.contracts.sub0, data);
+  const blockNumber = options?.useLatestBlock === true ? LATEST_BLOCK_NUMBER : LAST_FINALIZED_BLOCK_NUMBER;
+  const reply = callContract(ctx.runtime, ctx.config.chainSelectorName, ctx.config.contracts.sub0, data, blockNumber);
+  const hexData = reply.data.length === 0 ? "0x" : bytesToHex(reply.data);
+  if (hexData === "0x" || hexData === "0x0") {
+    return EMPTY_MARKET;
+  }
   const m = decodeCallResult(SUB0_ABI, "getMarket", reply.data);
   return {
     question: m.question,
@@ -21910,51 +22742,64 @@ async function getMarket(ctx, questionId) {
   };
 }
 function encodeCreateMarket(params) {
-  const marketTuple = [
-    params.question,
-    ZERO_BYTES32,
-    params.oracle,
-    zeroAddress,
-    0n,
-    BigInt(params.duration),
-    params.outcomeSlotCount,
-    params.oracleType,
-    params.marketType
-  ];
-  return encodeFunctionData({
-    abi: SUB0_ABI,
-    functionName: "create",
-    args: [marketTuple]
-  });
+  const marketTuple = {
+    question: params.question,
+    conditionId: ZERO_BYTES32,
+    oracle: params.oracle,
+    owner: "0xf0830060f836B8d54bF02049E5905F619487989e",
+    createdAt: 0n,
+    duration: BigInt(params.duration),
+    outcomeSlotCount: BigInt(params.outcomeSlotCount),
+    oracleType: params.oracleType,
+    marketType: params.marketType
+  };
+  return encodeAbiParameters(CREATE_MARKET_PARAMS, [marketTuple]);
 }
 function computeQuestionId(question, creator, oracle) {
   const packed = encodePacked(["string", "address", "address"], [question, creator, oracle]);
   return keccak256(packed);
 }
 function submitCreateMarket(runtime2, config, params) {
+  runtime2.log("[Step 1] Encoding create(Market) calldata...");
   const hexPayload = encodeCreateMarket(params);
-  const reportRequest = prepareReportRequest(hexPayload);
+  runtime2.log(`[Step 1] Calldata length: ${hexPayload.length} chars (0x prefix + selector + args)`);
+  runtime2.log("[Step 2] Resolving network and EVM client...");
   const network248 = getNetwork({
     chainFamily: "evm",
     chainSelectorName: config.chainSelectorName,
     isTestnet: true
   });
-  if (!network248)
+  if (!network248) {
     throw new Error(`Network not found: ${config.chainSelectorName}`);
-  const evmClient = new cre.capabilities.EVMClient(network248.chainSelector.selector);
-  const receiverHex = config.contracts.sub0.replace(/^0x/, "");
-  const receiver = new Uint8Array(20);
-  for (let i2 = 0;i2 < 20; i2++)
-    receiver[i2] = parseInt(receiverHex.slice(i2 * 2, i2 * 2 + 2), 16);
-  const reply = evmClient.writeReport(runtime2, {
-    receiver,
-    report: runtime2.report(reportRequest).result(),
-    $report: true
-  }).result();
-  if (reply.txHash != null && reply.txHash.length > 0) {
-    return typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash);
   }
-  return "";
+  const evmClient = new cre.capabilities.EVMClient(network248.chainSelector.selector);
+  const receiverAddress = config.contracts.sub0.startsWith("0x") ? config.contracts.sub0 : `0x${config.contracts.sub0}`;
+  runtime2.log(`[Step 2] Chain: ${config.chainSelectorName}, receiver (Sub0): ${receiverAddress}`);
+  runtime2.log("[Step 3] Generating signed CRE report (evm encoder, ecdsa, keccak256)...");
+  const reportResponse = runtime2.report({
+    encodedPayload: hexToBase64(hexPayload),
+    encoderName: "evm",
+    signingAlgo: "ecdsa",
+    hashingAlgo: "keccak256"
+  }).result();
+  runtime2.log("[Step 3] Report generated.");
+  runtime2.log(`[Step 4] Writing report to contract (writeReport), gasLimit: ${DEFAULT_WRITE_GAS_LIMIT}...`);
+  const writeResult = evmClient.writeReport(runtime2, {
+    receiver: receiverAddress,
+    report: reportResponse,
+    gasConfig: { gasLimit: DEFAULT_WRITE_GAS_LIMIT }
+  }).result();
+  runtime2.log(`[Step 5] writeReport returned txStatus=${writeResult.txStatus}, receiverStatus=${writeResult.receiverContractExecutionStatus ?? "undefined"}, hasTxHash=${writeResult.txHash != null && writeResult.txHash.length > 0}`);
+  if (writeResult.txStatus !== TxStatus.SUCCESS) {
+    throw new Error(`Create market transaction failed with status: ${writeResult.txStatus}`);
+  }
+  if (writeResult.receiverContractExecutionStatus === RECEIVER_EXECUTION_REVERTED) {
+    throw new Error("Create market: forwarder tx succeeded but Sub0 contract reverted. Check role (GAME_CREATOR_ROLE) and calldata.");
+  }
+  const rawHash = writeResult.txHash;
+  const txHash = rawHash != null && rawHash.length > 0 ? typeof rawHash === "string" ? rawHash : bytesToHex(rawHash) : bytesToHex(new Uint8Array(32));
+  runtime2.log(`[Step 6] Done. txHash: ${txHash}`);
+  return txHash;
 }
 var ZERO_BYTES322 = "0x0000000000000000000000000000000000000000000000000000000000000000";
 function getCollectionId(ctx, conditionId, outcomeIndex) {
@@ -24551,7 +25396,15 @@ function parseSeedPayload(input) {
     amountUsdc: String(raw.amountUsdc ?? "0")
   };
 }
+function parseGetMarketPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    questionId: String(raw.questionId ?? "")
+  };
+}
 async function handleCreateMarket(runtime2, payload) {
+  runtime2.log("CRE Workflow: HTTP Trigger - Create Market (Sub0)");
   const config2 = runtime2.config;
   const contracts = config2.contracts;
   if (!contracts) {
@@ -24559,6 +25412,7 @@ async function handleCreateMarket(runtime2, payload) {
     throw new Error("Missing config.contracts for platform actions");
   }
   const body = parseCreateMarketPayload(payload.input);
+  runtime2.log(`[Request] question: "${body.question?.slice(0, 50)}${(body.question?.length ?? 0) > 50 ? "..." : ""}", oracle: ${body.oracle}, creator: ${body.creatorAddress}`);
   if (!body.question?.trim())
     throw new Error("question is required");
   if (body.outcomeSlotCount < 2 || body.outcomeSlotCount > 255)
@@ -24588,11 +25442,14 @@ async function handleCreateMarket(runtime2, payload) {
   let seedTxHash = "";
   const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
   if (amountUsdc > 0n) {
-    seedTxHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
     runtime2.log("Seed market liquidity submitted for new market.");
   }
   const ctx = { runtime: runtime2, config: contracts };
-  const market = await getMarket(ctx, questionId);
+  let market = await getMarket(ctx, questionId, { useLatestBlock: true });
+  if (isMarketEmpty(market)) {
+    runtime2.log("Market not found on first read (block may not include tx yet); retrying once.");
+    market = await getMarket(ctx, questionId, { useLatestBlock: true });
+  }
   const out = {
     status: "ok",
     result: "createMarket",
@@ -24612,6 +25469,40 @@ async function handleCreateMarket(runtime2, payload) {
   if (seedTxHash)
     out.seedTxHash = seedTxHash;
   return out;
+}
+async function handleGetMarket(runtime2, payload) {
+  runtime2.log("CRE Workflow: HTTP Trigger - Get Market");
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts) {
+    runtime2.log("Get market requires config.contracts.");
+    throw new Error("Missing config.contracts for platform actions");
+  }
+  const body = parseGetMarketPayload(payload.input);
+  const questionIdRaw = body.questionId?.trim();
+  if (!questionIdRaw) {
+    throw new Error("questionId is required");
+  }
+  const questionId = questionIdRaw.startsWith("0x") ? questionIdRaw : `0x${questionIdRaw}`;
+  if (questionId.length !== 66) {
+    throw new Error("questionId must be a 32-byte hex string (0x + 64 hex chars)");
+  }
+  const ctx = { runtime: runtime2, config: contracts };
+  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
+  return {
+    status: "ok",
+    result: "getMarket",
+    questionId,
+    question: market.question ?? "",
+    conditionId: market.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
+    oracle: market.oracle ?? "0x0000000000000000000000000000000000000000",
+    owner: market.owner ?? "0x0000000000000000000000000000000000000000",
+    createdAt: market.createdAt != null ? String(market.createdAt) : "0",
+    duration: market.duration != null ? String(market.duration) : "0",
+    outcomeSlotCount: String(market.outcomeSlotCount ?? 0),
+    oracleType: String(market.oracleType ?? 0),
+    marketType: String(market.marketType ?? 0)
+  };
 }
 function handleSeedLiquidity(runtime2, payload) {
   const config2 = runtime2.config;
@@ -24664,11 +25555,14 @@ var onHTTPTrigger = async (runtime2, payload) => {
   if (action === "createMarket") {
     return await handleCreateMarket(runtime2, payload);
   }
+  if (action === "getMarket") {
+    return await handleGetMarket(runtime2, payload);
+  }
   if (action === "seed") {
     return handleSeedLiquidity(runtime2, payload);
   }
-  runtime2.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'.");
-  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', or 'seed'");
+  runtime2.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'.");
+  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'");
 };
 var initWorkflow = (config2) => {
   const cron = new CronCapability;
