@@ -5,7 +5,6 @@
 
 import type { Runtime } from "@chainlink/cre-sdk";
 
-const API_KEY_SECRET_NAMESPACE = "sub0";
 const API_KEY_SECRET_ID = "HTTP_API_KEY";
 
 /**
@@ -18,7 +17,7 @@ export function verifyApiKey(
   body: Record<string, unknown>
 ): void {
   try {
-    const secret = runtime.getSecret({ id: API_KEY_SECRET_ID, namespace: API_KEY_SECRET_NAMESPACE }).result();
+    const secret = runtime.getSecret({ id: API_KEY_SECRET_ID }).result();
     const expected = secret?.value?.trim() ?? "";
     if (expected.length === 0) return;
 

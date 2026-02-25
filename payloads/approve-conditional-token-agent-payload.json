@@ -1,0 +1,8 @@
+{
+  "action": "approveConditionalToken",
+  "apiKey": "your-api-key-if-configured",
+  "signer": "agent",
+  "agentId": "my-agent-1",
+  "operator": "0x37Ad1be17Be247854F9D4F8Af95eeEFFDe0b179E",
+  "approved": true
+}

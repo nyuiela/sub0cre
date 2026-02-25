@@ -8,10 +8,9 @@ import type { Runtime } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "../types/config";
 import type { LMSRQuoteParams } from "../types/quote";
 import { signLMSRQuote, getNonceUsed } from "../lib/predictionVault";
-import { getMarket } from "../lib/sub0";
+import { getMarket, ensureQuestionIdBytes32 } from "../lib/sub0";
 import { getVaultBalanceForOutcome } from "../lib/ctf";
 
-const SECRET_NAMESPACE = "sub0";
 const SECRET_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 
 export interface QuoteRequestPayload {
@@ -47,13 +46,14 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   }
 
   const body = parsePayload(payload.input);
-  const questionId = body.questionId.startsWith("0x")
-    ? (body.questionId as `0x${string}`)
-    : (`0x${body.questionId}` as `0x${string}`);
+  if (!body.questionId?.trim()) {
+    throw new Error("questionId is required (32-byte hex)");
+  }
+  const questionId = ensureQuestionIdBytes32(body.questionId);
 
   const ctx = { runtime, config: contracts };
 
-  const market = await getMarket(ctx, questionId);
+  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
   if (market.outcomeSlotCount === 0) {
     throw new Error("Market not found or invalid");
   }
@@ -73,7 +73,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
     }
   }
 
-  const secret = runtime.getSecret({ id: SECRET_ID, namespace: SECRET_NAMESPACE }).result();
+  const secret = runtime.getSecret({ id: SECRET_ID }).result();
   const privateKey = secret.value ?? "";
   if (!privateKey) {
     throw new Error("Backend signer secret not configured");

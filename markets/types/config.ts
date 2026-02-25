@@ -9,6 +9,3 @@ export interface WorkflowConfig {
   schedule: string;
   contracts?: ChainContractConfig;
 }
-
-export const BACKEND_SIGNER_SECRET_NAMESPACE = "sub0";
-export const BACKEND_SIGNER_SECRET_ID = "BACKEND_SIGNER_PRIVATE_KEY";

@@ -1,12 +1,12 @@
 {
   "action": "createMarket",
   "apiKey": "your-api-key-if-configured",
-  "question": "Will X Y S happen by 5-12-11?",
-  "oracle": "0xA4238BAD45ABBb0647A46a04be5c7281D67213E6",
+  "question": "Will X Y A happen by 5-12-11?",
+  "oracle": "0x787AA9f59509Db6Fb37EA37b1cBB7D0D71B116E6",
   "duration": 86400,
   "outcomeSlotCount": 2,
   "oracleType": 1,
-  "marketType": 2,
+  "marketType": 1,
   "amountUsdc": "1000000",
   "creatorAddress": "0xf0830060f836B8d54bF02049E5905F619487989e"
 }

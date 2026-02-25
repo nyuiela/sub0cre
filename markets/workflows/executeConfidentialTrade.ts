@@ -11,11 +11,9 @@ import { secp256k1 } from "@noble/curves/secp256k1";
 import type { ChainContractConfig } from "../types/contracts";
 import type { ConfidentialTradePayload, ExecuteConfidentialTradeResponse } from "../types/confidential";
 import { getNonceUsed, signLMSRQuote, submitExecuteTrade } from "../lib/predictionVault";
-import { getMarket } from "../lib/sub0";
+import { getMarket, ensureQuestionIdBytes32 } from "../lib/sub0";
 import { getVaultBalanceForOutcome } from "../lib/ctf";
 
-const AGENT_KEYS_NAMESPACE = "agent-keys";
-const DON_SIGNER_NAMESPACE = "sub0";
 const DON_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 
 const LMSR_QUOTE_TYPES = {
@@ -50,12 +48,6 @@ export function parseExecuteConfidentialTradePayload(input: Uint8Array): Confide
   };
 }
 
-function ensureQuestionId(marketId: string): `0x${string}` {
-  const s = marketId.trim();
-  if (s.startsWith("0x") && s.length === 66) return s as `0x${string}`;
-  if (s.length === 64) return (`0x${s}` as `0x${string}`);
-  throw new Error("Invalid marketId: expected 32-byte hex (64 or 66 chars)");
-}
 
 export async function handleExecuteConfidentialTrade(
   runtime: Runtime<ExecuteConfidentialTradeHandlerConfig>,
@@ -69,11 +61,10 @@ export async function handleExecuteConfidentialTrade(
 
   const body = parseExecuteConfidentialTradePayload(payload.input);
   if (!body.agentId) throw new Error("Missing body.agentId");
-  const namespace = runtime.config?.agentKeysNamespace ?? AGENT_KEYS_NAMESPACE;
 
-  const questionId = ensureQuestionId(body.marketId);
+  const questionId = ensureQuestionIdBytes32(body.marketId);
 
-  const market = await getMarket({ runtime, config }, questionId);
+  const market = await getMarket({ runtime, config }, questionId, { useLatestBlock: true });
   if (market.outcomeSlotCount === 0) {
     throw new Error("Market not found or invalid");
   }
@@ -93,10 +84,10 @@ export async function handleExecuteConfidentialTrade(
     }
   }
 
-  const secret = runtime.getSecret({ id: body.agentId, namespace }).result();
+  const secret = runtime.getSecret({ id: body.agentId }).result();
   const privateKeyRaw = secret.value ?? "";
   if (!privateKeyRaw) {
-    throw new Error("Agent key secret not found; ensure cre secrets create for this agentId");
+    throw new Error("Agent key secret not found; ensure cre secrets create or .env for this agentId");
   }
   const privateKey: Hex = privateKeyRaw.startsWith("0x") ? (privateKeyRaw as Hex) : (`0x${privateKeyRaw}` as Hex);
 
@@ -134,10 +125,10 @@ export async function handleExecuteConfidentialTrade(
     deadline: BigInt(body.deadline),
   };
 
-  const donSignerSecret = runtime.getSecret({ id: DON_SIGNER_ID, namespace: DON_SIGNER_NAMESPACE }).result();
+  const donSignerSecret = runtime.getSecret({ id: DON_SIGNER_ID }).result();
   const donSignerKey = donSignerSecret.value ?? "";
   if (!donSignerKey) {
-    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY in namespace sub0)");
+    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY)");
   }
   const donSigned = signLMSRQuote(
     {

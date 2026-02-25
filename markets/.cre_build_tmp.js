@@ -2671,6 +2671,462 @@ var stringify = (value2, replacer, space) => JSON.stringify(value2, (key, value_
   const value3 = typeof value_ === "bigint" ? value_.toString() : value_;
   return typeof replacer === "function" ? replacer(key, value3) : value3;
 }, space);
+var gweiUnits;
+var init_unit = __esm(() => {
+  gweiUnits = {
+    ether: -9,
+    wei: 9
+  };
+});
+function formatUnits(value2, decimals) {
+  let display = value2.toString();
+  const negative = display.startsWith("-");
+  if (negative)
+    display = display.slice(1);
+  display = display.padStart(decimals, "0");
+  let [integer, fraction] = [
+    display.slice(0, display.length - decimals),
+    display.slice(display.length - decimals)
+  ];
+  fraction = fraction.replace(/(0+)$/, "");
+  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+}
+function formatGwei(wei, unit = "wei") {
+  return formatUnits(wei, gweiUnits[unit]);
+}
+var init_formatGwei = __esm(() => {
+  init_unit();
+});
+function prettyPrint(args) {
+  const entries = Object.entries(args).map(([key, value2]) => {
+    if (value2 === undefined || value2 === false)
+      return null;
+    return [key, value2];
+  }).filter(Boolean);
+  const maxLength = entries.reduce((acc, [key]) => Math.max(acc, key.length), 0);
+  return entries.map(([key, value2]) => `  ${`${key}:`.padEnd(maxLength + 1)}  ${value2}`).join(`
+`);
+}
+var InvalidLegacyVError;
+var InvalidSerializableTransactionError;
+var InvalidStorageKeySizeError;
+var init_transaction = __esm(() => {
+  init_base();
+  InvalidLegacyVError = class InvalidLegacyVError2 extends BaseError2 {
+    constructor({ v }) {
+      super(`Invalid \`v\` value "${v}". Expected 27 or 28.`, {
+        name: "InvalidLegacyVError"
+      });
+    }
+  };
+  InvalidSerializableTransactionError = class InvalidSerializableTransactionError2 extends BaseError2 {
+    constructor({ transaction }) {
+      super("Cannot infer a transaction type from provided transaction.", {
+        metaMessages: [
+          "Provided Transaction:",
+          "{",
+          prettyPrint(transaction),
+          "}",
+          "",
+          "To infer the type, either provide:",
+          "- a `type` to the Transaction, or",
+          "- an EIP-1559 Transaction with `maxFeePerGas`, or",
+          "- an EIP-2930 Transaction with `gasPrice` & `accessList`, or",
+          "- an EIP-4844 Transaction with `blobs`, `blobVersionedHashes`, `sidecars`, or",
+          "- an EIP-7702 Transaction with `authorizationList`, or",
+          "- a Legacy Transaction with `gasPrice`"
+        ],
+        name: "InvalidSerializableTransactionError"
+      });
+    }
+  };
+  InvalidStorageKeySizeError = class InvalidStorageKeySizeError2 extends BaseError2 {
+    constructor({ storageKey }) {
+      super(`Size for storage key "${storageKey}" is invalid. Expected 32 bytes. Got ${Math.floor((storageKey.length - 2) / 2)} bytes.`, { name: "InvalidStorageKeySizeError" });
+    }
+  };
+});
+var ExecutionRevertedError;
+var FeeCapTooHighError;
+var FeeCapTooLowError;
+var NonceTooHighError;
+var NonceTooLowError;
+var NonceMaxValueError;
+var InsufficientFundsError;
+var IntrinsicGasTooHighError;
+var IntrinsicGasTooLowError;
+var TransactionTypeNotSupportedError;
+var TipAboveFeeCapError;
+var init_node = __esm(() => {
+  init_formatGwei();
+  init_base();
+  ExecutionRevertedError = class ExecutionRevertedError2 extends BaseError2 {
+    constructor({ cause, message } = {}) {
+      const reason = message?.replace("execution reverted: ", "")?.replace("execution reverted", "");
+      super(`Execution reverted ${reason ? `with reason: ${reason}` : "for an unknown reason"}.`, {
+        cause,
+        name: "ExecutionRevertedError"
+      });
+    }
+  };
+  Object.defineProperty(ExecutionRevertedError, "code", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: 3
+  });
+  Object.defineProperty(ExecutionRevertedError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /execution reverted/
+  });
+  FeeCapTooHighError = class FeeCapTooHighError2 extends BaseError2 {
+    constructor({ cause, maxFeePerGas } = {}) {
+      super(`The fee cap (\`maxFeePerGas\`${maxFeePerGas ? ` = ${formatGwei(maxFeePerGas)} gwei` : ""}) cannot be higher than the maximum allowed value (2^256-1).`, {
+        cause,
+        name: "FeeCapTooHighError"
+      });
+    }
+  };
+  Object.defineProperty(FeeCapTooHighError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /max fee per gas higher than 2\^256-1|fee cap higher than 2\^256-1/
+  });
+  FeeCapTooLowError = class FeeCapTooLowError2 extends BaseError2 {
+    constructor({ cause, maxFeePerGas } = {}) {
+      super(`The fee cap (\`maxFeePerGas\`${maxFeePerGas ? ` = ${formatGwei(maxFeePerGas)}` : ""} gwei) cannot be lower than the block base fee.`, {
+        cause,
+        name: "FeeCapTooLowError"
+      });
+    }
+  };
+  Object.defineProperty(FeeCapTooLowError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /max fee per gas less than block base fee|fee cap less than block base fee|transaction is outdated/
+  });
+  NonceTooHighError = class NonceTooHighError2 extends BaseError2 {
+    constructor({ cause, nonce } = {}) {
+      super(`Nonce provided for the transaction ${nonce ? `(${nonce}) ` : ""}is higher than the next one expected.`, { cause, name: "NonceTooHighError" });
+    }
+  };
+  Object.defineProperty(NonceTooHighError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /nonce too high/
+  });
+  NonceTooLowError = class NonceTooLowError2 extends BaseError2 {
+    constructor({ cause, nonce } = {}) {
+      super([
+        `Nonce provided for the transaction ${nonce ? `(${nonce}) ` : ""}is lower than the current nonce of the account.`,
+        "Try increasing the nonce or find the latest nonce with `getTransactionCount`."
+      ].join(`
+`), { cause, name: "NonceTooLowError" });
+    }
+  };
+  Object.defineProperty(NonceTooLowError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /nonce too low|transaction already imported|already known/
+  });
+  NonceMaxValueError = class NonceMaxValueError2 extends BaseError2 {
+    constructor({ cause, nonce } = {}) {
+      super(`Nonce provided for the transaction ${nonce ? `(${nonce}) ` : ""}exceeds the maximum allowed nonce.`, { cause, name: "NonceMaxValueError" });
+    }
+  };
+  Object.defineProperty(NonceMaxValueError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /nonce has max value/
+  });
+  InsufficientFundsError = class InsufficientFundsError2 extends BaseError2 {
+    constructor({ cause } = {}) {
+      super([
+        "The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account."
+      ].join(`
+`), {
+        cause,
+        metaMessages: [
+          "This error could arise when the account does not have enough funds to:",
+          " - pay for the total gas fee,",
+          " - pay for the value to send.",
+          " ",
+          "The cost of the transaction is calculated as `gas * gas fee + value`, where:",
+          " - `gas` is the amount of gas needed for transaction to execute,",
+          " - `gas fee` is the gas fee,",
+          " - `value` is the amount of ether to send to the recipient."
+        ],
+        name: "InsufficientFundsError"
+      });
+    }
+  };
+  Object.defineProperty(InsufficientFundsError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /insufficient funds|exceeds transaction sender account balance/
+  });
+  IntrinsicGasTooHighError = class IntrinsicGasTooHighError2 extends BaseError2 {
+    constructor({ cause, gas } = {}) {
+      super(`The amount of gas ${gas ? `(${gas}) ` : ""}provided for the transaction exceeds the limit allowed for the block.`, {
+        cause,
+        name: "IntrinsicGasTooHighError"
+      });
+    }
+  };
+  Object.defineProperty(IntrinsicGasTooHighError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /intrinsic gas too high|gas limit reached/
+  });
+  IntrinsicGasTooLowError = class IntrinsicGasTooLowError2 extends BaseError2 {
+    constructor({ cause, gas } = {}) {
+      super(`The amount of gas ${gas ? `(${gas}) ` : ""}provided for the transaction is too low.`, {
+        cause,
+        name: "IntrinsicGasTooLowError"
+      });
+    }
+  };
+  Object.defineProperty(IntrinsicGasTooLowError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /intrinsic gas too low/
+  });
+  TransactionTypeNotSupportedError = class TransactionTypeNotSupportedError2 extends BaseError2 {
+    constructor({ cause }) {
+      super("The transaction type is not supported for this chain.", {
+        cause,
+        name: "TransactionTypeNotSupportedError"
+      });
+    }
+  };
+  Object.defineProperty(TransactionTypeNotSupportedError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /transaction type not valid/
+  });
+  TipAboveFeeCapError = class TipAboveFeeCapError2 extends BaseError2 {
+    constructor({ cause, maxPriorityFeePerGas, maxFeePerGas } = {}) {
+      super([
+        `The provided tip (\`maxPriorityFeePerGas\`${maxPriorityFeePerGas ? ` = ${formatGwei(maxPriorityFeePerGas)} gwei` : ""}) cannot be higher than the fee cap (\`maxFeePerGas\`${maxFeePerGas ? ` = ${formatGwei(maxFeePerGas)} gwei` : ""}).`
+      ].join(`
+`), {
+        cause,
+        name: "TipAboveFeeCapError"
+      });
+    }
+  };
+  Object.defineProperty(TipAboveFeeCapError, "nodeMessage", {
+    enumerable: true,
+    configurable: true,
+    writable: true,
+    value: /max priority fee per gas higher than max fee per gas|tip higher than fee cap/
+  });
+});
+var maxInt8;
+var maxInt16;
+var maxInt24;
+var maxInt32;
+var maxInt40;
+var maxInt48;
+var maxInt56;
+var maxInt64;
+var maxInt72;
+var maxInt80;
+var maxInt88;
+var maxInt96;
+var maxInt104;
+var maxInt112;
+var maxInt120;
+var maxInt128;
+var maxInt136;
+var maxInt144;
+var maxInt152;
+var maxInt160;
+var maxInt168;
+var maxInt176;
+var maxInt184;
+var maxInt192;
+var maxInt200;
+var maxInt208;
+var maxInt216;
+var maxInt224;
+var maxInt232;
+var maxInt240;
+var maxInt248;
+var maxInt256;
+var minInt8;
+var minInt16;
+var minInt24;
+var minInt32;
+var minInt40;
+var minInt48;
+var minInt56;
+var minInt64;
+var minInt72;
+var minInt80;
+var minInt88;
+var minInt96;
+var minInt104;
+var minInt112;
+var minInt120;
+var minInt128;
+var minInt136;
+var minInt144;
+var minInt152;
+var minInt160;
+var minInt168;
+var minInt176;
+var minInt184;
+var minInt192;
+var minInt200;
+var minInt208;
+var minInt216;
+var minInt224;
+var minInt232;
+var minInt240;
+var minInt248;
+var minInt256;
+var maxUint8;
+var maxUint16;
+var maxUint24;
+var maxUint32;
+var maxUint40;
+var maxUint48;
+var maxUint56;
+var maxUint64;
+var maxUint72;
+var maxUint80;
+var maxUint88;
+var maxUint96;
+var maxUint104;
+var maxUint112;
+var maxUint120;
+var maxUint128;
+var maxUint136;
+var maxUint144;
+var maxUint152;
+var maxUint160;
+var maxUint168;
+var maxUint176;
+var maxUint184;
+var maxUint192;
+var maxUint200;
+var maxUint208;
+var maxUint216;
+var maxUint224;
+var maxUint232;
+var maxUint240;
+var maxUint248;
+var maxUint256;
+var init_number = __esm(() => {
+  maxInt8 = 2n ** (8n - 1n) - 1n;
+  maxInt16 = 2n ** (16n - 1n) - 1n;
+  maxInt24 = 2n ** (24n - 1n) - 1n;
+  maxInt32 = 2n ** (32n - 1n) - 1n;
+  maxInt40 = 2n ** (40n - 1n) - 1n;
+  maxInt48 = 2n ** (48n - 1n) - 1n;
+  maxInt56 = 2n ** (56n - 1n) - 1n;
+  maxInt64 = 2n ** (64n - 1n) - 1n;
+  maxInt72 = 2n ** (72n - 1n) - 1n;
+  maxInt80 = 2n ** (80n - 1n) - 1n;
+  maxInt88 = 2n ** (88n - 1n) - 1n;
+  maxInt96 = 2n ** (96n - 1n) - 1n;
+  maxInt104 = 2n ** (104n - 1n) - 1n;
+  maxInt112 = 2n ** (112n - 1n) - 1n;
+  maxInt120 = 2n ** (120n - 1n) - 1n;
+  maxInt128 = 2n ** (128n - 1n) - 1n;
+  maxInt136 = 2n ** (136n - 1n) - 1n;
+  maxInt144 = 2n ** (144n - 1n) - 1n;
+  maxInt152 = 2n ** (152n - 1n) - 1n;
+  maxInt160 = 2n ** (160n - 1n) - 1n;
+  maxInt168 = 2n ** (168n - 1n) - 1n;
+  maxInt176 = 2n ** (176n - 1n) - 1n;
+  maxInt184 = 2n ** (184n - 1n) - 1n;
+  maxInt192 = 2n ** (192n - 1n) - 1n;
+  maxInt200 = 2n ** (200n - 1n) - 1n;
+  maxInt208 = 2n ** (208n - 1n) - 1n;
+  maxInt216 = 2n ** (216n - 1n) - 1n;
+  maxInt224 = 2n ** (224n - 1n) - 1n;
+  maxInt232 = 2n ** (232n - 1n) - 1n;
+  maxInt240 = 2n ** (240n - 1n) - 1n;
+  maxInt248 = 2n ** (248n - 1n) - 1n;
+  maxInt256 = 2n ** (256n - 1n) - 1n;
+  minInt8 = -(2n ** (8n - 1n));
+  minInt16 = -(2n ** (16n - 1n));
+  minInt24 = -(2n ** (24n - 1n));
+  minInt32 = -(2n ** (32n - 1n));
+  minInt40 = -(2n ** (40n - 1n));
+  minInt48 = -(2n ** (48n - 1n));
+  minInt56 = -(2n ** (56n - 1n));
+  minInt64 = -(2n ** (64n - 1n));
+  minInt72 = -(2n ** (72n - 1n));
+  minInt80 = -(2n ** (80n - 1n));
+  minInt88 = -(2n ** (88n - 1n));
+  minInt96 = -(2n ** (96n - 1n));
+  minInt104 = -(2n ** (104n - 1n));
+  minInt112 = -(2n ** (112n - 1n));
+  minInt120 = -(2n ** (120n - 1n));
+  minInt128 = -(2n ** (128n - 1n));
+  minInt136 = -(2n ** (136n - 1n));
+  minInt144 = -(2n ** (144n - 1n));
+  minInt152 = -(2n ** (152n - 1n));
+  minInt160 = -(2n ** (160n - 1n));
+  minInt168 = -(2n ** (168n - 1n));
+  minInt176 = -(2n ** (176n - 1n));
+  minInt184 = -(2n ** (184n - 1n));
+  minInt192 = -(2n ** (192n - 1n));
+  minInt200 = -(2n ** (200n - 1n));
+  minInt208 = -(2n ** (208n - 1n));
+  minInt216 = -(2n ** (216n - 1n));
+  minInt224 = -(2n ** (224n - 1n));
+  minInt232 = -(2n ** (232n - 1n));
+  minInt240 = -(2n ** (240n - 1n));
+  minInt248 = -(2n ** (248n - 1n));
+  minInt256 = -(2n ** (256n - 1n));
+  maxUint8 = 2n ** 8n - 1n;
+  maxUint16 = 2n ** 16n - 1n;
+  maxUint24 = 2n ** 24n - 1n;
+  maxUint32 = 2n ** 32n - 1n;
+  maxUint40 = 2n ** 40n - 1n;
+  maxUint48 = 2n ** 48n - 1n;
+  maxUint56 = 2n ** 56n - 1n;
+  maxUint64 = 2n ** 64n - 1n;
+  maxUint72 = 2n ** 72n - 1n;
+  maxUint80 = 2n ** 80n - 1n;
+  maxUint88 = 2n ** 88n - 1n;
+  maxUint96 = 2n ** 96n - 1n;
+  maxUint104 = 2n ** 104n - 1n;
+  maxUint112 = 2n ** 112n - 1n;
+  maxUint120 = 2n ** 120n - 1n;
+  maxUint128 = 2n ** 128n - 1n;
+  maxUint136 = 2n ** 136n - 1n;
+  maxUint144 = 2n ** 144n - 1n;
+  maxUint152 = 2n ** 152n - 1n;
+  maxUint160 = 2n ** 160n - 1n;
+  maxUint168 = 2n ** 168n - 1n;
+  maxUint176 = 2n ** 176n - 1n;
+  maxUint184 = 2n ** 184n - 1n;
+  maxUint192 = 2n ** 192n - 1n;
+  maxUint200 = 2n ** 200n - 1n;
+  maxUint208 = 2n ** 208n - 1n;
+  maxUint216 = 2n ** 216n - 1n;
+  maxUint224 = 2n ** 224n - 1n;
+  maxUint232 = 2n ** 232n - 1n;
+  maxUint240 = 2n ** 240n - 1n;
+  maxUint248 = 2n ** 248n - 1n;
+  maxUint256 = 2n ** 256n - 1n;
+});
 function setBigUint64(view, byteOffset, value2, isLE2) {
   if (typeof view.setBigUint64 === "function")
     return view.setBigUint64(byteOffset, value2, isLE2);
@@ -3122,6 +3578,15 @@ var init_utils3 = __esm(() => {
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   _0n2 = /* @__PURE__ */ BigInt(0);
   _1n2 = /* @__PURE__ */ BigInt(1);
+});
+var InvalidChainIdError;
+var init_chain = __esm(() => {
+  init_base();
+  InvalidChainIdError = class InvalidChainIdError2 extends BaseError2 {
+    constructor({ chainId }) {
+      super(typeof chainId === "number" ? `Chain ID "${chainId}" is invalid.` : "Chain ID is invalid.", { name: "InvalidChainIdError" });
+    }
+  };
 });
 var HMAC;
 var hmac = (hash2, key, message) => new HMAC(hash2, key).update(message).digest();
@@ -10494,15 +10959,6 @@ var encodeCallMsg = (payload) => ({
   from: hexToBase64(payload.from),
   to: hexToBase64(payload.to),
   data: hexToBase64(payload.data)
-});
-var EVM_DEFAULT_REPORT_ENCODER = {
-  encoderName: "evm",
-  signingAlgo: "ecdsa",
-  hashingAlgo: "keccak256"
-};
-var prepareReportRequest = (hexEncodedPayload, reportEncoder = EVM_DEFAULT_REPORT_ENCODER) => ({
-  encodedPayload: hexToBase64(hexEncodedPayload),
-  ...reportEncoder
 });
 function sendReport(runtime, report, fn) {
   const rawReport = report.x_generatedCodeOnly_unwrap();
@@ -19032,11 +19488,10 @@ var sendErrorResponse = (error) => {
   }
   hostBindings.sendResponse(payload);
 };
-var API_KEY_SECRET_NAMESPACE = "sub0";
 var API_KEY_SECRET_ID = "HTTP_API_KEY";
 function verifyApiKey(runtime2, body) {
   try {
-    const secret = runtime2.getSecret({ id: API_KEY_SECRET_ID, namespace: API_KEY_SECRET_NAMESPACE }).result();
+    const secret = runtime2.getSecret({ id: API_KEY_SECRET_ID }).result();
     const expected = secret?.value?.trim() ?? "";
     if (expected.length === 0)
       return;
@@ -19052,6 +19507,291 @@ function verifyApiKey(runtime2, body) {
   }
 }
 init_exports();
+init_getAddress();
+init_keccak256();
+function publicKeyToAddress(publicKey) {
+  const address = keccak256(`0x${publicKey.substring(4)}`).substring(26);
+  return checksumAddress(`0x${address}`);
+}
+init_toBytes();
+init_toHex();
+init_base();
+init_cursor2();
+init_toBytes();
+init_toHex();
+function toRlp(bytes, to = "hex") {
+  const encodable = getEncodable(bytes);
+  const cursor = createCursor(new Uint8Array(encodable.length));
+  encodable.encode(cursor);
+  if (to === "hex")
+    return bytesToHex2(cursor.bytes);
+  return cursor.bytes;
+}
+function getEncodable(bytes) {
+  if (Array.isArray(bytes))
+    return getEncodableList(bytes.map((x) => getEncodable(x)));
+  return getEncodableBytes(bytes);
+}
+function getEncodableList(list) {
+  const bodyLength = list.reduce((acc, x) => acc + x.length, 0);
+  const sizeOfBodyLength = getSizeOfLength(bodyLength);
+  const length = (() => {
+    if (bodyLength <= 55)
+      return 1 + bodyLength;
+    return 1 + sizeOfBodyLength + bodyLength;
+  })();
+  return {
+    length,
+    encode(cursor) {
+      if (bodyLength <= 55) {
+        cursor.pushByte(192 + bodyLength);
+      } else {
+        cursor.pushByte(192 + 55 + sizeOfBodyLength);
+        if (sizeOfBodyLength === 1)
+          cursor.pushUint8(bodyLength);
+        else if (sizeOfBodyLength === 2)
+          cursor.pushUint16(bodyLength);
+        else if (sizeOfBodyLength === 3)
+          cursor.pushUint24(bodyLength);
+        else
+          cursor.pushUint32(bodyLength);
+      }
+      for (const { encode } of list) {
+        encode(cursor);
+      }
+    }
+  };
+}
+function getEncodableBytes(bytesOrHex) {
+  const bytes = typeof bytesOrHex === "string" ? hexToBytes2(bytesOrHex) : bytesOrHex;
+  const sizeOfBytesLength = getSizeOfLength(bytes.length);
+  const length = (() => {
+    if (bytes.length === 1 && bytes[0] < 128)
+      return 1;
+    if (bytes.length <= 55)
+      return 1 + bytes.length;
+    return 1 + sizeOfBytesLength + bytes.length;
+  })();
+  return {
+    length,
+    encode(cursor) {
+      if (bytes.length === 1 && bytes[0] < 128) {
+        cursor.pushBytes(bytes);
+      } else if (bytes.length <= 55) {
+        cursor.pushByte(128 + bytes.length);
+        cursor.pushBytes(bytes);
+      } else {
+        cursor.pushByte(128 + 55 + sizeOfBytesLength);
+        if (sizeOfBytesLength === 1)
+          cursor.pushUint8(bytes.length);
+        else if (sizeOfBytesLength === 2)
+          cursor.pushUint16(bytes.length);
+        else if (sizeOfBytesLength === 3)
+          cursor.pushUint24(bytes.length);
+        else
+          cursor.pushUint32(bytes.length);
+        cursor.pushBytes(bytes);
+      }
+    }
+  };
+}
+function getSizeOfLength(length) {
+  if (length < 2 ** 8)
+    return 1;
+  if (length < 2 ** 16)
+    return 2;
+  if (length < 2 ** 24)
+    return 3;
+  if (length < 2 ** 32)
+    return 4;
+  throw new BaseError2("Length is too large.");
+}
+init_keccak256();
+function hashAuthorization(parameters) {
+  const { chainId, nonce, to } = parameters;
+  const address = parameters.contractAddress ?? parameters.address;
+  const hash2 = keccak256(concatHex([
+    "0x05",
+    toRlp([
+      chainId ? numberToHex(chainId) : "0x",
+      address,
+      nonce ? numberToHex(nonce) : "0x"
+    ])
+  ]));
+  if (to === "bytes")
+    return hexToBytes2(hash2);
+  return hash2;
+}
+init_toBytes();
+init_toHex();
+function blobsToCommitments(parameters) {
+  const { kzg } = parameters;
+  const to = parameters.to ?? (typeof parameters.blobs[0] === "string" ? "hex" : "bytes");
+  const blobs = typeof parameters.blobs[0] === "string" ? parameters.blobs.map((x) => hexToBytes2(x)) : parameters.blobs;
+  const commitments = [];
+  for (const blob of blobs)
+    commitments.push(Uint8Array.from(kzg.blobToKzgCommitment(blob)));
+  return to === "bytes" ? commitments : commitments.map((x) => bytesToHex2(x));
+}
+init_toBytes();
+init_toHex();
+function blobsToProofs(parameters) {
+  const { kzg } = parameters;
+  const to = parameters.to ?? (typeof parameters.blobs[0] === "string" ? "hex" : "bytes");
+  const blobs = typeof parameters.blobs[0] === "string" ? parameters.blobs.map((x) => hexToBytes2(x)) : parameters.blobs;
+  const commitments = typeof parameters.commitments[0] === "string" ? parameters.commitments.map((x) => hexToBytes2(x)) : parameters.commitments;
+  const proofs = [];
+  for (let i2 = 0;i2 < blobs.length; i2++) {
+    const blob = blobs[i2];
+    const commitment = commitments[i2];
+    proofs.push(Uint8Array.from(kzg.computeBlobKzgProof(blob, commitment)));
+  }
+  return to === "bytes" ? proofs : proofs.map((x) => bytesToHex2(x));
+}
+init_toHex();
+init_sha2();
+var sha2562 = sha256;
+init_toBytes();
+init_toHex();
+function sha2563(value2, to_) {
+  const to = to_ || "hex";
+  const bytes = sha2562(isHex(value2, { strict: false }) ? toBytes(value2) : value2);
+  if (to === "bytes")
+    return bytes;
+  return toHex(bytes);
+}
+function commitmentToVersionedHash(parameters) {
+  const { commitment, version: version3 = 1 } = parameters;
+  const to = parameters.to ?? (typeof commitment === "string" ? "hex" : "bytes");
+  const versionedHash = sha2563(commitment, "bytes");
+  versionedHash.set([version3], 0);
+  return to === "bytes" ? versionedHash : bytesToHex2(versionedHash);
+}
+function commitmentsToVersionedHashes(parameters) {
+  const { commitments, version: version3 } = parameters;
+  const to = parameters.to ?? (typeof commitments[0] === "string" ? "hex" : "bytes");
+  const hashes = [];
+  for (const commitment of commitments) {
+    hashes.push(commitmentToVersionedHash({
+      commitment,
+      to,
+      version: version3
+    }));
+  }
+  return hashes;
+}
+var blobsPerTransaction = 6;
+var bytesPerFieldElement = 32;
+var fieldElementsPerBlob = 4096;
+var bytesPerBlob = bytesPerFieldElement * fieldElementsPerBlob;
+var maxBytesPerTransaction = bytesPerBlob * blobsPerTransaction - 1 - 1 * fieldElementsPerBlob * blobsPerTransaction;
+var versionedHashVersionKzg = 1;
+init_base();
+
+class BlobSizeTooLargeError extends BaseError2 {
+  constructor({ maxSize, size: size2 }) {
+    super("Blob size is too large.", {
+      metaMessages: [`Max: ${maxSize} bytes`, `Given: ${size2} bytes`],
+      name: "BlobSizeTooLargeError"
+    });
+  }
+}
+
+class EmptyBlobError extends BaseError2 {
+  constructor() {
+    super("Blob data must not be empty.", { name: "EmptyBlobError" });
+  }
+}
+
+class InvalidVersionedHashSizeError extends BaseError2 {
+  constructor({ hash: hash2, size: size2 }) {
+    super(`Versioned hash "${hash2}" size is invalid.`, {
+      metaMessages: ["Expected: 32", `Received: ${size2}`],
+      name: "InvalidVersionedHashSizeError"
+    });
+  }
+}
+
+class InvalidVersionedHashVersionError extends BaseError2 {
+  constructor({ hash: hash2, version: version3 }) {
+    super(`Versioned hash "${hash2}" version is invalid.`, {
+      metaMessages: [
+        `Expected: ${versionedHashVersionKzg}`,
+        `Received: ${version3}`
+      ],
+      name: "InvalidVersionedHashVersionError"
+    });
+  }
+}
+init_cursor2();
+init_size();
+init_toBytes();
+init_toHex();
+function toBlobs(parameters) {
+  const to = parameters.to ?? (typeof parameters.data === "string" ? "hex" : "bytes");
+  const data = typeof parameters.data === "string" ? hexToBytes2(parameters.data) : parameters.data;
+  const size_ = size(data);
+  if (!size_)
+    throw new EmptyBlobError;
+  if (size_ > maxBytesPerTransaction)
+    throw new BlobSizeTooLargeError({
+      maxSize: maxBytesPerTransaction,
+      size: size_
+    });
+  const blobs = [];
+  let active = true;
+  let position = 0;
+  while (active) {
+    const blob = createCursor(new Uint8Array(bytesPerBlob));
+    let size2 = 0;
+    while (size2 < fieldElementsPerBlob) {
+      const bytes = data.slice(position, position + (bytesPerFieldElement - 1));
+      blob.pushByte(0);
+      blob.pushBytes(bytes);
+      if (bytes.length < 31) {
+        blob.pushByte(128);
+        active = false;
+        break;
+      }
+      size2++;
+      position += 31;
+    }
+    blobs.push(blob);
+  }
+  return to === "bytes" ? blobs.map((x) => x.bytes) : blobs.map((x) => bytesToHex2(x.bytes));
+}
+function toBlobSidecars(parameters) {
+  const { data, kzg, to } = parameters;
+  const blobs = parameters.blobs ?? toBlobs({ data, to });
+  const commitments = parameters.commitments ?? blobsToCommitments({ blobs, kzg, to });
+  const proofs = parameters.proofs ?? blobsToProofs({ blobs, commitments, kzg, to });
+  const sidecars = [];
+  for (let i2 = 0;i2 < blobs.length; i2++)
+    sidecars.push({
+      blob: blobs[i2],
+      commitment: commitments[i2],
+      proof: proofs[i2]
+    });
+  return sidecars;
+}
+init_transaction();
+function getTransactionType(transaction) {
+  if (transaction.type)
+    return transaction.type;
+  if (typeof transaction.authorizationList !== "undefined")
+    return "eip7702";
+  if (typeof transaction.blobs !== "undefined" || typeof transaction.blobVersionedHashes !== "undefined" || typeof transaction.maxFeePerBlobGas !== "undefined" || typeof transaction.sidecars !== "undefined")
+    return "eip4844";
+  if (typeof transaction.maxFeePerGas !== "undefined" || typeof transaction.maxPriorityFeePerGas !== "undefined") {
+    return "eip1559";
+  }
+  if (typeof transaction.gasPrice !== "undefined") {
+    if (typeof transaction.accessList !== "undefined")
+      return "eip2930";
+    return "legacy";
+  }
+  throw new InvalidSerializableTransactionError({ transaction });
+}
 init_abi();
 init_address();
 init_base();
@@ -19329,6 +20069,332 @@ function encode(type, value2, isArray = false) {
   }
   throw new UnsupportedPackedAbiType(type);
 }
+init_toHex();
+init_transaction();
+init_toHex();
+init_number();
+init_address();
+init_base();
+init_chain();
+init_node();
+init_isAddress();
+init_size();
+init_slice();
+init_fromHex();
+function assertTransactionEIP7702(transaction) {
+  const { authorizationList } = transaction;
+  if (authorizationList) {
+    for (const authorization of authorizationList) {
+      const { chainId } = authorization;
+      const address = authorization.address;
+      if (!isAddress(address))
+        throw new InvalidAddressError({ address });
+      if (chainId < 0)
+        throw new InvalidChainIdError({ chainId });
+    }
+  }
+  assertTransactionEIP1559(transaction);
+}
+function assertTransactionEIP4844(transaction) {
+  const { blobVersionedHashes } = transaction;
+  if (blobVersionedHashes) {
+    if (blobVersionedHashes.length === 0)
+      throw new EmptyBlobError;
+    for (const hash2 of blobVersionedHashes) {
+      const size_ = size(hash2);
+      const version3 = hexToNumber(slice(hash2, 0, 1));
+      if (size_ !== 32)
+        throw new InvalidVersionedHashSizeError({ hash: hash2, size: size_ });
+      if (version3 !== versionedHashVersionKzg)
+        throw new InvalidVersionedHashVersionError({
+          hash: hash2,
+          version: version3
+        });
+    }
+  }
+  assertTransactionEIP1559(transaction);
+}
+function assertTransactionEIP1559(transaction) {
+  const { chainId, maxPriorityFeePerGas, maxFeePerGas, to } = transaction;
+  if (chainId <= 0)
+    throw new InvalidChainIdError({ chainId });
+  if (to && !isAddress(to))
+    throw new InvalidAddressError({ address: to });
+  if (maxFeePerGas && maxFeePerGas > maxUint256)
+    throw new FeeCapTooHighError({ maxFeePerGas });
+  if (maxPriorityFeePerGas && maxFeePerGas && maxPriorityFeePerGas > maxFeePerGas)
+    throw new TipAboveFeeCapError({ maxFeePerGas, maxPriorityFeePerGas });
+}
+function assertTransactionEIP2930(transaction) {
+  const { chainId, maxPriorityFeePerGas, gasPrice, maxFeePerGas, to } = transaction;
+  if (chainId <= 0)
+    throw new InvalidChainIdError({ chainId });
+  if (to && !isAddress(to))
+    throw new InvalidAddressError({ address: to });
+  if (maxPriorityFeePerGas || maxFeePerGas)
+    throw new BaseError2("`maxFeePerGas`/`maxPriorityFeePerGas` is not a valid EIP-2930 Transaction attribute.");
+  if (gasPrice && gasPrice > maxUint256)
+    throw new FeeCapTooHighError({ maxFeePerGas: gasPrice });
+}
+function assertTransactionLegacy(transaction) {
+  const { chainId, maxPriorityFeePerGas, gasPrice, maxFeePerGas, to } = transaction;
+  if (to && !isAddress(to))
+    throw new InvalidAddressError({ address: to });
+  if (typeof chainId !== "undefined" && chainId <= 0)
+    throw new InvalidChainIdError({ chainId });
+  if (maxPriorityFeePerGas || maxFeePerGas)
+    throw new BaseError2("`maxFeePerGas`/`maxPriorityFeePerGas` is not a valid Legacy Transaction attribute.");
+  if (gasPrice && gasPrice > maxUint256)
+    throw new FeeCapTooHighError({ maxFeePerGas: gasPrice });
+}
+init_address();
+init_transaction();
+init_isAddress();
+function serializeAccessList(accessList) {
+  if (!accessList || accessList.length === 0)
+    return [];
+  const serializedAccessList = [];
+  for (let i2 = 0;i2 < accessList.length; i2++) {
+    const { address, storageKeys } = accessList[i2];
+    for (let j = 0;j < storageKeys.length; j++) {
+      if (storageKeys[j].length - 2 !== 64) {
+        throw new InvalidStorageKeySizeError({ storageKey: storageKeys[j] });
+      }
+    }
+    if (!isAddress(address, { strict: false })) {
+      throw new InvalidAddressError({ address });
+    }
+    serializedAccessList.push([address, storageKeys]);
+  }
+  return serializedAccessList;
+}
+function serializeTransaction(transaction, signature) {
+  const type = getTransactionType(transaction);
+  if (type === "eip1559")
+    return serializeTransactionEIP1559(transaction, signature);
+  if (type === "eip2930")
+    return serializeTransactionEIP2930(transaction, signature);
+  if (type === "eip4844")
+    return serializeTransactionEIP4844(transaction, signature);
+  if (type === "eip7702")
+    return serializeTransactionEIP7702(transaction, signature);
+  return serializeTransactionLegacy(transaction, signature);
+}
+function serializeTransactionEIP7702(transaction, signature) {
+  const { authorizationList, chainId, gas, nonce, to, value: value2, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  assertTransactionEIP7702(transaction);
+  const serializedAccessList = serializeAccessList(accessList);
+  const serializedAuthorizationList = serializeAuthorizationList(authorizationList);
+  return concatHex([
+    "0x04",
+    toRlp([
+      numberToHex(chainId),
+      nonce ? numberToHex(nonce) : "0x",
+      maxPriorityFeePerGas ? numberToHex(maxPriorityFeePerGas) : "0x",
+      maxFeePerGas ? numberToHex(maxFeePerGas) : "0x",
+      gas ? numberToHex(gas) : "0x",
+      to ?? "0x",
+      value2 ? numberToHex(value2) : "0x",
+      data ?? "0x",
+      serializedAccessList,
+      serializedAuthorizationList,
+      ...toYParitySignatureArray(transaction, signature)
+    ])
+  ]);
+}
+function serializeTransactionEIP4844(transaction, signature) {
+  const { chainId, gas, nonce, to, value: value2, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  assertTransactionEIP4844(transaction);
+  let blobVersionedHashes = transaction.blobVersionedHashes;
+  let sidecars = transaction.sidecars;
+  if (transaction.blobs && (typeof blobVersionedHashes === "undefined" || typeof sidecars === "undefined")) {
+    const blobs2 = typeof transaction.blobs[0] === "string" ? transaction.blobs : transaction.blobs.map((x) => bytesToHex2(x));
+    const kzg = transaction.kzg;
+    const commitments2 = blobsToCommitments({
+      blobs: blobs2,
+      kzg
+    });
+    if (typeof blobVersionedHashes === "undefined")
+      blobVersionedHashes = commitmentsToVersionedHashes({
+        commitments: commitments2
+      });
+    if (typeof sidecars === "undefined") {
+      const proofs2 = blobsToProofs({ blobs: blobs2, commitments: commitments2, kzg });
+      sidecars = toBlobSidecars({ blobs: blobs2, commitments: commitments2, proofs: proofs2 });
+    }
+  }
+  const serializedAccessList = serializeAccessList(accessList);
+  const serializedTransaction = [
+    numberToHex(chainId),
+    nonce ? numberToHex(nonce) : "0x",
+    maxPriorityFeePerGas ? numberToHex(maxPriorityFeePerGas) : "0x",
+    maxFeePerGas ? numberToHex(maxFeePerGas) : "0x",
+    gas ? numberToHex(gas) : "0x",
+    to ?? "0x",
+    value2 ? numberToHex(value2) : "0x",
+    data ?? "0x",
+    serializedAccessList,
+    maxFeePerBlobGas ? numberToHex(maxFeePerBlobGas) : "0x",
+    blobVersionedHashes ?? [],
+    ...toYParitySignatureArray(transaction, signature)
+  ];
+  const blobs = [];
+  const commitments = [];
+  const proofs = [];
+  if (sidecars)
+    for (let i2 = 0;i2 < sidecars.length; i2++) {
+      const { blob, commitment, proof } = sidecars[i2];
+      blobs.push(blob);
+      commitments.push(commitment);
+      proofs.push(proof);
+    }
+  return concatHex([
+    "0x03",
+    sidecars ? toRlp([serializedTransaction, blobs, commitments, proofs]) : toRlp(serializedTransaction)
+  ]);
+}
+function serializeTransactionEIP1559(transaction, signature) {
+  const { chainId, gas, nonce, to, value: value2, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  assertTransactionEIP1559(transaction);
+  const serializedAccessList = serializeAccessList(accessList);
+  const serializedTransaction = [
+    numberToHex(chainId),
+    nonce ? numberToHex(nonce) : "0x",
+    maxPriorityFeePerGas ? numberToHex(maxPriorityFeePerGas) : "0x",
+    maxFeePerGas ? numberToHex(maxFeePerGas) : "0x",
+    gas ? numberToHex(gas) : "0x",
+    to ?? "0x",
+    value2 ? numberToHex(value2) : "0x",
+    data ?? "0x",
+    serializedAccessList,
+    ...toYParitySignatureArray(transaction, signature)
+  ];
+  return concatHex([
+    "0x02",
+    toRlp(serializedTransaction)
+  ]);
+}
+function serializeTransactionEIP2930(transaction, signature) {
+  const { chainId, gas, data, nonce, to, value: value2, accessList, gasPrice } = transaction;
+  assertTransactionEIP2930(transaction);
+  const serializedAccessList = serializeAccessList(accessList);
+  const serializedTransaction = [
+    numberToHex(chainId),
+    nonce ? numberToHex(nonce) : "0x",
+    gasPrice ? numberToHex(gasPrice) : "0x",
+    gas ? numberToHex(gas) : "0x",
+    to ?? "0x",
+    value2 ? numberToHex(value2) : "0x",
+    data ?? "0x",
+    serializedAccessList,
+    ...toYParitySignatureArray(transaction, signature)
+  ];
+  return concatHex([
+    "0x01",
+    toRlp(serializedTransaction)
+  ]);
+}
+function serializeTransactionLegacy(transaction, signature) {
+  const { chainId = 0, gas, data, nonce, to, value: value2, gasPrice } = transaction;
+  assertTransactionLegacy(transaction);
+  let serializedTransaction = [
+    nonce ? numberToHex(nonce) : "0x",
+    gasPrice ? numberToHex(gasPrice) : "0x",
+    gas ? numberToHex(gas) : "0x",
+    to ?? "0x",
+    value2 ? numberToHex(value2) : "0x",
+    data ?? "0x"
+  ];
+  if (signature) {
+    const v = (() => {
+      if (signature.v >= 35n) {
+        const inferredChainId = (signature.v - 35n) / 2n;
+        if (inferredChainId > 0)
+          return signature.v;
+        return 27n + (signature.v === 35n ? 0n : 1n);
+      }
+      if (chainId > 0)
+        return BigInt(chainId * 2) + BigInt(35n + signature.v - 27n);
+      const v2 = 27n + (signature.v === 27n ? 0n : 1n);
+      if (signature.v !== v2)
+        throw new InvalidLegacyVError({ v: signature.v });
+      return v2;
+    })();
+    const r = trim(signature.r);
+    const s = trim(signature.s);
+    serializedTransaction = [
+      ...serializedTransaction,
+      numberToHex(v),
+      r === "0x00" ? "0x" : r,
+      s === "0x00" ? "0x" : s
+    ];
+  } else if (chainId > 0) {
+    serializedTransaction = [
+      ...serializedTransaction,
+      numberToHex(chainId),
+      "0x",
+      "0x"
+    ];
+  }
+  return toRlp(serializedTransaction);
+}
+function toYParitySignatureArray(transaction, signature_) {
+  const signature = signature_ ?? transaction;
+  const { v, yParity } = signature;
+  if (typeof signature.r === "undefined")
+    return [];
+  if (typeof signature.s === "undefined")
+    return [];
+  if (typeof v === "undefined" && typeof yParity === "undefined")
+    return [];
+  const r = trim(signature.r);
+  const s = trim(signature.s);
+  const yParity_ = (() => {
+    if (typeof yParity === "number")
+      return yParity ? numberToHex(1) : "0x";
+    if (v === 0n)
+      return "0x";
+    if (v === 1n)
+      return numberToHex(1);
+    return v === 27n ? "0x" : numberToHex(1);
+  })();
+  return [yParity_, r === "0x00" ? "0x" : r, s === "0x00" ? "0x" : s];
+}
+function serializeAuthorizationList(authorizationList) {
+  if (!authorizationList || authorizationList.length === 0)
+    return [];
+  const serializedAuthorizationList = [];
+  for (const authorization of authorizationList) {
+    const { chainId, nonce, ...signature } = authorization;
+    const contractAddress = authorization.address;
+    serializedAuthorizationList.push([
+      chainId ? toHex(chainId) : "0x",
+      contractAddress,
+      nonce ? toHex(nonce) : "0x",
+      ...toYParitySignatureArray({}, signature)
+    ]);
+  }
+  return serializedAuthorizationList;
+}
+init_keccak256();
+var presignMessagePrefix = `\x19Ethereum Signed Message:
+`;
+init_size();
+init_toHex();
+function toPrefixedMessage(message_) {
+  const message = (() => {
+    if (typeof message_ === "string")
+      return stringToHex(message_);
+    if (typeof message_.raw === "string")
+      return message_.raw;
+    return bytesToHex2(message_.raw);
+  })();
+  const prefix = stringToHex(`${presignMessagePrefix}${size(message)}`);
+  return concat([prefix, message]);
+}
+function hashMessage(message, to_) {
+  return keccak256(toPrefixedMessage(message), to_);
+}
 var zeroAddress = "0x0000000000000000000000000000000000000000";
 init_secp256k1();
 init_fromHex();
@@ -19365,6 +20431,16 @@ function signTypedDataSync(params) {
   const yParity = sig.recovery === 1 ? 1 : 0;
   return serializeSignature({ r, s, yParity, to: "hex" });
 }
+var SUB0_CRE_ACTION = {
+  CREATE: 0,
+  RESOLVE: 1,
+  STAKE: 2,
+  REDEEM: 3
+};
+var PREDICTION_VAULT_CRE_ACTION = {
+  EXECUTE_TRADE: 0,
+  SEED_LIQUIDITY: 1
+};
 var sub0_default = [
   {
     type: "function",
@@ -19389,6 +20465,13 @@ var sub0_default = [
   },
   {
     type: "function",
+    name: "REDEEM_TYPEHASH",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
     name: "TOKENS",
     inputs: [],
     outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
@@ -19400,45 +20483,6 @@ var sub0_default = [
     inputs: [],
     outputs: [{ name: "", type: "string", internalType: "string" }],
     stateMutability: "view"
-  },
-  {
-    type: "function",
-    name: "acceptInvitation",
-    inputs: [
-      { name: "questionId", type: "bytes32", internalType: "bytes32" }
-    ],
-    outputs: [],
-    stateMutability: "nonpayable"
-  },
-  {
-    type: "function",
-    name: "addUser",
-    inputs: [
-      { name: "questionId", type: "bytes32", internalType: "bytes32" },
-      { name: "user", type: "address", internalType: "address" }
-    ],
-    outputs: [],
-    stateMutability: "nonpayable"
-  },
-  {
-    type: "function",
-    name: "addUsers",
-    inputs: [
-      { name: "questionId", type: "bytes32", internalType: "bytes32" },
-      { name: "users", type: "address[]", internalType: "address[]" }
-    ],
-    outputs: [],
-    stateMutability: "nonpayable"
-  },
-  {
-    type: "function",
-    name: "banUser",
-    inputs: [
-      { name: "questionId", type: "bytes32", internalType: "bytes32" },
-      { name: "user", type: "address", internalType: "address" }
-    ],
-    outputs: [],
-    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -19487,13 +20531,36 @@ var sub0_default = [
           {
             name: "marketType",
             type: "uint8",
-            internalType: "enum InvitationManager.InvitationType"
+            internalType: "enum Sub0.MarketType"
           }
         ]
       }
     ],
     outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
     stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "eip712Domain",
+    inputs: [],
+    outputs: [
+      { name: "fields", type: "bytes1", internalType: "bytes1" },
+      { name: "name", type: "string", internalType: "string" },
+      { name: "version", type: "string", internalType: "string" },
+      { name: "chainId", type: "uint256", internalType: "uint256" },
+      {
+        name: "verifyingContract",
+        type: "address",
+        internalType: "address"
+      },
+      { name: "salt", type: "bytes32", internalType: "bytes32" },
+      {
+        name: "extensions",
+        type: "uint256[]",
+        internalType: "uint256[]"
+      }
+    ],
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -19525,26 +20592,10 @@ var sub0_default = [
   },
   {
     type: "function",
-    name: "getInvitationStatus",
-    inputs: [
-      { name: "questionId", type: "bytes32", internalType: "bytes32" },
-      { name: "user", type: "address", internalType: "address" }
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint8",
-        internalType: "enum InvitationManager.InvitationStatus"
-      }
-    ],
-    stateMutability: "view"
-  },
-  {
-    type: "function",
     name: "getMarket",
     inputs: [
       { name: "questionId", type: "bytes32", internalType: "bytes32" },
-      { name: "owner", type: "address", internalType: "address" },
+      { name: "_owner", type: "address", internalType: "address" },
       { name: "_oracle", type: "address", internalType: "address" }
     ],
     outputs: [
@@ -19584,7 +20635,7 @@ var sub0_default = [
           {
             name: "marketType",
             type: "uint8",
-            internalType: "enum InvitationManager.InvitationType"
+            internalType: "enum Sub0.MarketType"
           }
         ]
       }
@@ -19634,11 +20685,33 @@ var sub0_default = [
           {
             name: "marketType",
             type: "uint8",
-            internalType: "enum InvitationManager.InvitationType"
+            internalType: "enum Sub0.MarketType"
           }
         ]
       }
     ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getRedeemDigest",
+    inputs: [
+      {
+        name: "parentCollectionId",
+        type: "bytes32",
+        internalType: "bytes32"
+      },
+      { name: "conditionId", type: "bytes32", internalType: "bytes32" },
+      {
+        name: "indexSetsHash",
+        type: "bytes32",
+        internalType: "bytes32"
+      },
+      { name: "token", type: "address", internalType: "address" },
+      { name: "deadline", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" }
+    ],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
     stateMutability: "view"
   },
   {
@@ -19694,20 +20767,6 @@ var sub0_default = [
   },
   {
     type: "function",
-    name: "invitations",
-    inputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
-    outputs: [
-      { name: "owner", type: "address", internalType: "address" },
-      {
-        name: "invitationType",
-        type: "uint8",
-        internalType: "enum InvitationManager.InvitationType"
-      }
-    ],
-    stateMutability: "view"
-  },
-  {
-    type: "function",
     name: "markets",
     inputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
     outputs: [
@@ -19730,7 +20789,7 @@ var sub0_default = [
       {
         name: "marketType",
         type: "uint8",
-        internalType: "enum InvitationManager.InvitationType"
+        internalType: "enum Sub0.MarketType"
       }
     ],
     stateMutability: "view"
@@ -19807,19 +20866,20 @@ var sub0_default = [
         type: "uint256[]",
         internalType: "uint256[]"
       },
-      { name: "token", type: "address", internalType: "address" }
+      { name: "token", type: "address", internalType: "address" },
+      { name: "deadline", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" }
     ],
     outputs: [],
     stateMutability: "nonpayable"
   },
   {
     type: "function",
-    name: "rejectInvitation",
-    inputs: [
-      { name: "questionId", type: "bytes32", internalType: "bytes32" }
-    ],
-    outputs: [],
-    stateMutability: "nonpayable"
+    name: "redeemNonce",
+    inputs: [{ name: "", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -19966,16 +21026,6 @@ var sub0_default = [
   },
   {
     type: "function",
-    name: "unbanUser",
-    inputs: [
-      { name: "questionId", type: "bytes32", internalType: "bytes32" },
-      { name: "user", type: "address", internalType: "address" }
-    ],
-    outputs: [],
-    stateMutability: "nonpayable"
-  },
-  {
-    type: "function",
     name: "upgradeToAndCall",
     inputs: [
       {
@@ -20014,6 +21064,12 @@ var sub0_default = [
         internalType: "uint256[]"
       }
     ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "EIP712DomainChanged",
+    inputs: [],
     anonymous: false
   },
   {
@@ -20131,7 +21187,7 @@ var sub0_default = [
         name: "marketType",
         type: "uint8",
         indexed: false,
-        internalType: "enum InvitationManager.InvitationType"
+        internalType: "enum Sub0.MarketType"
       },
       {
         name: "owner",
@@ -20279,6 +21335,24 @@ var sub0_default = [
   { type: "error", name: "CREReportTooShort", inputs: [] },
   {
     type: "error",
+    name: "CREUnknownAction",
+    inputs: [{ name: "prefix", type: "uint8", internalType: "uint8" }]
+  },
+  { type: "error", name: "ECDSAInvalidSignature", inputs: [] },
+  {
+    type: "error",
+    name: "ECDSAInvalidSignatureLength",
+    inputs: [
+      { name: "length", type: "uint256", internalType: "uint256" }
+    ]
+  },
+  {
+    type: "error",
+    name: "ECDSAInvalidSignatureS",
+    inputs: [{ name: "s", type: "bytes32", internalType: "bytes32" }]
+  },
+  {
+    type: "error",
     name: "ERC1967InvalidImplementation",
     inputs: [
       {
@@ -20307,17 +21381,6 @@ var sub0_default = [
   },
   { type: "error", name: "InvalidForwarderAddress", inputs: [] },
   { type: "error", name: "InvalidInitialization", inputs: [] },
-  {
-    type: "error",
-    name: "InvalidInvitationType",
-    inputs: [
-      {
-        name: "invitationType",
-        type: "uint8",
-        internalType: "enum InvitationManager.InvitationType"
-      }
-    ]
-  },
   {
     type: "error",
     name: "InvalidOptionIndex",
@@ -20372,11 +21435,6 @@ var sub0_default = [
   },
   {
     type: "error",
-    name: "InvalidUser",
-    inputs: [{ name: "user", type: "address", internalType: "address" }]
-  },
-  {
-    type: "error",
     name: "InvalidWorkflowId",
     inputs: [
       { name: "received", type: "bytes32", internalType: "bytes32" },
@@ -20393,11 +21451,6 @@ var sub0_default = [
   },
   {
     type: "error",
-    name: "InvitationNotPending",
-    inputs: [{ name: "user", type: "address", internalType: "address" }]
-  },
-  {
-    type: "error",
     name: "NotAuthorized",
     inputs: [
       { name: "account", type: "address", internalType: "address" },
@@ -20405,21 +21458,6 @@ var sub0_default = [
     ]
   },
   { type: "error", name: "NotInitializing", inputs: [] },
-  {
-    type: "error",
-    name: "OnlyOwnerCanAddUsers",
-    inputs: [{ name: "user", type: "address", internalType: "address" }]
-  },
-  {
-    type: "error",
-    name: "OnlyOwnerCanBanUsers",
-    inputs: [{ name: "user", type: "address", internalType: "address" }]
-  },
-  {
-    type: "error",
-    name: "OnlyOwnerCanUnbanUsers",
-    inputs: [{ name: "user", type: "address", internalType: "address" }]
-  },
   {
     type: "error",
     name: "OracleNotAllowed",
@@ -20449,6 +21487,9 @@ var sub0_default = [
       { name: "questionId", type: "bytes32", internalType: "bytes32" }
     ]
   },
+  { type: "error", name: "RedeemBadNonce", inputs: [] },
+  { type: "error", name: "RedeemExpired", inputs: [] },
+  { type: "error", name: "RedeemInvalidSignature", inputs: [] },
   {
     type: "error",
     name: "TokenNotAllowedListed",
@@ -20461,16 +21502,6 @@ var sub0_default = [
     type: "error",
     name: "UUPSUnsupportedProxiableUUID",
     inputs: [{ name: "slot", type: "bytes32", internalType: "bytes32" }]
-  },
-  {
-    type: "error",
-    name: "UserAlreadyInvited",
-    inputs: [{ name: "user", type: "address", internalType: "address" }]
-  },
-  {
-    type: "error",
-    name: "UserNotInvited",
-    inputs: [{ name: "user", type: "address", internalType: "address" }]
   },
   {
     type: "error",
@@ -20487,6 +21518,11 @@ var predictionVault_default = [
       { name: "_ctf", type: "address", internalType: "address" },
       {
         name: "_backendSigner",
+        type: "address",
+        internalType: "address"
+      },
+      {
+        name: "_creForwarder",
         type: "address",
         internalType: "address"
       }
@@ -20602,6 +21638,34 @@ var predictionVault_default = [
   },
   {
     type: "function",
+    name: "getExpectedAuthor",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getExpectedWorkflowId",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getExpectedWorkflowName",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes10", internalType: "bytes10" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getForwarderAddress",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
     name: "nonceUsed",
     inputs: [
       { name: "", type: "bytes32", internalType: "bytes32" },
@@ -20634,6 +21698,16 @@ var predictionVault_default = [
       { name: "", type: "bytes", internalType: "bytes" }
     ],
     outputs: [{ name: "", type: "bytes4", internalType: "bytes4" }],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "onReport",
+    inputs: [
+      { name: "metadata", type: "bytes", internalType: "bytes" },
+      { name: "report", type: "bytes", internalType: "bytes" }
+    ],
+    outputs: [],
     stateMutability: "nonpayable"
   },
   {
@@ -20694,12 +21768,44 @@ var predictionVault_default = [
   },
   {
     type: "function",
+    name: "setExpectedAuthor",
+    inputs: [
+      { name: "_author", type: "address", internalType: "address" }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "setExpectedWorkflowId",
+    inputs: [{ name: "_id", type: "bytes32", internalType: "bytes32" }],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "setExpectedWorkflowName",
+    inputs: [{ name: "_name", type: "string", internalType: "string" }],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
+    name: "setForwarderAddress",
+    inputs: [
+      { name: "_forwarder", type: "address", internalType: "address" }
+    ],
+    outputs: [],
+    stateMutability: "nonpayable"
+  },
+  {
+    type: "function",
     name: "supportsInterface",
     inputs: [
       { name: "interfaceId", type: "bytes4", internalType: "bytes4" }
     ],
     outputs: [{ name: "", type: "bool", internalType: "bool" }],
-    stateMutability: "view"
+    stateMutability: "pure"
   },
   {
     type: "function",
@@ -20765,6 +21871,82 @@ var predictionVault_default = [
   },
   {
     type: "event",
+    name: "ExpectedAuthorUpdated",
+    inputs: [
+      {
+        name: "previousAuthor",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "newAuthor",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "ExpectedWorkflowIdUpdated",
+    inputs: [
+      {
+        name: "previousId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32"
+      },
+      {
+        name: "newId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "ExpectedWorkflowNameUpdated",
+    inputs: [
+      {
+        name: "previousName",
+        type: "bytes10",
+        indexed: true,
+        internalType: "bytes10"
+      },
+      {
+        name: "newName",
+        type: "bytes10",
+        indexed: true,
+        internalType: "bytes10"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "ForwarderAddressUpdated",
+    inputs: [
+      {
+        name: "previousForwarder",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "newForwarder",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
     name: "MarketLiquiditySeeded",
     inputs: [
       {
@@ -20822,6 +22004,19 @@ var predictionVault_default = [
   },
   {
     type: "event",
+    name: "SecurityWarning",
+    inputs: [
+      {
+        name: "message",
+        type: "string",
+        indexed: false,
+        internalType: "string"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
     name: "TradeExecuted",
     inputs: [
       {
@@ -20863,6 +22058,21 @@ var predictionVault_default = [
     ],
     anonymous: false
   },
+  {
+    type: "error",
+    name: "CREInvalidSender",
+    inputs: [
+      { name: "sender", type: "address", internalType: "address" },
+      { name: "expected", type: "address", internalType: "address" }
+    ]
+  },
+  { type: "error", name: "CREReportTooShort", inputs: [] },
+  { type: "error", name: "CRESeedLiquidityNotOwner", inputs: [] },
+  {
+    type: "error",
+    name: "CREUnknownAction",
+    inputs: [{ name: "prefix", type: "uint8", internalType: "uint8" }]
+  },
   { type: "error", name: "ECDSAInvalidSignature", inputs: [] },
   {
     type: "error",
@@ -20879,11 +22089,44 @@ var predictionVault_default = [
   { type: "error", name: "ExpiredQuote", inputs: [] },
   { type: "error", name: "InsufficientUsdcSolvency", inputs: [] },
   { type: "error", name: "InsufficientVaultBalance", inputs: [] },
+  {
+    type: "error",
+    name: "InvalidAuthor",
+    inputs: [
+      { name: "received", type: "address", internalType: "address" },
+      { name: "expected", type: "address", internalType: "address" }
+    ]
+  },
   { type: "error", name: "InvalidDonSignature", inputs: [] },
+  { type: "error", name: "InvalidForwarderAddress", inputs: [] },
   { type: "error", name: "InvalidOutcome", inputs: [] },
+  {
+    type: "error",
+    name: "InvalidSender",
+    inputs: [
+      { name: "sender", type: "address", internalType: "address" },
+      { name: "expected", type: "address", internalType: "address" }
+    ]
+  },
   { type: "error", name: "InvalidShortString", inputs: [] },
   { type: "error", name: "InvalidSignature", inputs: [] },
   { type: "error", name: "InvalidUserSignature", inputs: [] },
+  {
+    type: "error",
+    name: "InvalidWorkflowId",
+    inputs: [
+      { name: "received", type: "bytes32", internalType: "bytes32" },
+      { name: "expected", type: "bytes32", internalType: "bytes32" }
+    ]
+  },
+  {
+    type: "error",
+    name: "InvalidWorkflowName",
+    inputs: [
+      { name: "received", type: "bytes10", internalType: "bytes10" },
+      { name: "expected", type: "bytes10", internalType: "bytes10" }
+    ]
+  },
   { type: "error", name: "MarketNotRegistered", inputs: [] },
   { type: "error", name: "NonceAlreadyUsed", inputs: [] },
   {
@@ -20907,7 +22150,12 @@ var predictionVault_default = [
     name: "StringTooLong",
     inputs: [{ name: "str", type: "string", internalType: "string" }]
   },
-  { type: "error", name: "TransferFailed", inputs: [] }
+  { type: "error", name: "TransferFailed", inputs: [] },
+  {
+    type: "error",
+    name: "WorkflowNameRequiresAuthorValidation",
+    inputs: []
+  }
 ];
 var conditionalToken_default = [
   {
@@ -22617,6 +23865,10 @@ function buildCallData(abi, functionName, args) {
     args
   });
 }
+var DEFAULT_WRITE_GAS_LIMIT = "500000";
+var RECEIVER_EXECUTION_REVERTED = 1;
+var EXECUTE_TRADE_PARAMS = parseAbiParameters("bytes32 questionId, uint256 outcomeIndex, bool buy, uint256 quantity, uint256 tradeCostUsdc, uint256 maxCostUsdc, uint256 nonce, uint256 deadline, address user, bytes donSignature, bytes userSignature");
+var SEED_LIQUIDITY_PARAMS = parseAbiParameters("bytes32 questionId, uint256 amountUsdc");
 function getNonceUsed(runtime2, config, questionId, nonce) {
   const data = buildCallData(PREDICTION_VAULT_ABI, "nonceUsed", [questionId, nonce]);
   const reply = callContract(runtime2, config.chainSelectorName, config.contracts.predictionVault, data);
@@ -22669,16 +23921,11 @@ function signLMSRQuote(params, config, privateKeyHex) {
     signature
   };
 }
-function encodeSeedMarketLiquidity(questionId, amountUsdc) {
-  return encodeFunctionData({
-    abi: PREDICTION_VAULT_ABI,
-    functionName: "seedMarketLiquidity",
-    args: [questionId, amountUsdc]
-  });
+function encodePredictionVaultReportSeedLiquidity(questionId, amountUsdc) {
+  const encoded = encodeAbiParameters(SEED_LIQUIDITY_PARAMS, [questionId, amountUsdc]);
+  return concat([`0x${PREDICTION_VAULT_CRE_ACTION.SEED_LIQUIDITY.toString(16).padStart(2, "0")}`, encoded]);
 }
-function submitSeedMarketLiquidity(runtime2, config, questionId, amountUsdc) {
-  const hexPayload = encodeSeedMarketLiquidity(questionId, amountUsdc);
-  const reportRequest = prepareReportRequest(hexPayload);
+function writePredictionVaultReport(runtime2, config, hexPayload, label) {
   const network248 = getNetwork({
     chainFamily: "evm",
     chainSelectorName: config.chainSelectorName,
@@ -22687,24 +23934,38 @@ function submitSeedMarketLiquidity(runtime2, config, questionId, amountUsdc) {
   if (!network248)
     throw new Error(`Network not found: ${config.chainSelectorName}`);
   const evmClient = new cre.capabilities.EVMClient(network248.chainSelector.selector);
-  const receiverHex = config.contracts.predictionVault.replace(/^0x/, "");
-  const receiver = new Uint8Array(20);
-  for (let i2 = 0;i2 < 20; i2++)
-    receiver[i2] = parseInt(receiverHex.slice(i2 * 2, i2 * 2 + 2), 16);
-  const reply = evmClient.writeReport(runtime2, {
-    receiver,
-    report: runtime2.report(reportRequest).result(),
-    $report: true
+  const receiverAddress = config.contracts.predictionVault.startsWith("0x") ? config.contracts.predictionVault : `0x${config.contracts.predictionVault}`;
+  const reportResponse = runtime2.report({
+    encodedPayload: hexToBase64(hexPayload),
+    encoderName: "evm",
+    signingAlgo: "ecdsa",
+    hashingAlgo: "keccak256"
   }).result();
-  if (reply.txHash != null && reply.txHash.length > 0) {
-    return typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash);
+  const writeResult = evmClient.writeReport(runtime2, {
+    receiver: receiverAddress,
+    report: reportResponse,
+    gasConfig: { gasLimit: DEFAULT_WRITE_GAS_LIMIT }
+  }).result();
+  if (writeResult.txStatus !== TxStatus.SUCCESS) {
+    throw new Error(`${label}: transaction failed with status: ${writeResult.txStatus}`);
   }
-  return "";
+  if (writeResult.receiverContractExecutionStatus === RECEIVER_EXECUTION_REVERTED) {
+    throw new Error(`${label}: forwarder tx succeeded but PredictionVault reverted.`);
+  }
+  const rawHash = writeResult.txHash;
+  return rawHash != null && rawHash.length > 0 ? typeof rawHash === "string" ? rawHash : bytesToHex(rawHash) : bytesToHex(new Uint8Array(32));
 }
-var DEFAULT_WRITE_GAS_LIMIT = "600000";
-var RECEIVER_EXECUTION_REVERTED = 1;
+function submitSeedMarketLiquidity(runtime2, config, questionId, amountUsdc) {
+  const hexPayload = encodePredictionVaultReportSeedLiquidity(questionId, amountUsdc);
+  return writePredictionVaultReport(runtime2, config, hexPayload, "Seed liquidity");
+}
+var DEFAULT_WRITE_GAS_LIMIT2 = "600000";
+var RECEIVER_EXECUTION_REVERTED2 = 1;
 var ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
 var ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+function crePrefixByte(action) {
+  return bytesToHex(new Uint8Array([action]));
+}
 var EMPTY_MARKET = {
   question: "",
   conditionId: ZERO_BYTES32,
@@ -22719,7 +23980,18 @@ var EMPTY_MARKET = {
 function isMarketEmpty(market) {
   return (market.conditionId === ZERO_BYTES32 || !market.conditionId) && (market.question === "" || !market.question?.trim());
 }
+function ensureQuestionIdBytes32(value2) {
+  const s = typeof value2 === "string" ? value2.trim() : "";
+  const hex = s.startsWith("0x") ? s : `0x${s}`;
+  if (hex.length !== 66 || !/^0x[0-9a-fA-F]{64}$/.test(hex)) {
+    throw new Error("questionId must be 32-byte hex (0x + 64 hex chars)");
+  }
+  return hex;
+}
 var CREATE_MARKET_PARAMS = parseAbiParameters("(string question, bytes32 conditionId, address oracle, address owner, uint256 createdAt, uint256 duration, uint256 outcomeSlotCount, uint8 oracleType, uint8 marketType)");
+var RESOLVE_PARAMS = parseAbiParameters("bytes32 questionId, uint256[] payouts, address oracle");
+var STAKE_PARAMS = parseAbiParameters("bytes32 questionId, bytes32 parentCollectionId, uint256[] partition, address token, uint256 amount, address owner");
+var REDEEM_PARAMS = parseAbiParameters("bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets, address token, address owner, uint256 deadline, uint256 nonce, bytes signature");
 async function getMarket(ctx, questionId, options) {
   const data = buildCallData(SUB0_ABI, "getMarket", [questionId]);
   const blockNumber = options?.useLatestBlock === true ? LATEST_BLOCK_NUMBER : LAST_FINALIZED_BLOCK_NUMBER;
@@ -22728,18 +24000,22 @@ async function getMarket(ctx, questionId, options) {
   if (hexData === "0x" || hexData === "0x0") {
     return EMPTY_MARKET;
   }
-  const m = decodeCallResult(SUB0_ABI, "getMarket", reply.data);
-  return {
-    question: m.question,
-    conditionId: m.conditionId,
-    oracle: m.oracle,
-    owner: m.owner,
-    createdAt: m.createdAt,
-    duration: m.duration,
-    outcomeSlotCount: Number(m.outcomeSlotCount),
-    oracleType: m.oracleType,
-    marketType: m.marketType
-  };
+  try {
+    const m = decodeCallResult(SUB0_ABI, "getMarket", reply.data);
+    return {
+      question: m.question,
+      conditionId: m.conditionId,
+      oracle: m.oracle,
+      owner: m.owner,
+      createdAt: m.createdAt,
+      duration: m.duration,
+      outcomeSlotCount: Number(m.outcomeSlotCount),
+      oracleType: m.oracleType,
+      marketType: m.marketType
+    };
+  } catch {
+    return EMPTY_MARKET;
+  }
 }
 function encodeCreateMarket(params) {
   const marketTuple = {
@@ -22753,53 +24029,95 @@ function encodeCreateMarket(params) {
     oracleType: params.oracleType,
     marketType: params.marketType
   };
-  return encodeAbiParameters(CREATE_MARKET_PARAMS, [marketTuple]);
+  const payload = encodeAbiParameters(CREATE_MARKET_PARAMS, [marketTuple]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.CREATE), payload]);
+}
+function encodeSub0ReportResolve(payload) {
+  const encoded = encodeAbiParameters(RESOLVE_PARAMS, [
+    payload.questionId,
+    [...payload.payouts],
+    payload.oracle
+  ]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.RESOLVE), encoded]);
+}
+function encodeSub0ReportStake(payload) {
+  const encoded = encodeAbiParameters(STAKE_PARAMS, [
+    payload.questionId,
+    payload.parentCollectionId,
+    [...payload.partition],
+    payload.token,
+    payload.amount,
+    payload.owner
+  ]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.STAKE), encoded]);
+}
+function encodeSub0ReportRedeem(payload) {
+  const encoded = encodeAbiParameters(REDEEM_PARAMS, [
+    payload.parentCollectionId,
+    payload.conditionId,
+    [...payload.indexSets],
+    payload.token,
+    payload.owner,
+    payload.deadline,
+    payload.nonce,
+    payload.signature
+  ]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.REDEEM), encoded]);
 }
 function computeQuestionId(question, creator, oracle) {
   const packed = encodePacked(["string", "address", "address"], [question, creator, oracle]);
   return keccak256(packed);
 }
-function submitCreateMarket(runtime2, config, params) {
-  runtime2.log("[Step 1] Encoding create(Market) calldata...");
-  const hexPayload = encodeCreateMarket(params);
-  runtime2.log(`[Step 1] Calldata length: ${hexPayload.length} chars (0x prefix + selector + args)`);
-  runtime2.log("[Step 2] Resolving network and EVM client...");
+function writeSub0Report(runtime2, config, hexPayload, label) {
   const network248 = getNetwork({
     chainFamily: "evm",
     chainSelectorName: config.chainSelectorName,
     isTestnet: true
   });
-  if (!network248) {
+  if (!network248)
     throw new Error(`Network not found: ${config.chainSelectorName}`);
-  }
   const evmClient = new cre.capabilities.EVMClient(network248.chainSelector.selector);
   const receiverAddress = config.contracts.sub0.startsWith("0x") ? config.contracts.sub0 : `0x${config.contracts.sub0}`;
-  runtime2.log(`[Step 2] Chain: ${config.chainSelectorName}, receiver (Sub0): ${receiverAddress}`);
-  runtime2.log("[Step 3] Generating signed CRE report (evm encoder, ecdsa, keccak256)...");
   const reportResponse = runtime2.report({
     encodedPayload: hexToBase64(hexPayload),
     encoderName: "evm",
     signingAlgo: "ecdsa",
     hashingAlgo: "keccak256"
   }).result();
-  runtime2.log("[Step 3] Report generated.");
-  runtime2.log(`[Step 4] Writing report to contract (writeReport), gasLimit: ${DEFAULT_WRITE_GAS_LIMIT}...`);
   const writeResult = evmClient.writeReport(runtime2, {
     receiver: receiverAddress,
     report: reportResponse,
-    gasConfig: { gasLimit: DEFAULT_WRITE_GAS_LIMIT }
+    gasConfig: { gasLimit: DEFAULT_WRITE_GAS_LIMIT2 }
   }).result();
-  runtime2.log(`[Step 5] writeReport returned txStatus=${writeResult.txStatus}, receiverStatus=${writeResult.receiverContractExecutionStatus ?? "undefined"}, hasTxHash=${writeResult.txHash != null && writeResult.txHash.length > 0}`);
   if (writeResult.txStatus !== TxStatus.SUCCESS) {
-    throw new Error(`Create market transaction failed with status: ${writeResult.txStatus}`);
+    throw new Error(`${label}: transaction failed with status: ${writeResult.txStatus}`);
   }
-  if (writeResult.receiverContractExecutionStatus === RECEIVER_EXECUTION_REVERTED) {
-    throw new Error("Create market: forwarder tx succeeded but Sub0 contract reverted. Check role (GAME_CREATOR_ROLE) and calldata.");
+  if (writeResult.receiverContractExecutionStatus === RECEIVER_EXECUTION_REVERTED2) {
+    throw new Error(`${label}: forwarder tx succeeded but Sub0 reverted. Check params and roles.`);
   }
   const rawHash = writeResult.txHash;
-  const txHash = rawHash != null && rawHash.length > 0 ? typeof rawHash === "string" ? rawHash : bytesToHex(rawHash) : bytesToHex(new Uint8Array(32));
-  runtime2.log(`[Step 6] Done. txHash: ${txHash}`);
-  return txHash;
+  if (rawHash != null && rawHash.length > 0) {
+    return typeof rawHash === "string" ? rawHash : bytesToHex(rawHash);
+  }
+  runtime2.log(`${label}: no txHash returned (simulation skips chain write; deploy to a live target for real tx hash).`);
+  return "";
+}
+function submitCreateMarket(runtime2, config, params) {
+  const hexPayload = encodeCreateMarket(params);
+  runtime2.log(`[Create] CRE report built: prefix 0x00 + abi.encode(Market), total ${(hexPayload.length - 2) / 2} bytes`);
+  return writeSub0Report(runtime2, config, hexPayload, "Create market");
+}
+function submitResolveMarket(runtime2, config, payload) {
+  const hexPayload = encodeSub0ReportResolve(payload);
+  return writeSub0Report(runtime2, config, hexPayload, "Resolve market");
+}
+function submitStake(runtime2, config, payload) {
+  const hexPayload = encodeSub0ReportStake(payload);
+  return writeSub0Report(runtime2, config, hexPayload, "Stake");
+}
+function submitRedeem(runtime2, config, payload) {
+  const hexPayload = encodeSub0ReportRedeem(payload);
+  return writeSub0Report(runtime2, config, hexPayload, "Redeem");
 }
 var ZERO_BYTES322 = "0x0000000000000000000000000000000000000000000000000000000000000000";
 function getCollectionId(ctx, conditionId, outcomeIndex) {
@@ -22833,7 +24151,6 @@ function getVaultBalanceForOutcome(ctx, conditionId, outcomeIndex) {
   const positionId = getPositionId(ctx, collectionId);
   return balanceOf(ctx, ctx.config.contracts.predictionVault, positionId);
 }
-var SECRET_NAMESPACE = "sub0";
 var SECRET_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 function parsePayload(input) {
   const text = new TextDecoder().decode(input);
@@ -22856,9 +24173,12 @@ async function handleQuoteSigning(runtime2, payload) {
     throw new Error("Missing config.contracts for quote signing");
   }
   const body = parsePayload(payload.input);
-  const questionId = body.questionId.startsWith("0x") ? body.questionId : `0x${body.questionId}`;
+  if (!body.questionId?.trim()) {
+    throw new Error("questionId is required (32-byte hex)");
+  }
+  const questionId = ensureQuestionIdBytes32(body.questionId);
   const ctx = { runtime: runtime2, config: contracts };
-  const market = await getMarket(ctx, questionId);
+  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
   if (market.outcomeSlotCount === 0) {
     throw new Error("Market not found or invalid");
   }
@@ -22875,7 +24195,7 @@ async function handleQuoteSigning(runtime2, payload) {
       throw new Error("Insufficient vault balance for this outcome");
     }
   }
-  const secret = runtime2.getSecret({ id: SECRET_ID, namespace: SECRET_NAMESPACE }).result();
+  const secret = runtime2.getSecret({ id: SECRET_ID }).result();
   const privateKey = secret.value ?? "";
   if (!privateKey) {
     throw new Error("Backend signer secret not configured");
@@ -25232,9 +26552,8 @@ function costToUsdcUnits(costOutcomeWei, outcomeTokenDecimals, usdcDecimals) {
   const usdc = costOutcomeWei.times(multiplier).div(divisor);
   return BigInt(usdc.round(0, decimal_default.ROUND_CEIL).toString());
 }
-var DON_SIGNER_NAMESPACE = "sub0";
-var DON_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 var DEFAULT_DEADLINE_SECONDS = 900;
+var DON_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 function parseLmsrPayload(input) {
   const text = new TextDecoder().decode(input);
   const raw = JSON.parse(text);
@@ -25244,14 +26563,6 @@ function parseLmsrPayload(input) {
     quantity: String(raw.quantity ?? "0"),
     bParameter: String(raw.bParameter ?? raw.b ?? "1")
   };
-}
-function ensureQuestionId(marketId) {
-  const s = marketId.trim();
-  if (s.startsWith("0x") && s.length === 66)
-    return s;
-  if (s.length === 64)
-    return `0x${s}`;
-  throw new Error("Invalid marketId: expected 32-byte hex (64 or 66 chars)");
 }
 function randomNonce() {
   const buf = new Uint8Array(32);
@@ -25277,9 +26588,9 @@ async function handleLmsrPricing(runtime2, payload) {
     throw new Error("Missing body.marketId");
   if (!body.quantity || body.quantity === "0")
     throw new Error("Missing or zero body.quantity");
-  const questionId = ensureQuestionId(body.marketId);
+  const questionId = ensureQuestionIdBytes32(body.marketId);
   const ctx = { runtime: runtime2, config: config2 };
-  const market = await getMarket(ctx, questionId);
+  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
   if (market.outcomeSlotCount === 0) {
     throw new Error("Market not found or invalid");
   }
@@ -25313,10 +26624,10 @@ async function handleLmsrPricing(runtime2, payload) {
   }
   const deadlineSeconds = runtime2.config?.deadlineSeconds ?? DEFAULT_DEADLINE_SECONDS;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
-  const secret = runtime2.getSecret({ id: DON_SIGNER_ID, namespace: DON_SIGNER_NAMESPACE }).result();
+  const secret = runtime2.getSecret({ id: DON_SIGNER_ID }).result();
   const privateKey = secret.value ?? "";
   if (!privateKey) {
-    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY in namespace sub0)");
+    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY)");
   }
   const signed = signLMSRQuote({
     questionId,
@@ -25372,7 +26683,7 @@ function handleCreateAgentKey(runtime2, payload) {
   const body = parseCreateAgentKeyPayload(payload.input);
   const address = createRandomAddress();
   runtime2.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
-  return { address };
+  return { address, txHash: "" };
 }
 function parseCreateMarketPayload(input) {
   const text = new TextDecoder().decode(input);
@@ -25402,6 +26713,56 @@ function parseGetMarketPayload(input) {
   return {
     questionId: String(raw.questionId ?? "")
   };
+}
+function parseResolveMarketPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const payouts = raw.payouts;
+  return {
+    questionId: String(raw.questionId ?? ""),
+    payouts: Array.isArray(payouts) ? payouts.map((p) => String(p ?? "0")) : [],
+    oracle: String(raw.oracle ?? "")
+  };
+}
+function parseStakePayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const partition = raw.partition;
+  return {
+    questionId: String(raw.questionId ?? ""),
+    parentCollectionId: String(raw.parentCollectionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000"),
+    partition: Array.isArray(partition) ? partition : [],
+    token: String(raw.token ?? ""),
+    amount: String(raw.amount ?? "0"),
+    owner: String(raw.owner ?? "")
+  };
+}
+function parseRedeemPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const indexSets = raw.indexSets;
+  return {
+    parentCollectionId: String(raw.parentCollectionId ?? ""),
+    conditionId: String(raw.conditionId ?? ""),
+    indexSets: Array.isArray(indexSets) ? indexSets : [],
+    token: String(raw.token ?? ""),
+    owner: String(raw.owner ?? ""),
+    deadline: String(raw.deadline ?? "0"),
+    nonce: String(raw.nonce ?? "0"),
+    signature: String(raw.signature ?? "")
+  };
+}
+function toHex32(value2) {
+  const s = value2.trim().toLowerCase();
+  if (s.startsWith("0x"))
+    return s;
+  return `0x${s}`;
+}
+function toAddress(value2) {
+  const s = value2.trim();
+  if (s.startsWith("0x"))
+    return s;
+  return `0x${s}`;
 }
 async function handleCreateMarket(runtime2, payload) {
   runtime2.log("CRE Workflow: HTTP Trigger - Create Market (Sub0)");
@@ -25453,6 +26814,7 @@ async function handleCreateMarket(runtime2, payload) {
   const out = {
     status: "ok",
     result: "createMarket",
+    txHash: createMarketTxHash ?? "",
     questionId,
     question: market?.question ?? "",
     conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -25519,14 +26881,364 @@ function handleSeedLiquidity(runtime2, payload) {
   }
   const txHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
   runtime2.log("Seed market liquidity submitted.");
-  const out = { status: "ok" };
-  if (txHash)
-    out.txHash = txHash;
-  return out;
+  return { status: "ok", txHash: txHash ?? "" };
+}
+function handleResolveMarket(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts)
+    throw new Error("Missing config.contracts for platform actions");
+  const body = parseResolveMarketPayload(payload.input);
+  const questionId = toHex32(body.questionId);
+  if (questionId.length !== 66)
+    throw new Error("questionId must be 32-byte hex (0x + 64 chars)");
+  const payouts = body.payouts.map((p) => BigInt(p));
+  if (payouts.length === 0)
+    throw new Error("payouts array is required");
+  const oracle = toAddress(body.oracle);
+  if (oracle.length !== 42)
+    throw new Error("oracle must be a valid 20-byte address");
+  const txHash = submitResolveMarket(runtime2, contracts, { questionId, payouts, oracle });
+  runtime2.log("Resolve market submitted.");
+  return { status: "ok", result: "resolveMarket", txHash: txHash ?? "" };
+}
+function handleStake(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts)
+    throw new Error("Missing config.contracts for platform actions");
+  const body = parseStakePayload(payload.input);
+  const questionId = toHex32(body.questionId);
+  if (questionId.length !== 66)
+    throw new Error("questionId must be 32-byte hex");
+  const parentCollectionId = toHex32(body.parentCollectionId);
+  const partition = body.partition.map((p) => BigInt(p));
+  const token = toAddress(body.token);
+  const amount = BigInt(body.amount);
+  if (amount <= 0n)
+    throw new Error("amount must be positive");
+  const owner = toAddress(body.owner);
+  if (owner.length !== 42)
+    throw new Error("owner must be a valid 20-byte address");
+  const txHash = submitStake(runtime2, contracts, {
+    questionId,
+    parentCollectionId,
+    partition,
+    token,
+    amount,
+    owner
+  });
+  runtime2.log("Stake submitted.");
+  return { status: "ok", result: "stake", txHash: txHash ?? "" };
+}
+function handleRedeem(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts)
+    throw new Error("Missing config.contracts for platform actions");
+  const body = parseRedeemPayload(payload.input);
+  const parentCollectionId = toHex32(body.parentCollectionId);
+  const conditionId = toHex32(body.conditionId);
+  const indexSets = body.indexSets.map((i2) => BigInt(i2));
+  const token = toAddress(body.token);
+  const owner = toAddress(body.owner);
+  if (owner.length !== 42)
+    throw new Error("owner must be a valid 20-byte address");
+  const deadline = BigInt(body.deadline);
+  const nonce = BigInt(body.nonce);
+  const signature = body.signature.startsWith("0x") ? body.signature : `0x${body.signature}`;
+  if (!signature || signature.length < 10)
+    throw new Error("signature is required (EIP-712 Redeem from owner)");
+  const txHash = submitRedeem(runtime2, contracts, {
+    parentCollectionId,
+    conditionId,
+    indexSets,
+    token,
+    owner,
+    deadline,
+    nonce,
+    signature
+  });
+  runtime2.log("Redeem submitted.");
+  return { status: "ok", result: "redeem", txHash: txHash ?? "" };
 }
 function handlePlatformCron(runtime2) {
   runtime2.log("Platform cron: no action (use HTTP to seed liquidity or trigger actions).");
   return "ok";
+}
+init_secp256k1();
+init_toHex();
+init_address();
+init_isAddress();
+function toAccount(source) {
+  if (typeof source === "string") {
+    if (!isAddress(source, { strict: false }))
+      throw new InvalidAddressError({ address: source });
+    return {
+      address: source,
+      type: "json-rpc"
+    };
+  }
+  if (!isAddress(source.address, { strict: false }))
+    throw new InvalidAddressError({ address: source.address });
+  return {
+    address: source.address,
+    nonceManager: source.nonceManager,
+    sign: source.sign,
+    signAuthorization: source.signAuthorization,
+    signMessage: source.signMessage,
+    signTransaction: source.signTransaction,
+    signTypedData: source.signTypedData,
+    source: "custom",
+    type: "local"
+  };
+}
+init_secp256k1();
+init_toBytes();
+init_toHex();
+var extraEntropy = false;
+async function sign2({ hash: hash2, privateKey, to = "object" }) {
+  const { r, s, recovery } = secp256k1.sign(hash2.slice(2), privateKey.slice(2), {
+    lowS: true,
+    extraEntropy: isHex(extraEntropy, { strict: false }) ? hexToBytes2(extraEntropy) : extraEntropy
+  });
+  const signature = {
+    r: numberToHex(r, { size: 32 }),
+    s: numberToHex(s, { size: 32 }),
+    v: recovery ? 28n : 27n,
+    yParity: recovery
+  };
+  return (() => {
+    if (to === "bytes" || to === "hex")
+      return serializeSignature({ ...signature, to });
+    return signature;
+  })();
+}
+async function signAuthorization(parameters) {
+  const { chainId, nonce, privateKey, to = "object" } = parameters;
+  const address = parameters.contractAddress ?? parameters.address;
+  const signature = await sign2({
+    hash: hashAuthorization({ address, chainId, nonce }),
+    privateKey,
+    to
+  });
+  if (to === "object")
+    return {
+      address,
+      chainId,
+      nonce,
+      ...signature
+    };
+  return signature;
+}
+async function signMessage({ message, privateKey }) {
+  return await sign2({ hash: hashMessage(message), privateKey, to: "hex" });
+}
+init_keccak256();
+async function signTransaction(parameters) {
+  const { privateKey, transaction, serializer = serializeTransaction } = parameters;
+  const signableTransaction = (() => {
+    if (transaction.type === "eip4844")
+      return {
+        ...transaction,
+        sidecars: false
+      };
+    return transaction;
+  })();
+  const signature = await sign2({
+    hash: keccak256(serializer(signableTransaction)),
+    privateKey
+  });
+  return serializer(transaction, signature);
+}
+async function signTypedData(parameters) {
+  const { privateKey, ...typedData } = parameters;
+  return await sign2({
+    hash: hashTypedData(typedData),
+    privateKey,
+    to: "hex"
+  });
+}
+function privateKeyToAccount(privateKey, options = {}) {
+  const { nonceManager } = options;
+  const publicKey = toHex(secp256k1.getPublicKey(privateKey.slice(2), false));
+  const address = publicKeyToAddress(publicKey);
+  const account = toAccount({
+    address,
+    nonceManager,
+    async sign({ hash: hash2 }) {
+      return sign2({ hash: hash2, privateKey, to: "hex" });
+    },
+    async signAuthorization(authorization) {
+      return signAuthorization({ ...authorization, privateKey });
+    },
+    async signMessage({ message }) {
+      return signMessage({ message, privateKey });
+    },
+    async signTransaction(transaction, { serializer } = {}) {
+      return signTransaction({ privateKey, transaction, serializer });
+    },
+    async signTypedData(typedData) {
+      return signTypedData({ ...typedData, privateKey });
+    }
+  });
+  return {
+    ...account,
+    publicKey,
+    source: "privateKey"
+  };
+}
+var BACKEND_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
+var ERC20_APPROVE_ABI = [
+  {
+    type: "function",
+    name: "approve",
+    inputs: [
+      { name: "spender", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" }
+    ],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
+    stateMutability: "nonpayable"
+  }
+];
+var DEFAULT_GAS_LIMIT = 300000n;
+var DEFAULT_NONCE = 0;
+function toAddress2(value2) {
+  const s = String(value2 ?? "").trim();
+  if (s.startsWith("0x"))
+    return s;
+  return `0x${s}`;
+}
+function resolvePrivateKey(runtime2, signer, agentId) {
+  if (signer === "backend") {
+    const secret = runtime2.getSecret({ id: BACKEND_SIGNER_ID }).result();
+    const raw = secret?.value?.trim() ?? "";
+    if (!raw) {
+      throw new Error("Backend signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY)");
+    }
+    const privateKey = raw.startsWith("0x") ? raw : `0x${raw}`;
+    const account = privateKeyToAccount(privateKey);
+    return { privateKey, signerAddress: account.address };
+  }
+  if (signer === "agent") {
+    if (!agentId?.trim()) {
+      throw new Error('signer is "agent" but agentId is missing');
+    }
+    const secret = runtime2.getSecret({ id: agentId.trim() }).result();
+    const raw = secret?.value?.trim() ?? "";
+    if (!raw) {
+      throw new Error(`Agent key secret not found for agentId=${agentId}; ensure cre secrets create or .env for this agent.`);
+    }
+    const privateKey = raw.startsWith("0x") ? raw : `0x${raw}`;
+    const account = privateKeyToAccount(privateKey);
+    return { privateKey, signerAddress: account.address };
+  }
+  throw new Error('signer must be "agent" or "backend"');
+}
+function parseApproveErc20Payload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const signer = raw.signer;
+  if (signer !== "agent" && signer !== "backend") {
+    throw new Error('body.signer must be "agent" or "backend"');
+  }
+  return {
+    signer,
+    agentId: raw.agentId != null ? String(raw.agentId) : undefined,
+    token: raw.token != null ? String(raw.token) : undefined,
+    spender: String(raw.spender ?? ""),
+    amount: String(raw.amount ?? "0")
+  };
+}
+function parseApproveConditionalTokenPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const signer = raw.signer;
+  if (signer !== "agent" && signer !== "backend") {
+    throw new Error('body.signer must be "agent" or "backend"');
+  }
+  return {
+    signer,
+    agentId: raw.agentId != null ? String(raw.agentId) : undefined,
+    conditionalTokens: raw.conditionalTokens != null ? String(raw.conditionalTokens) : undefined,
+    operator: String(raw.operator ?? ""),
+    approved: raw.approved !== false
+  };
+}
+async function handleApproveErc20(runtime2, payload) {
+  runtime2.log("CRE Workflow: HTTP Trigger - Approve ERC20");
+  const config2 = runtime2.config;
+  const contracts = config2?.contracts;
+  if (!contracts) {
+    throw new Error("Missing config.contracts for approve workflows");
+  }
+  const body = parseApproveErc20Payload(payload.input);
+  if (!body.spender?.trim()) {
+    throw new Error("spender is required");
+  }
+  const tokenAddress = body.token?.trim() ? toAddress2(body.token) : contracts.contracts.usdc;
+  const spender = toAddress2(body.spender);
+  const amount = BigInt(body.amount ?? "0");
+  const { privateKey, signerAddress } = resolvePrivateKey(runtime2, body.signer, body.agentId);
+  const data = encodeFunctionData({
+    abi: ERC20_APPROVE_ABI,
+    functionName: "approve",
+    args: [spender, amount]
+  });
+  const account = privateKeyToAccount(privateKey);
+  const signedTx = await account.signTransaction({
+    to: tokenAddress,
+    data,
+    value: 0n,
+    gas: DEFAULT_GAS_LIMIT,
+    nonce: DEFAULT_NONCE,
+    chainId: contracts.chainId
+  });
+  runtime2.log(`ERC20 approve signed; signer=${signerAddress}, token=${tokenAddress}, spender=${spender}`);
+  return {
+    status: "ok",
+    result: "approveErc20",
+    signedTx,
+    signerAddress,
+    note: "Broadcast signedTx via RPC (e.g. cast send --raw <signedTx>) if needed."
+  };
+}
+async function handleApproveConditionalToken(runtime2, payload) {
+  runtime2.log("CRE Workflow: HTTP Trigger - Approve Conditional Token");
+  const config2 = runtime2.config;
+  const contracts = config2?.contracts;
+  if (!contracts) {
+    throw new Error("Missing config.contracts for approve workflows");
+  }
+  const body = parseApproveConditionalTokenPayload(payload.input);
+  if (!body.operator?.trim()) {
+    throw new Error("operator is required");
+  }
+  const ctAddress = body.conditionalTokens?.trim() ? toAddress2(body.conditionalTokens) : contracts.contracts.conditionalTokens;
+  const operator = toAddress2(body.operator);
+  const { privateKey, signerAddress } = resolvePrivateKey(runtime2, body.signer, body.agentId);
+  const data = encodeFunctionData({
+    abi: CTF_ABI,
+    functionName: "setApprovalForAll",
+    args: [operator, body.approved]
+  });
+  const account = privateKeyToAccount(privateKey);
+  const signedTx = await account.signTransaction({
+    to: ctAddress,
+    data,
+    value: 0n,
+    gas: DEFAULT_GAS_LIMIT,
+    nonce: DEFAULT_NONCE,
+    chainId: contracts.chainId
+  });
+  runtime2.log(`Conditional token setApprovalForAll signed; signer=${signerAddress}, operator=${operator}, approved=${body.approved}`);
+  return {
+    status: "ok",
+    result: "approveConditionalToken",
+    signedTx,
+    signerAddress,
+    note: "Broadcast signedTx via RPC (e.g. cast send --raw <signedTx>) if needed."
+  };
 }
 var onCronTrigger = (runtime2) => {
   return handlePlatformCron(runtime2);
@@ -25561,8 +27273,23 @@ var onHTTPTrigger = async (runtime2, payload) => {
   if (action === "seed") {
     return handleSeedLiquidity(runtime2, payload);
   }
-  runtime2.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'.");
-  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'");
+  if (action === "resolveMarket") {
+    return handleResolveMarket(runtime2, payload);
+  }
+  if (action === "stake") {
+    return handleStake(runtime2, payload);
+  }
+  if (action === "redeem") {
+    return handleRedeem(runtime2, payload);
+  }
+  if (action === "approveErc20") {
+    return await handleApproveErc20(runtime2, payload);
+  }
+  if (action === "approveConditionalToken") {
+    return await handleApproveConditionalToken(runtime2, payload);
+  }
+  runtime2.log("HTTP action must be one of: quote, order, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken.");
+  throw new Error("Missing or invalid body.action");
 };
 var initWorkflow = (config2) => {
   const cron = new CronCapability;

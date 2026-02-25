@@ -6,13 +6,13 @@
  * - quote | order: Signed LMSR quote for PredictionVault.executeTrade (sync EIP-712 sign).
  * - lmsrPricing: DON computes LMSR cost from on-chain q, signs quote (dual-signature relayer).
  * - createAgentKey: Generate agent wallet in enclave (sync, no ethers), return address only.
- * - createMarket: Sub0.create(Market). Optional amountUsdc + creatorAddress run seed workflow after create.
- * - getMarket: Read market by questionId (payload.questionId). Returns market fields.
- * - seed: PredictionVault.seedMarketLiquidity(questionId, amountUsdc).
+ * - createMarket: Sub0 CRE 0x00. getMarket: read by questionId.
+ * - seed: PredictionVault CRE 0x01. resolveMarket, stake, redeem: Sub0 CRE 0x01–0x03.
+ * - approveErc20, approveConditionalToken: sign with agent or backend key; return signed tx for broadcast.
  *
  * executeConfidentialTrade remains standalone (async signing); use executeConfidentialTrade.ts.
  *
- * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed).
+ * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed | resolveMarket | stake | redeem | approveErc20 | approveConditionalToken).
  */
 
 import { CronCapability, HTTPCapability, handler, Runner, type Runtime } from "@chainlink/cre-sdk";
@@ -21,7 +21,16 @@ import { verifyApiKey } from "./lib/httpMiddleware";
 import { handleQuoteSigning } from "./workflows/quoteSigning";
 import { handleLmsrPricing } from "./workflows/lmsrPricing";
 import { handleCreateAgentKey } from "./workflows/createAgentKey";
-import { handleCreateMarket, handleGetMarket, handleSeedLiquidity, handlePlatformCron } from "./workflows/platformActions";
+import {
+  handleCreateMarket,
+  handleGetMarket,
+  handleSeedLiquidity,
+  handleResolveMarket,
+  handleStake,
+  handleRedeem,
+  handlePlatformCron,
+} from "./workflows/platformActions";
+import { handleApproveErc20, handleApproveConditionalToken } from "./workflows/approveWorkflows";
 
 const onCronTrigger = (runtime: Runtime<WorkflowConfig>): string => {
   return handlePlatformCron(runtime);
@@ -64,9 +73,24 @@ const onHTTPTrigger = async (
   if (action === "seed") {
     return handleSeedLiquidity(runtime, payload);
   }
+  if (action === "resolveMarket") {
+    return handleResolveMarket(runtime, payload);
+  }
+  if (action === "stake") {
+    return handleStake(runtime, payload);
+  }
+  if (action === "redeem") {
+    return handleRedeem(runtime, payload);
+  }
+  if (action === "approveErc20") {
+    return (await handleApproveErc20(runtime, payload)) as unknown as HttpResult;
+  }
+  if (action === "approveConditionalToken") {
+    return (await handleApproveConditionalToken(runtime, payload)) as unknown as HttpResult;
+  }
 
-  runtime.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'.");
-  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'getMarket', or 'seed'");
+  runtime.log("HTTP action must be one of: quote, order, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken.");
+  throw new Error("Missing or invalid body.action");
 };
 
 const initWorkflow = (config: WorkflowConfig) => {

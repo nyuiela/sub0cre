@@ -7,14 +7,13 @@ import type { Runtime } from "@chainlink/cre-sdk";
 import Decimal from "decimal.js";
 import type { ChainContractConfig } from "../types/contracts";
 import type { LmsrPricingRequestPayload, LmsrPricingResponse } from "../types/lmsr";
-import { getMarket } from "../lib/sub0";
+import { getMarket, ensureQuestionIdBytes32 } from "../lib/sub0";
 import { getVaultBalanceForOutcome } from "../lib/ctf";
 import { signLMSRQuote, getNonceUsed } from "../lib/predictionVault";
 import { costToBuy, costToUsdcUnits } from "../lib/lmsrMath";
 
-const DON_SIGNER_NAMESPACE = "sub0";
-const DON_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 const DEFAULT_DEADLINE_SECONDS = 900;
+const DON_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 
 export function parseLmsrPayload(input: Uint8Array): LmsrPricingRequestPayload {
   const text = new TextDecoder().decode(input);
@@ -27,12 +26,6 @@ export function parseLmsrPayload(input: Uint8Array): LmsrPricingRequestPayload {
   };
 }
 
-function ensureQuestionId(marketId: string): `0x${string}` {
-  const s = marketId.trim();
-  if (s.startsWith("0x") && s.length === 66) return s as `0x${string}`;
-  if (s.length === 64) return (`0x${s}` as `0x${string}`);
-  throw new Error("Invalid marketId: expected 32-byte hex (64 or 66 chars)");
-}
 
 function randomNonce(): bigint {
   const buf = new Uint8Array(32);
@@ -65,10 +58,10 @@ export async function handleLmsrPricing(
   if (!body.marketId) throw new Error("Missing body.marketId");
   if (!body.quantity || body.quantity === "0") throw new Error("Missing or zero body.quantity");
 
-  const questionId = ensureQuestionId(body.marketId);
+  const questionId = ensureQuestionIdBytes32(body.marketId);
   const ctx = { runtime, config };
 
-  const market = await getMarket(ctx, questionId);
+  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
   if (market.outcomeSlotCount === 0) {
     throw new Error("Market not found or invalid");
   }
@@ -108,10 +101,10 @@ export async function handleLmsrPricing(
   const deadlineSeconds = runtime.config?.deadlineSeconds ?? DEFAULT_DEADLINE_SECONDS;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
 
-  const secret = runtime.getSecret({ id: DON_SIGNER_ID, namespace: DON_SIGNER_NAMESPACE }).result();
+  const secret = runtime.getSecret({ id: DON_SIGNER_ID }).result();
   const privateKey = secret.value ?? "";
   if (!privateKey) {
-    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY in namespace sub0)");
+    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY)");
   }
 
   const signed = signLMSRQuote(
