@@ -27252,6 +27252,8 @@ var onHTTPTrigger = async (runtime2, payload) => {
       return {};
     }
   })();
+  const backendSignerPrivateKey = runtime2.getSecret({ id: "BACKEND_SIGNER_PRIVATE_KEY" }).result();
+  runtime2.log(`backendSignerPrivateKey: ${backendSignerPrivateKey}`);
   verifyApiKey(runtime2, body);
   const action = body.action;
   if (action === "quote" || action === "order") {
