@@ -1,7 +1,7 @@
 {
   "schedule": "*/30 * * * * *",
   "contracts": {
-    "chainId": 84532,
+    "chainId": 11155111,
     "chainSelectorName": "ethereum-testnet-sepolia",
     "contracts": {
       "sub0": "0x19b16C6846b42Bd4D0Ca96eFb55B9aA66EaF55ef",

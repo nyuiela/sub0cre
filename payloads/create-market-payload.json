@@ -1,7 +1,7 @@
 {
   "action": "createMarket",
   "apiKey": "your-api-key-if-configured",
-  "question": "Will X Y A happen by 5-12-11?",
+  "question": "Will X S A S happen by 5-12-55?",
   "oracle": "0x787AA9f59509Db6Fb37EA37b1cBB7D0D71B116E6",
   "duration": 86400,
   "outcomeSlotCount": 2,

@@ -12,9 +12,9 @@ install:
 
 # Build workflow to WASM so CRE CLI can run simulate (avoids "no such file or directory" for .cre_build_tmp.wasm).
 # Run from sub0cre. Tries cre-compile; if .cre_build_tmp.wasm is missing, copies main.wasm so simulate can run.
-build-workflow:
-    cd markets && bun x cre-compile main.ts .cre_build_tmp.wasm || true
-    cd markets && test -f .cre_build_tmp.wasm || cp -f main.wasm .cre_build_tmp.wasm
+# build-workflow:
+#     cd markets && bun x cre-compile main.ts .cre_build_tmp.wasm || true
+#     cd markets && test -f .cre_build_tmp.wasm || cp -f main.wasm .cre_build_tmp.wasm
 
 # Run the interactive workflow simulation (build-workflow recommended first if simulate fails)
 sim:
@@ -22,7 +22,6 @@ sim:
 
 # Simulate Market Creation (dry run; response uses payload data when chain read is stale). Payload path relative to sub0cre.
 sim-create *args:
-    just build-workflow
     cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/create-market-payload.json --target {{TARGET}} {{args}}
 
 # Create market and actually send txs to the deployed contract (requires CRE_ETH_PRIVATE_KEY and --broadcast).
@@ -47,7 +46,6 @@ sim-redeem *args:
 
 # Simulate Liquidity Seeding (append --broadcast to execute on-chain)
 sim-seed *args:
-    just build-workflow
     cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/seed-payload.json --target {{TARGET}} {{args}}
 
 # Simulate Quote signing (DON signs LMSR quote; use same questionId as created market)
@@ -72,17 +70,14 @@ sim-create-agent-key *args:
 
 # Simulate LMSR Pricing Engine (DON computes cost and signs quote)
 sim-lmsr *args:
-    just build-workflow
     cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/lmsr-pricing-payload.json --target {{TARGET}} {{args}}
 
 # Simulate Confidential Compute Trade Execution (standalone workflow)
 sim-confidential *args:
-    just build-workflow
     cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/execute-confidential-trade-payload.json --target {{TARGET}} {{args}}
 
 # Run agent market creation: fetch from backend, create each on-chain, callback onchain-created (requires backend running and BACKEND_API_KEY in secrets).
 sim-create-markets-from-backend *args:
-    just build-workflow
     cre workflow simulate markets --non-interactive --trigger-index 1 --http-payload @../payloads/create-markets-from-backend-payload.json --target {{TARGET}} {{args}}
 
 # Simulate ERC20 approve (signer: backend or agent; returns signed tx for broadcast)
