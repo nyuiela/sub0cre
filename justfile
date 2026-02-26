@@ -107,3 +107,12 @@ activate:
 # Helper: Authenticate with the CRE CLI
 login:
     cre login
+
+
+docker:
+  docker run --rm --name sub0cre-gateway -p 8080:8080 \
+  --add-host=host.docker.internal:host-gateway \
+  -e CRE_TARGET=docker-settings \
+  -e INFISICAL_TOKEN="st.7d11119f-45f6-4ec6-bd97-170b52ce5aee.da6f5dbd8fcdcdd3997e72ac36aee4fe.3f743af3cbd3f5e11b7dadaa097b808c" \
+  -v "$HOME/.cre:/root/.cre" \
+  sub0cre-gateway
