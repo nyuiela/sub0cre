@@ -1,7 +1,8 @@
 /**
  * Approve workflows: ERC20 approve and conditional token setApprovalForAll.
- * Sign with agent key (agent-keys namespace) or backend signer (BACKEND_SIGNER_PRIVATE_KEY).
- * Returns signed tx hex; broadcast via RPC (e.g. cast send --raw) when needed.
+ * Sign with agent key or backend signer (BACKEND_SIGNER_PRIVATE_KEY).
+ * CRE WASM has no fetch/setTimeout/AbortController, so the workflow only signs.
+ * When userInvoke=false the client must broadcast signedTx (e.g. cast send --raw <signedTx>).
  */
 
 import type { Runtime } from "@chainlink/cre-sdk";
@@ -14,6 +15,7 @@ import type {
   ApproveWorkflowResponse,
 } from "../types/approve";
 import { CTF_ABI } from "../lib/abis";
+
 
 const BACKEND_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 
@@ -90,6 +92,8 @@ function parseApproveErc20Payload(input: Uint8Array): ApproveErc20Payload {
     token: raw.token != null ? String(raw.token) : undefined,
     spender: String(raw.spender ?? ""),
     amount: String(raw.amount ?? "0"),
+    nonce: raw.nonce != null ? String(raw.nonce) : undefined,
+    userInvoke: raw.userInvoke !== false,
   };
 }
 
@@ -106,6 +110,8 @@ function parseApproveConditionalTokenPayload(input: Uint8Array): ApproveConditio
     conditionalTokens: raw.conditionalTokens != null ? String(raw.conditionalTokens) : undefined,
     operator: String(raw.operator ?? ""),
     approved: raw.approved !== false,
+    nonce: raw.nonce != null ? String(raw.nonce) : undefined,
+    userInvoke: raw.userInvoke !== false,
   };
 }
 
@@ -147,6 +153,7 @@ export async function handleApproveErc20(
     args: [spender, amount],
   });
 
+  const nonce = body.nonce != null && body.nonce !== "" ? BigInt(body.nonce) : DEFAULT_NONCE;
   const account = privateKeyToAccount(privateKey);
   const signedTx = await account.signTransaction({
     type: "eip1559",
@@ -154,19 +161,25 @@ export async function handleApproveErc20(
     data,
     value: 0n,
     gas: DEFAULT_GAS_LIMIT,
-    nonce: DEFAULT_NONCE,
+    nonce,
     chainId: contracts.chainId,
     maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
     maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS,
   });
 
-  runtime.log(`ERC20 approve signed; signer=${signerAddress}, token=${tokenAddress}, spender=${spender}`);
+  const broadcastRequired = !body.userInvoke;
+  runtime.log(
+    `ERC20 approve signed; signer=${signerAddress}, token=${tokenAddress}, spender=${spender}${broadcastRequired ? "; client must broadcast signedTx" : ""}`
+  );
   return {
     status: "ok",
     result: "approveErc20",
     signedTx,
     signerAddress,
-    note: "Broadcast signedTx via RPC (e.g. cast send --raw <signedTx>) if needed.",
+    broadcastRequired,
+    note: broadcastRequired
+      ? "Fetch nonce: cast nonce <signerAddress> --rpc-url <RPC_URL>. Broadcast: cast rpc eth_sendRawTransaction <signedTx> --rpc-url <RPC_URL>"
+      : "Returned signed tx for client to broadcast when ready.",
   };
 }
 
@@ -207,6 +220,7 @@ export async function handleApproveConditionalToken(
     args: [operator, body.approved],
   });
 
+  const nonce = body.nonce != null && body.nonce !== "" ? BigInt(body.nonce) : DEFAULT_NONCE;
   const account = privateKeyToAccount(privateKey);
   const signedTx = await account.signTransaction({
     type: "eip1559",
@@ -214,20 +228,24 @@ export async function handleApproveConditionalToken(
     data,
     value: 0n,
     gas: DEFAULT_GAS_LIMIT,
-    nonce: DEFAULT_NONCE,
+    nonce,
     chainId: contracts.chainId,
     maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
     maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS,
   });
 
+  const broadcastRequired = !body.userInvoke;
   runtime.log(
-    `Conditional token setApprovalForAll signed; signer=${signerAddress}, operator=${operator}, approved=${body.approved}`
+    `Conditional token setApprovalForAll signed; signer=${signerAddress}, operator=${operator}, approved=${body.approved}${broadcastRequired ? "; client must broadcast signedTx" : ""}`
   );
   return {
     status: "ok",
     result: "approveConditionalToken",
     signedTx,
     signerAddress,
-    note: "Broadcast signedTx via RPC (e.g. cast send --raw <signedTx>) if needed.",
+    broadcastRequired,
+    note: broadcastRequired
+      ? "Fetch nonce: cast nonce <signerAddress> --rpc-url <RPC_URL>. Broadcast: cast rpc eth_sendRawTransaction <signedTx> --rpc-url <RPC_URL>"
+      : "Returned signed tx for client to broadcast when ready.",
   };
 }

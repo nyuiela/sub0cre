@@ -15,6 +15,10 @@ export interface ApproveErc20Payload {
   spender: string;
   /** Allowance amount (wei string). */
   amount: string;
+  /** Transaction nonce for signer (required for broadcast; fetch with: cast nonce <signerAddress> --rpc-url <RPC_URL>). */
+  nonce?: string;
+  /** Whether to invoke the approve tx from the user (true) or from the backend (false). */
+  userInvoke: boolean;
 }
 
 export interface ApproveConditionalTokenPayload {
@@ -28,6 +32,10 @@ export interface ApproveConditionalTokenPayload {
   operator: string;
   /** Approved (true = approve, false = revoke). */
   approved: boolean;
+  /** Transaction nonce for signer (fetch with: cast nonce <signerAddress> --rpc-url <RPC_URL>). */
+  nonce?: string;
+  /** When false, workflow broadcasts the tx; when true, returns signed tx for client. */
+  userInvoke?: boolean;
 }
 
 export interface ApproveWorkflowResponse {
@@ -35,6 +43,9 @@ export interface ApproveWorkflowResponse {
   result: string;
   signedTx: string;
   signerAddress: string;
-  /** Broadcast this via RPC (e.g. cast send --raw <signedTx>) if needed. */
+  /** True when userInvoke=false; client must call eth_sendRawTransaction(signedTx). */
+  broadcastRequired?: boolean;
+  /** Set when workflow broadcast the tx (not used in CRE WASM; client broadcasts). */
+  txHash?: string;
   note?: string;
 }

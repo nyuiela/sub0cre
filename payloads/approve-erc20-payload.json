@@ -1,8 +1,9 @@
 {
   "action": "approveErc20",
-  "agentId": "my-agent-1",
   "apiKey": "your-api-key-if-configured",
+  "userInvoke": false,
   "signer": "backend",
   "spender": "0x37Ad1be17Be247854F9D4F8Af95eeEFFDe0b179E",
-  "amount": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+  "amount": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+  "nonce": "324"
 }

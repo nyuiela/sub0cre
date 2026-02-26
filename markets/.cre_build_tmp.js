@@ -28846,7 +28846,9 @@ function parseApproveErc20Payload(input) {
     agentId: raw.agentId != null ? String(raw.agentId) : undefined,
     token: raw.token != null ? String(raw.token) : undefined,
     spender: String(raw.spender ?? ""),
-    amount: String(raw.amount ?? "0")
+    amount: String(raw.amount ?? "0"),
+    nonce: raw.nonce != null ? String(raw.nonce) : undefined,
+    userInvoke: raw.userInvoke !== false
   };
 }
 function parseApproveConditionalTokenPayload(input) {
@@ -28861,7 +28863,9 @@ function parseApproveConditionalTokenPayload(input) {
     agentId: raw.agentId != null ? String(raw.agentId) : undefined,
     conditionalTokens: raw.conditionalTokens != null ? String(raw.conditionalTokens) : undefined,
     operator: String(raw.operator ?? ""),
-    approved: raw.approved !== false
+    approved: raw.approved !== false,
+    nonce: raw.nonce != null ? String(raw.nonce) : undefined,
+    userInvoke: raw.userInvoke !== false
   };
 }
 async function handleApproveErc20(runtime2, payload) {
@@ -28884,6 +28888,7 @@ async function handleApproveErc20(runtime2, payload) {
     functionName: "approve",
     args: [spender, amount]
   });
+  const nonce = body.nonce != null && body.nonce !== "" ? BigInt(body.nonce) : DEFAULT_NONCE;
   const account = privateKeyToAccount(privateKey);
   const signedTx = await account.signTransaction({
     type: "eip1559",
@@ -28891,18 +28896,20 @@ async function handleApproveErc20(runtime2, payload) {
     data,
     value: 0n,
     gas: DEFAULT_GAS_LIMIT,
-    nonce: DEFAULT_NONCE,
+    nonce,
     chainId: contracts.chainId,
     maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
     maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS
   });
-  runtime2.log(`ERC20 approve signed; signer=${signerAddress}, token=${tokenAddress}, spender=${spender}`);
+  const broadcastRequired = !body.userInvoke;
+  runtime2.log(`ERC20 approve signed; signer=${signerAddress}, token=${tokenAddress}, spender=${spender}${broadcastRequired ? "; client must broadcast signedTx" : ""}`);
   return {
     status: "ok",
     result: "approveErc20",
     signedTx,
     signerAddress,
-    note: "Broadcast signedTx via RPC (e.g. cast send --raw <signedTx>) if needed."
+    broadcastRequired,
+    note: broadcastRequired ? "Fetch nonce: cast nonce <signerAddress> --rpc-url <RPC_URL>. Broadcast: cast rpc eth_sendRawTransaction <signedTx> --rpc-url <RPC_URL>" : "Returned signed tx for client to broadcast when ready."
   };
 }
 async function handleApproveConditionalToken(runtime2, payload) {
@@ -28924,6 +28931,7 @@ async function handleApproveConditionalToken(runtime2, payload) {
     functionName: "setApprovalForAll",
     args: [operator, body.approved]
   });
+  const nonce = body.nonce != null && body.nonce !== "" ? BigInt(body.nonce) : DEFAULT_NONCE;
   const account = privateKeyToAccount(privateKey);
   const signedTx = await account.signTransaction({
     type: "eip1559",
@@ -28931,18 +28939,20 @@ async function handleApproveConditionalToken(runtime2, payload) {
     data,
     value: 0n,
     gas: DEFAULT_GAS_LIMIT,
-    nonce: DEFAULT_NONCE,
+    nonce,
     chainId: contracts.chainId,
     maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
     maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS
   });
-  runtime2.log(`Conditional token setApprovalForAll signed; signer=${signerAddress}, operator=${operator}, approved=${body.approved}`);
+  const broadcastRequired = !body.userInvoke;
+  runtime2.log(`Conditional token setApprovalForAll signed; signer=${signerAddress}, operator=${operator}, approved=${body.approved}${broadcastRequired ? "; client must broadcast signedTx" : ""}`);
   return {
     status: "ok",
     result: "approveConditionalToken",
     signedTx,
     signerAddress,
-    note: "Broadcast signedTx via RPC (e.g. cast send --raw <signedTx>) if needed."
+    broadcastRequired,
+    note: broadcastRequired ? "Fetch nonce: cast nonce <signerAddress> --rpc-url <RPC_URL>. Broadcast: cast rpc eth_sendRawTransaction <signedTx> --rpc-url <RPC_URL>" : "Returned signed tx for client to broadcast when ready."
   };
 }
 var onCronTrigger = (runtime2) => {
