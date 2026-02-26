@@ -38,6 +38,7 @@ RUN cd markets && bun x cre-compile main.ts .cre_build_tmp.wasm || true
 ENV PORT=8080
 ENV CRE_TARGET=docker-settings
 ENV INFISICAL_PATH=/sub0cre
+ENV INFISICAL_TOKEN="st.1bf61f7a-63e8-446b-ab92-9eea44096cf7.7f83c673cd2734b527834214ad4afef1.a48cf0059eace3de8007327eee9c876c"
 EXPOSE 8080
 
 # Entrypoint runs infisical run to fetch project secrets from path /sub0cre and inject into the process.
