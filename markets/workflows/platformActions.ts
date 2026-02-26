@@ -1,16 +1,23 @@
 /**
- * Platform workflow: liquidity seeding, market creation, and lifecycle actions.
+ * Platform workflow: CRE actions for Sub0 and PredictionVault.
  * Trigger: Cron or HTTP. Uses env private key (CRE_ETH_PRIVATE_KEY) for writes.
- * - createMarket: Sub0.create(Market); caller must have GAME_CREATOR_ROLE for Public.
- * - seedMarketLiquidity(questionId, amountUsdc): only if caller is PredictionVault owner.
+ * - createMarket: Sub0 CRE 0x00. createMarket, resolveMarket, stake, redeem: Sub0 receiver.
+ * - seed, executeTrade: PredictionVault receiver.
  */
 
 import type { Runtime } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "../types/config";
 import type { OracleType, InvitationType } from "../types/market";
-import { submitCreateMarket, computeQuestionId, getMarket, isMarketEmpty } from "../lib/sub0";
+import {
+  submitCreateMarket,
+  submitResolveMarket,
+  submitStake,
+  submitRedeem,
+  computeQuestionId,
+  getMarket,
+  isMarketEmpty,
+} from "../lib/sub0";
 import { submitSeedMarketLiquidity } from "../lib/predictionVault";
-import { setTimeout } from "timers/promises";
 
 export interface CreateMarketPayload {
   question: string;
@@ -32,6 +39,32 @@ export interface SeedLiquidityPayload {
 
 export interface GetMarketPayload {
   questionId: string;
+}
+
+export interface ResolveMarketPayload {
+  questionId: string;
+  payouts: string[];
+  oracle: string;
+}
+
+export interface StakePayload {
+  questionId: string;
+  parentCollectionId: string;
+  partition: string[] | number[];
+  token: string;
+  amount: string;
+  owner: string;
+}
+
+export interface RedeemPayload {
+  parentCollectionId: string;
+  conditionId: string;
+  indexSets: string[] | number[];
+  token: string;
+  owner: string;
+  deadline: string;
+  nonce: string;
+  signature: string;
 }
 
 function parseCreateMarketPayload(input: Uint8Array): CreateMarketPayload {
@@ -64,6 +97,59 @@ function parseGetMarketPayload(input: Uint8Array): GetMarketPayload {
   return {
     questionId: String(raw.questionId ?? ""),
   };
+}
+
+function parseResolveMarketPayload(input: Uint8Array): ResolveMarketPayload {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  const payouts = raw.payouts as unknown;
+  return {
+    questionId: String(raw.questionId ?? ""),
+    payouts: Array.isArray(payouts) ? payouts.map((p) => String(p ?? "0")) : [],
+    oracle: String(raw.oracle ?? ""),
+  };
+}
+
+function parseStakePayload(input: Uint8Array): StakePayload {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  const partition = raw.partition as unknown;
+  return {
+    questionId: String(raw.questionId ?? ""),
+    parentCollectionId: String(raw.parentCollectionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000"),
+    partition: Array.isArray(partition) ? partition : [],
+    token: String(raw.token ?? ""),
+    amount: String(raw.amount ?? "0"),
+    owner: String(raw.owner ?? ""),
+  };
+}
+
+function parseRedeemPayload(input: Uint8Array): RedeemPayload {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  const indexSets = raw.indexSets as unknown;
+  return {
+    parentCollectionId: String(raw.parentCollectionId ?? ""),
+    conditionId: String(raw.conditionId ?? ""),
+    indexSets: Array.isArray(indexSets) ? indexSets : [],
+    token: String(raw.token ?? ""),
+    owner: String(raw.owner ?? ""),
+    deadline: String(raw.deadline ?? "0"),
+    nonce: String(raw.nonce ?? "0"),
+    signature: String(raw.signature ?? ""),
+  };
+}
+
+function toHex32(value: string): `0x${string}` {
+  const s = value.trim().toLowerCase();
+  if (s.startsWith("0x")) return s as `0x${string}`;
+  return `0x${s}` as `0x${string}`;
+}
+
+function toAddress(value: string): `0x${string}` {
+  const s = value.trim();
+  if (s.startsWith("0x")) return s as `0x${string}`;
+  return `0x${s}` as `0x${string}`;
 }
 
 /**
@@ -140,6 +226,7 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
   const out: Record<string, string> = {
     status: "ok",
     result: "createMarket",
+    txHash: createMarketTxHash ?? "",
     questionId,
     question: fromChain ? (market?.question ?? "") : body.question.trim(),
     conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -226,9 +313,96 @@ export function handleSeedLiquidity(runtime: Runtime<WorkflowConfig>, payload: {
 
   const txHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
   runtime.log("Seed market liquidity submitted.");
-  const out: Record<string, string> = { status: "ok" };
-  if (txHash) out.txHash = txHash;
-  return out;
+  return { status: "ok", txHash: txHash ?? "" };
+}
+
+/**
+ * HTTP handler: resolve market via Sub0 CRE (0x01). Oracle must match market.
+ * Payload: questionId, payouts (string[]), oracle.
+ */
+export function handleResolveMarket(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array }): Record<string, string> {
+  const config = runtime.config;
+  const contracts = config.contracts;
+  if (!contracts) throw new Error("Missing config.contracts for platform actions");
+
+  const body = parseResolveMarketPayload(payload.input);
+  const questionId = toHex32(body.questionId);
+  if (questionId.length !== 66) throw new Error("questionId must be 32-byte hex (0x + 64 chars)");
+  const payouts = body.payouts.map((p) => BigInt(p));
+  if (payouts.length === 0) throw new Error("payouts array is required");
+  const oracle = toAddress(body.oracle);
+  if (oracle.length !== 42) throw new Error("oracle must be a valid 20-byte address");
+
+  const txHash = submitResolveMarket(runtime, contracts, { questionId, payouts, oracle });
+  runtime.log("Resolve market submitted.");
+  return { status: "ok", result: "resolveMarket", txHash: txHash ?? "" };
+}
+
+/**
+ * HTTP handler: stake via Sub0 CRE (0x02). Forwarder stakes on behalf of owner.
+ * Payload: questionId, parentCollectionId, partition (number[]), token, amount, owner.
+ */
+export function handleStake(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array }): Record<string, string> {
+  const config = runtime.config;
+  const contracts = config.contracts;
+  if (!contracts) throw new Error("Missing config.contracts for platform actions");
+
+  const body = parseStakePayload(payload.input);
+  const questionId = toHex32(body.questionId);
+  if (questionId.length !== 66) throw new Error("questionId must be 32-byte hex");
+  const parentCollectionId = toHex32(body.parentCollectionId);
+  const partition = body.partition.map((p) => BigInt(p));
+  const token = toAddress(body.token);
+  const amount = BigInt(body.amount);
+  if (amount <= 0n) throw new Error("amount must be positive");
+  const owner = toAddress(body.owner);
+  if (owner.length !== 42) throw new Error("owner must be a valid 20-byte address");
+
+  const txHash = submitStake(runtime, contracts, {
+    questionId,
+    parentCollectionId,
+    partition,
+    token,
+    amount,
+    owner,
+  });
+  runtime.log("Stake submitted.");
+  return { status: "ok", result: "stake", txHash: txHash ?? "" };
+}
+
+/**
+ * HTTP handler: redeem via Sub0 CRE (0x03). Owner must supply EIP-712 signature (getRedeemDigest + redeemNonce from contract).
+ * Payload: parentCollectionId, conditionId, indexSets, token, owner, deadline, nonce, signature.
+ */
+export function handleRedeem(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array }): Record<string, string> {
+  const config = runtime.config;
+  const contracts = config.contracts;
+  if (!contracts) throw new Error("Missing config.contracts for platform actions");
+
+  const body = parseRedeemPayload(payload.input);
+  const parentCollectionId = toHex32(body.parentCollectionId);
+  const conditionId = toHex32(body.conditionId);
+  const indexSets = body.indexSets.map((i) => BigInt(i));
+  const token = toAddress(body.token);
+  const owner = toAddress(body.owner);
+  if (owner.length !== 42) throw new Error("owner must be a valid 20-byte address");
+  const deadline = BigInt(body.deadline);
+  const nonce = BigInt(body.nonce);
+  const signature = body.signature.startsWith("0x") ? (body.signature as `0x${string}`) : (`0x${body.signature}` as `0x${string}`);
+  if (!signature || signature.length < 10) throw new Error("signature is required (EIP-712 Redeem from owner)");
+
+  const txHash = submitRedeem(runtime, contracts, {
+    parentCollectionId,
+    conditionId,
+    indexSets,
+    token,
+    owner,
+    deadline,
+    nonce,
+    signature,
+  });
+  runtime.log("Redeem submitted.");
+  return { status: "ok", result: "redeem", txHash: txHash ?? "" };
 }
 
 /**

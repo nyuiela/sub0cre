@@ -27,5 +27,5 @@ export function handleCreateAgentKey(
 
   runtime.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
 
-  return { address };
+  return { address, txHash: "" };
 }

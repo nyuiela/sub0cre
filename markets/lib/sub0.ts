@@ -14,16 +14,15 @@ import {
 import {
   concat,
   encodeAbiParameters,
-  encodeFunctionData,
   encodePacked,
-  getFunctionSelector,
   keccak256,
   parseAbiParameters,
-  zeroAddress,
 } from "viem";
 import type { Runtime } from "@chainlink/cre-sdk";
 import type { Sub0Market, CreateMarketParams } from "../types/market";
 import type { ChainContractConfig } from "../types/contracts";
+import type { Sub0ResolvePayload, Sub0StakePayload, Sub0RedeemPayload } from "../types/cre";
+import { SUB0_CRE_ACTION } from "../types/cre";
 import type { EvmContext } from "./evm";
 import { SUB0_ABI } from "./abis";
 import {
@@ -42,6 +41,11 @@ const RECEIVER_EXECUTION_REVERTED = 1;
 
 const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+/** Single-byte CRE action prefix (avoids number-to-hex ambiguity for 0x00). */
+function crePrefixByte(action: number): `0x${string}` {
+  return bytesToHex(new Uint8Array([action])) as `0x${string}`;
+}
 
 /** Default market when getMarket returns empty (e.g. not yet created or call reverted in sim/broadcast). */
 const EMPTY_MARKET: Sub0Market = {
@@ -64,9 +68,26 @@ export function isMarketEmpty(market: Sub0Market): boolean {
   );
 }
 
-/** ABI parameters for create(Market) tuple - matches Sub0.Market (sub0.json). Used with encodeAbiParameters like CRE bootcamp. */
+/** Ensure string is a 32-byte hex (0x + 64 hex chars). Use before passing to EIP-712 or contract calls. */
+export function ensureQuestionIdBytes32(value: string): `0x${string}` {
+  const s = typeof value === "string" ? value.trim() : "";
+  const hex = s.startsWith("0x") ? s : `0x${s}`;
+  if (hex.length !== 66 || !/^0x[0-9a-fA-F]{64}$/.test(hex)) {
+    throw new Error("questionId must be 32-byte hex (0x + 64 hex chars)");
+  }
+  return hex as `0x${string}`;
+}
+
+/** ABI parameters for create(Market) tuple - matches Sub0.Market (sub0.json). CRE report = 0x00 || abi.encode(Market). */
 const CREATE_MARKET_PARAMS = parseAbiParameters(
   "(string question, bytes32 conditionId, address oracle, address owner, uint256 createdAt, uint256 duration, uint256 outcomeSlotCount, uint8 oracleType, uint8 marketType)"
+);
+const RESOLVE_PARAMS = parseAbiParameters("bytes32 questionId, uint256[] payouts, address oracle");
+const STAKE_PARAMS = parseAbiParameters(
+  "bytes32 questionId, bytes32 parentCollectionId, uint256[] partition, address token, uint256 amount, address owner"
+);
+const REDEEM_PARAMS = parseAbiParameters(
+  "bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets, address token, address owner, uint256 deadline, uint256 nonce, bytes signature"
 );
 
 export interface GetMarketOptions {
@@ -98,18 +119,22 @@ export async function getMarket(
   if (hexData === "0x" || hexData === "0x0") {
     return EMPTY_MARKET;
   }
-  const m = decodeCallResult<Sub0Market>(SUB0_ABI, "getMarket", reply.data);
-  return {
-    question: m.question,
-    conditionId: m.conditionId,
-    oracle: m.oracle,
-    owner: m.owner,
-    createdAt: m.createdAt,
-    duration: m.duration,
-    outcomeSlotCount: Number(m.outcomeSlotCount),
-    oracleType: m.oracleType,
-    marketType: m.marketType,
-  };
+  try {
+    const m = decodeCallResult<Sub0Market>(SUB0_ABI, "getMarket", reply.data);
+    return {
+      question: m.question,
+      conditionId: m.conditionId,
+      oracle: m.oracle,
+      owner: m.owner,
+      createdAt: m.createdAt,
+      duration: m.duration,
+      outcomeSlotCount: Number(m.outcomeSlotCount),
+      oracleType: m.oracleType,
+      marketType: m.marketType,
+    };
+  } catch {
+    return EMPTY_MARKET;
+  }
 }
 
 export function getPredictionVaultAddress(ctx: EvmContext): `0x${string}` {
@@ -149,7 +174,7 @@ export function getVaultAddress(ctx: EvmContext): `0x${string}` {
 }
 
 /**
- * Encode Sub0.create(Market) call. Uses encodeAbiParameters (CRE bootcamp style); prepends function selector so forwarder receives full calldata.
+ * Encode Sub0 CRE create report. Per cre.contract.md: report = 0x00 || abi.encode(Market).
  * conditionId, owner, createdAt are placeholders; contract sets them.
  */
 export function encodeCreateMarket(params: CreateMarketParams): `0x${string}` {
@@ -164,14 +189,46 @@ export function encodeCreateMarket(params: CreateMarketParams): `0x${string}` {
     oracleType: params.oracleType,
     marketType: params.marketType,
   };
+  const payload = encodeAbiParameters(CREATE_MARKET_PARAMS, [marketTuple]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.CREATE), payload]);
+}
 
-  // ✅ THE ALTERNATIVE FIX: Let viem do the heavy lifting
-  // return encodeFunctionData({
-  //   abi: SUB0_ABI,
-  //   functionName: "create",
-  //   args: [marketTuple],
-  // });
-  return encodeAbiParameters(CREATE_MARKET_PARAMS, [marketTuple]);
+/** Encode Sub0 CRE resolve report: 0x01 || abi.encode(questionId, payouts, oracle). */
+export function encodeSub0ReportResolve(payload: Sub0ResolvePayload): `0x${string}` {
+  const encoded = encodeAbiParameters(RESOLVE_PARAMS, [
+    payload.questionId,
+    [...payload.payouts],
+    payload.oracle,
+  ]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.RESOLVE), encoded]);
+}
+
+/** Encode Sub0 CRE stake report: 0x02 || abi.encode(questionId, parentCollectionId, partition, token, amount, owner). */
+export function encodeSub0ReportStake(payload: Sub0StakePayload): `0x${string}` {
+  const encoded = encodeAbiParameters(STAKE_PARAMS, [
+    payload.questionId,
+    payload.parentCollectionId,
+    [...payload.partition],
+    payload.token,
+    payload.amount,
+    payload.owner,
+  ]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.STAKE), encoded]);
+}
+
+/** Encode Sub0 CRE redeem report: 0x03 || abi.encode(parentCollectionId, conditionId, indexSets, token, owner, deadline, nonce, signature). */
+export function encodeSub0ReportRedeem(payload: Sub0RedeemPayload): `0x${string}` {
+  const encoded = encodeAbiParameters(REDEEM_PARAMS, [
+    payload.parentCollectionId,
+    payload.conditionId,
+    [...payload.indexSets],
+    payload.token,
+    payload.owner,
+    payload.deadline,
+    payload.nonce,
+    payload.signature,
+  ]);
+  return concat([crePrefixByte(SUB0_CRE_ACTION.REDEEM), encoded]);
 }
 
 /**
@@ -198,16 +255,23 @@ function blockExplorerTxUrl(chainSelectorName: string, txHash: string): string {
   return `https://etherscan.io/tx/${txHash}`;
 }
 
+
+// function blockExplorerTxUrl(chainSelectorName: string, txHash: string): string {
+//   if (chainSelectorName === "ethereum-testnet-sepolia-base-1") {
+//     return `https://sepolia.basescan.org/tx/${txHash}`;
+//   }
+//   return `https://etherscan.io/tx/${txHash}`;
+// }
+
 /**
- * Submit create(Market) onchain via CRE report. Platform only: uses env private key (must have GAME_CREATOR_ROLE for Public markets).
- * Matches Chainlink CRE bootcamp pattern: report (encodedPayload/evm) + writeReport (receiver, gasConfig). Step logs align with bootcamp for debugging.
- * Note: The reporter (forwarder) tx can succeed even when the inner Sub0.create call reverts. We check receiverContractExecutionStatus when set;
- * the createMarket workflow also verifies the market exists after write (getMarket + retry) and throws if not found.
+ * Write a Sub0 CRE report onchain. Shared by create, resolve, stake, redeem.
+ * Receiver is Sub0; report = prefix (1 byte) + abi.encode(payload) per cre.contract.md.
  */
-export function submitCreateMarket(
+export function writeSub0Report(
   runtime: Runtime<unknown>,
   config: ChainContractConfig,
-  params: CreateMarketParams
+  hexPayload: `0x${string}`,
+  label: string
 ): string {
   const gasLimit = config.gasLimit ?? DEFAULT_GAS_LIMIT;
   const receiverAddress = config.contracts.sub0.startsWith("0x")
@@ -215,27 +279,18 @@ export function submitCreateMarket(
     : (`0x${config.contracts.sub0}` as `0x${string}`);
 
   runtime.log(`Writing report to Sub0 consumer: ${receiverAddress}`);
-  runtime.log(
-    `Writing report to consumer contract - question: ${params.question}, oracle: ${params.oracle}, duration: ${params.duration}`
-  );
+  // runtime.log(
+  //   `Writing report to consumer contract - question: ${params.question}, oracle: ${params.oracle}, duration: ${params.duration}`
+  // );
 
-  runtime.log("[Step 1] Encoding create(Market) calldata...");
-  const hexPayload = encodeCreateMarket(params);
-  runtime.log(`[Step 1] Calldata length: ${hexPayload.length} chars (0x prefix + selector + args)`);
-
-  runtime.log("[Step 2] Resolving network and EVM client...");
   const network = getNetwork({
     chainFamily: "evm",
     chainSelectorName: config.chainSelectorName,
     isTestnet: true,
   });
-  if (!network) {
-    throw new Error(`Network not found: ${config.chainSelectorName}`);
-  }
+  if (!network) throw new Error(`Network not found: ${config.chainSelectorName}`);
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
-  runtime.log(`[Step 2] Chain: ${config.chainSelectorName}, receiver (Sub0): ${receiverAddress}`);
 
-  runtime.log("[Step 3] Generating signed CRE report (evm encoder, ecdsa, keccak256)...");
   const reportResponse = runtime
     .report({
       encodedPayload: hexToBase64(hexPayload),
@@ -244,9 +299,7 @@ export function submitCreateMarket(
       hashingAlgo: "keccak256",
     })
     .result();
-  runtime.log("[Step 3] Report generated.");
 
-  runtime.log(`[Step 4] Writing report to contract (writeReport), gasLimit: ${DEFAULT_WRITE_GAS_LIMIT}...`);
   const writeResult = evmClient
     .writeReport(runtime, {
       receiver: receiverAddress,
@@ -255,27 +308,62 @@ export function submitCreateMarket(
     })
     .result();
 
-  runtime.log(
-    `[Step 5] writeReport returned txStatus=${writeResult.txStatus}, receiverStatus=${writeResult.receiverContractExecutionStatus ?? "undefined"}, hasTxHash=${writeResult.txHash != null && writeResult.txHash.length > 0}`
-  );
-
   if (writeResult.txStatus !== TxStatus.SUCCESS) {
-    throw new Error(
-      `Create market transaction failed with status: ${writeResult.txStatus}`
-    );
+    throw new Error(`${label}: transaction failed with status: ${writeResult.txStatus}`);
   }
   if (writeResult.receiverContractExecutionStatus === RECEIVER_EXECUTION_REVERTED) {
-    throw new Error(
-      "Create market: forwarder tx succeeded but Sub0 contract reverted. Check role (GAME_CREATOR_ROLE) and calldata."
-    );
+    throw new Error(`${label}: forwarder tx succeeded but Sub0 reverted. Check params and roles.`);
   }
   const rawHash = writeResult.txHash;
-  const txHash =
-    rawHash != null && rawHash.length > 0
-      ? typeof rawHash === "string"
-        ? rawHash
-        : bytesToHex(rawHash)
-      : bytesToHex(new Uint8Array(32));
-  runtime.log(`[Step 6] Done. txHash: ${txHash}`);
-  return txHash;
+  if (rawHash != null && rawHash.length > 0) {
+    return typeof rawHash === "string" ? rawHash : bytesToHex(rawHash);
+  }
+  runtime.log(
+    `${label}: no txHash returned (simulate without --broadcast skips chain write; use broadcast: true in trigger or cre workflow simulate --broadcast for real tx hash).`
+  );
+  return "";
+}
+
+/**
+ * Submit create(Market) onchain via CRE report. Per cre.contract.md: report = 0x00 || abi.encode(Market).
+ * Platform only: uses env private key (must have GAME_CREATOR_ROLE for Public markets).
+ */
+export function submitCreateMarket(
+  runtime: Runtime<unknown>,
+  config: ChainContractConfig,
+  params: CreateMarketParams
+): string {
+  const hexPayload = encodeCreateMarket(params);
+  runtime.log(`[Create] CRE report built: prefix 0x00 + abi.encode(Market), total ${(hexPayload.length - 2) / 2} bytes`);
+  return writeSub0Report(runtime, config, hexPayload, "Create market");
+}
+
+/** Submit Sub0 resolve via CRE report (0x01 || abi.encode(questionId, payouts, oracle)). Oracle must match market. */
+export function submitResolveMarket(
+  runtime: Runtime<unknown>,
+  config: ChainContractConfig,
+  payload: Sub0ResolvePayload
+): string {
+  const hexPayload = encodeSub0ReportResolve(payload);
+  return writeSub0Report(runtime, config, hexPayload, "Resolve market");
+}
+
+/** Submit Sub0 stake via CRE report (0x02 || abi.encode(...)). */
+export function submitStake(
+  runtime: Runtime<unknown>,
+  config: ChainContractConfig,
+  payload: Sub0StakePayload
+): string {
+  const hexPayload = encodeSub0ReportStake(payload);
+  return writeSub0Report(runtime, config, hexPayload, "Stake");
+}
+
+/** Submit Sub0 redeem via CRE report (0x03 || abi.encode(...)). Owner must have signed EIP-712 Redeem. */
+export function submitRedeem(
+  runtime: Runtime<unknown>,
+  config: ChainContractConfig,
+  payload: Sub0RedeemPayload
+): string {
+  const hexPayload = encodeSub0ReportRedeem(payload);
+  return writeSub0Report(runtime, config, hexPayload, "Redeem");
 }

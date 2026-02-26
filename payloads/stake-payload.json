@@ -1,0 +1,10 @@
+{
+  "action": "stake",
+  "apiKey": "your-api-key-if-configured",
+  "questionId": "0x3e523bdeaeef92d3e289282b4994e74877c25793fb92ac3fbfe796d47c643394",
+  "parentCollectionId": "0xf0d07e88beb74182e10db5b68fd7da34ca1c940197b442ef32349959c97eeb4a",
+  "partition": [1, 2],
+  "token": "0x0ecdaB3BfcA91222b162A624D893bF49ec16ddBE",
+  "amount": "1000000",
+  "owner": "0xf0830060f836B8d54bF02049E5905F619487989e"
+}

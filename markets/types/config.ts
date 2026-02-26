@@ -12,7 +12,12 @@ export interface WorkflowConfig {
   backendUrl?: string;
   /** Secret id for backend API key (namespace sub0). If unset, backend may 401. */
   backendApiKeySecretId?: string;
+  /**
+   * When true (e.g. docker-settings), use getSecret + plain fetch for backend calls instead of Confidential HTTP.
+   * Use only for simulate/Docker where the DON vault template may not be resolved.
+   */
+  backendUsePlainAuth?: boolean;
+  /** No-auth CRE endpoints. When set, workflow calls these and does not send API key. */
+  backendAgentMarketsPath?: string;
+  backendOnchainCreatedPath?: string;
 }
-
-export const BACKEND_SIGNER_SECRET_NAMESPACE = "sub0";
-export const BACKEND_SIGNER_SECRET_ID = "BACKEND_SIGNER_PRIVATE_KEY";

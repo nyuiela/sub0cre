@@ -1,7 +1,10 @@
 {
   "schedule": "*/30 * * * * *",
-  "backendUrl": "http://localhost:4000",
+  "backendUrl": "http://host.docker.internal:4000",
   "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": true,
+  "backendAgentMarketsPath": "/api/cre/agent-markets",
+  "backendOnchainCreatedPath": "/api/cre/markets/onchain-created",
   "contracts": {
     "chainId": 84532,
     "chainSelectorName": "ethereum-testnet-sepolia",

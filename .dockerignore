@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+node_modules
+markets/node_modules
+*.log
+.cre_build_tmp.js
+.cre_build_tmp.wasm
+md
+*.md
+!README.md

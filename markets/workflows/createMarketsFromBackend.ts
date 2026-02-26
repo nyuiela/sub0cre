@@ -1,7 +1,8 @@
 /**
  * Fetches agent-generated market payloads from the backend, creates each on-chain via Sub0,
  * then calls the backend onchain-created callback with questionId, txHash, and agentSource.
- * Trigger: HTTP action "createMarketsFromBackend". Uses Confidential HTTP: API key injected from vault only.
+ * Trigger: HTTP action "createMarketsFromBackend". When the backend sends body.apiKey (same as
+ * backend API_KEY), we use it for backend requests so no vault/getSecret is required.
  */
 
 import type { Runtime } from "@chainlink/cre-sdk";
@@ -9,9 +10,10 @@ import type { WorkflowConfig } from "../types/config";
 import { sendConfidentialBackendRequest } from "../lib/confidentialHttp";
 import { handleCreateMarket } from "./platformActions";
 
-const AGENT_MARKETS_PATH = "/api/internal/agent-markets";
-const ONCHAIN_CREATED_PATH = "/api/internal/markets/onchain-created";
-const DEFAULT_COUNT = 10;
+const DEFAULT_AGENT_MARKETS_PATH = "/api/internal/agent-markets";
+const DEFAULT_ONCHAIN_CREATED_PATH = "/api/internal/markets/onchain-created";
+/** Max markets per run: CRE simulator allows 5 HTTP calls (1 GET + N POSTs), so N <= 4. */
+const DEFAULT_COUNT = 4;
 
 interface BackendMarketPayload {
   action?: string;
@@ -26,8 +28,15 @@ interface BackendMarketPayload {
   amountUsdc?: string;
 }
 
+/** Optional trigger payload; apiKey is sent by the backend and used for backend internal routes. */
+export interface CreateMarketsFromBackendPayload {
+  action?: string;
+  apiKey?: string;
+}
+
 export async function handleCreateMarketsFromBackend(
-  runtime: Runtime<WorkflowConfig>
+  runtime: Runtime<WorkflowConfig>,
+  payload?: CreateMarketsFromBackendPayload
 ): Promise<Record<string, string>> {
   const config = runtime.config;
   const backendUrl = config.backendUrl?.trim();
@@ -38,13 +47,21 @@ export async function handleCreateMarketsFromBackend(
     throw new Error("createMarketsFromBackend requires config.contracts");
   }
 
-  const getUrl = `${backendUrl.replace(/\/$/, "")}${AGENT_MARKETS_PATH}?count=${DEFAULT_COUNT}`;
-  runtime.log("Fetching agent markets (confidential HTTP).");
+  const agentMarketsPath = config.backendAgentMarketsPath?.trim() ?? DEFAULT_AGENT_MARKETS_PATH;
+  const onchainCreatedPath = config.backendOnchainCreatedPath?.trim() ?? DEFAULT_ONCHAIN_CREATED_PATH;
+  const useNoAuthCrePaths = agentMarketsPath.includes("/api/cre/");
+  const backendApiKey = useNoAuthCrePaths ? "" : (payload?.apiKey?.trim() ?? "");
 
-  const getRes = sendConfidentialBackendRequest(runtime, {
+  const getUrl = `${backendUrl.replace(/\/$/, "")}${agentMarketsPath}?count=${DEFAULT_COUNT}`;
+  const requestOptions = {
     url: getUrl,
-    method: "GET",
-  });
+    method: "GET" as const,
+    ...(useNoAuthCrePaths ? { noAuth: true } : backendApiKey ? { apiKey: backendApiKey } : {}),
+  };
+
+  runtime.log(useNoAuthCrePaths ? "Fetching agent markets (no-auth CRE endpoint)." : "Fetching agent markets (confidential HTTP).");
+
+  const getRes = sendConfidentialBackendRequest(runtime, requestOptions);
 
   if (getRes.statusCode < 200 || getRes.statusCode >= 300) {
     const bodyText = new TextDecoder().decode(getRes.body);
@@ -68,7 +85,7 @@ export async function handleCreateMarketsFromBackend(
   runtime.log(`Creating ${data.length} markets on-chain and notifying backend.`);
   let created = 0;
   let errors = 0;
-  const postUrl = `${backendUrl.replace(/\/$/, "")}${ONCHAIN_CREATED_PATH}`;
+  const postUrl = `${backendUrl.replace(/\/$/, "")}${onchainCreatedPath}`;
 
   for (let i = 0; i < data.length; i++) {
     const payload = data[i];
@@ -101,6 +118,7 @@ export async function handleCreateMarketsFromBackend(
         url: postUrl,
         method: "POST",
         body: new TextEncoder().encode(JSON.stringify(callbackBody)),
+        ...(useNoAuthCrePaths ? { noAuth: true } : backendApiKey ? { apiKey: backendApiKey } : {}),
       });
       if (postRes.statusCode >= 200 && postRes.statusCode < 300) {
         created++;

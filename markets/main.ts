@@ -1,31 +1,39 @@
 /**
- * Sub0 CRE workflows: agent (quote/order), LMSR pricing, create agent key, platform (create market, seed), settlement.
- *
- * SIMULATE: Depends on trigger. Cron simulate runs settlement for due markets (backendUrl + agentSettlementReceiver required).
- * HTTP simulate requires body.action + action-specific payload; no automatic AI market creation unless you send action "createMarketsFromBackend".
- *
- * HTTP actions:
- * - createMarketsFromBackend: Fetches AI-generated markets from backend, creates each on-chain via Sub0, then POSTs to backend
- *   /api/internal/markets/onchain-created (stores market in DB). This is the flow that triggers AI market creation + DB storage.
- * - runSettlement: Body { marketId, questionId }. Runs backend deliberation, writes resolution to AgentSettlementReceiver, then
- *   POSTs /api/internal/settlement/resolved so backend sets market status to CLOSED.
- * - quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed: see below.
- *
- * Cron: Fetches GET /api/internal/settlement/due, then for each market runs runSettlement (deliberation + writeReport + resolved).
- *
- * - quote | order: Signed LMSR quote for PredictionVault.executeTrade.
- * - createMarket: Sub0.create(Market). getMarket, seed: read market / seed liquidity.
+ * Sub0 CRE workflows: agent (quote/order), LMSR pricing, create agent key, platform (create market, seed).
  *
  * HTTP trigger: require body.apiKey when secret HTTP_API_KEY (namespace sub0) is set.
+ *
+ * - quote | order: Signed LMSR quote for PredictionVault.executeTrade (sync EIP-712 sign).
+ * - lmsrPricing: DON computes LMSR cost from on-chain q, signs quote (dual-signature relayer).
+ * - createAgentKey: Generate agent wallet in enclave (sync, no ethers), return address only.
+ * - createMarket: Sub0 CRE 0x00. getMarket: read by questionId.
+ * - seed: PredictionVault CRE 0x01. resolveMarket, stake, redeem: Sub0 CRE 0x01–0x03.
+ * - approveErc20, approveConditionalToken: sign with agent or backend key; return signed tx for broadcast.
+ * - createMarketsFromBackend: fetch agent markets from backend, create on-chain, POST onchain-created.
+ * - runSettlement: body { marketId, questionId }; deliberation + writeReport + POST resolved.
+ *
+ * executeConfidentialTrade remains standalone (async signing); use executeConfidentialTrade.ts.
+ *
+ * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed | resolveMarket | stake | redeem | approveErc20 | approveConditionalToken | createMarketsFromBackend | runSettlement).
  */
 
 import { CronCapability, HTTPCapability, handler, Runner, type Runtime } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "./types/config";
+import { workflowConfigSchema } from "./lib/configSchema";
 import { verifyApiKey } from "./lib/httpMiddleware";
 import { handleQuoteSigning } from "./workflows/quoteSigning";
 import { handleLmsrPricing } from "./workflows/lmsrPricing";
 import { handleCreateAgentKey } from "./workflows/createAgentKey";
-import { handleCreateMarket, handleGetMarket, handleSeedLiquidity, handlePlatformCron } from "./workflows/platformActions";
+import {
+  handleCreateMarket,
+  handleGetMarket,
+  handleSeedLiquidity,
+  handleResolveMarket,
+  handleStake,
+  handleRedeem,
+  handlePlatformCron,
+} from "./workflows/platformActions";
+import { handleApproveErc20, handleApproveConditionalToken } from "./workflows/approveWorkflows";
 import { handleCreateMarketsFromBackend } from "./workflows/createMarketsFromBackend";
 import { handleRunSettlement } from "./workflows/runSettlement";
 
@@ -70,18 +78,42 @@ const onHTTPTrigger = async (
   if (action === "seed") {
     return handleSeedLiquidity(runtime, payload);
   }
+  if (action === "resolveMarket") {
+    return handleResolveMarket(runtime, payload);
+  }
+  if (action === "stake") {
+    return handleStake(runtime, payload);
+  }
+  if (action === "redeem") {
+    return handleRedeem(runtime, payload);
+  }
+  if (action === "approveErc20") {
+    return (await handleApproveErc20(runtime, payload)) as unknown as HttpResult;
+  }
+  if (action === "approveConditionalToken") {
+    return (await handleApproveConditionalToken(runtime, payload)) as unknown as HttpResult;
+  }
   if (action === "createMarketsFromBackend") {
-    return await handleCreateMarketsFromBackend(runtime);
+    const createPayload = {
+      action: typeof body.action === "string" ? body.action : undefined,
+      apiKey: typeof body.apiKey === "string" ? body.apiKey : undefined,
+    };
+    return (await handleCreateMarketsFromBackend(runtime, createPayload)) as unknown as HttpResult;
   }
   if (action === "runSettlement") {
-    return await handleRunSettlement(runtime, payload);
+    return (await handleRunSettlement(runtime, payload)) as unknown as HttpResult;
   }
 
-  runtime.log("HTTP action must be 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'seed', 'getMarket', 'createMarketsFromBackend', or 'runSettlement'.");
-  throw new Error("Missing or invalid body.action: use 'quote', 'order', 'lmsrPricing', 'createAgentKey', 'createMarket', 'seed', 'getMarket', 'createMarketsFromBackend', or 'runSettlement'");
+  runtime.log(
+    "HTTP action must be one of: quote, order, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement."
+  );
+  throw new Error("Missing or invalid body.action");
 };
 
-const initWorkflow = (config: WorkflowConfig) => {
+const initWorkflow = (
+  config: WorkflowConfig,
+  _secretsProvider: { getSecret: (args: { id: string }) => { result: () => { value?: string } } }
+) => {
   const cron = new CronCapability();
   const http = new HTTPCapability();
 
@@ -92,6 +124,8 @@ const initWorkflow = (config: WorkflowConfig) => {
 };
 
 export async function main() {
-  const runner = await Runner.newRunner<WorkflowConfig>();
+  const runner = await Runner.newRunner<WorkflowConfig>({
+    configSchema: workflowConfigSchema as never,
+  });
   await runner.run(initWorkflow);
 }

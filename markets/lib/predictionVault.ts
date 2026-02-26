@@ -1,18 +1,22 @@
 /**
- * PredictionVault: read-only views and EIP-712 quote signing (agent).
- * Platform write: encodeSeedMarketLiquidity for runtime.report(writeReport).
+ * PredictionVault: read-only views, EIP-712 quote signing, and CRE report writes.
+ * Per cre.contract.md: report = prefix (1 byte) + abi.encode(payload). 0x00 = execute trade, 0x01 = seed liquidity.
  */
 
 import {
   cre,
   getNetwork,
-  prepareReportRequest,
   bytesToHex,
+  hexToBase64,
+  TxStatus,
 } from "@chainlink/cre-sdk";
 import {
   type Address,
+  concat,
   decodeFunctionResult,
+  encodeAbiParameters,
   encodeFunctionData,
+  parseAbiParameters,
   zeroAddress,
   type Hex,
 } from "viem";
@@ -20,8 +24,17 @@ import type { Runtime } from "@chainlink/cre-sdk";
 import { signTypedDataSync } from "./signTypedDataSync";
 import type { ChainContractConfig } from "../types/contracts";
 import type { LMSRQuoteParams, SignedQuoteResult } from "../types/quote";
+import type { PredictionVaultExecuteTradePayload } from "../types/cre";
+import { PREDICTION_VAULT_CRE_ACTION } from "../types/cre";
 import { PREDICTION_VAULT_ABI } from "./abis";
 import { getEVMClient, callContract, decodeCallResult, buildCallData } from "./evm";
+
+const DEFAULT_WRITE_GAS_LIMIT = "500000";
+const RECEIVER_EXECUTION_REVERTED = 1;
+const EXECUTE_TRADE_PARAMS = parseAbiParameters(
+  "bytes32 questionId, uint256 outcomeIndex, bool buy, uint256 quantity, uint256 tradeCostUsdc, uint256 maxCostUsdc, uint256 nonce, uint256 deadline, address user, bytes donSignature, bytes userSignature"
+);
+const SEED_LIQUIDITY_PARAMS = parseAbiParameters("bytes32 questionId, uint256 amountUsdc");
 
 export function getConditionId(
   runtime: Runtime<unknown>,
@@ -134,8 +147,87 @@ export function signLMSRQuote(
 }
 
 /**
- * Encode executeTrade for agent/confidential write.
- * Contract signature: (questionId, outcomeIndex, buy, quantity, tradeCostUsdc, maxCostUsdc, nonce, deadline, user, donSignature, userSignature).
+ * Encode PredictionVault CRE execute trade report: 0x00 || abi.encode(...). Used by submitExecuteTrade.
+ */
+export function encodePredictionVaultReportExecuteTrade(p: PredictionVaultExecuteTradePayload): `0x${string}` {
+  const encoded = encodeAbiParameters(EXECUTE_TRADE_PARAMS, [
+    p.questionId,
+    p.outcomeIndex,
+    p.buy,
+    p.quantity,
+    p.tradeCostUsdc,
+    p.maxCostUsdc,
+    p.nonce,
+    p.deadline,
+    p.user,
+    p.donSignature as Hex,
+    p.userSignature as Hex,
+  ]);
+  return concat([`0x${PREDICTION_VAULT_CRE_ACTION.EXECUTE_TRADE.toString(16).padStart(2, "0")}` as `0x${string}`, encoded]);
+}
+
+/**
+ * Encode PredictionVault CRE seed liquidity report: 0x01 || abi.encode(questionId, amountUsdc).
+ */
+export function encodePredictionVaultReportSeedLiquidity(
+  questionId: `0x${string}`,
+  amountUsdc: bigint
+): `0x${string}` {
+  const encoded = encodeAbiParameters(SEED_LIQUIDITY_PARAMS, [questionId, amountUsdc]);
+  return concat([`0x${PREDICTION_VAULT_CRE_ACTION.SEED_LIQUIDITY.toString(16).padStart(2, "0")}` as `0x${string}`, encoded]);
+}
+
+/** Write a PredictionVault CRE report onchain. Shared by executeTrade and seedLiquidity. */
+function writePredictionVaultReport(
+  runtime: Runtime<unknown>,
+  config: ChainContractConfig,
+  hexPayload: `0x${string}`,
+  label: string
+): string {
+  const network = getNetwork({
+    chainFamily: "evm",
+    chainSelectorName: config.chainSelectorName,
+    isTestnet: true,
+  });
+  if (!network) throw new Error(`Network not found: ${config.chainSelectorName}`);
+  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
+  const receiverAddress = config.contracts.predictionVault.startsWith("0x")
+    ? config.contracts.predictionVault
+    : `0x${config.contracts.predictionVault}`;
+
+  const reportResponse = runtime
+    .report({
+      encodedPayload: hexToBase64(hexPayload),
+      encoderName: "evm",
+      signingAlgo: "ecdsa",
+      hashingAlgo: "keccak256",
+    })
+    .result();
+
+  const writeResult = evmClient
+    .writeReport(runtime, {
+      receiver: receiverAddress,
+      report: reportResponse,
+      gasConfig: { gasLimit: DEFAULT_WRITE_GAS_LIMIT },
+    })
+    .result();
+
+  if (writeResult.txStatus !== TxStatus.SUCCESS) {
+    throw new Error(`${label}: transaction failed with status: ${writeResult.txStatus}`);
+  }
+  if (writeResult.receiverContractExecutionStatus === RECEIVER_EXECUTION_REVERTED) {
+    throw new Error(`${label}: forwarder tx succeeded but PredictionVault reverted.`);
+  }
+  const rawHash = writeResult.txHash;
+  return rawHash != null && rawHash.length > 0
+    ? typeof rawHash === "string"
+      ? rawHash
+      : bytesToHex(rawHash)
+    : bytesToHex(new Uint8Array(32));
+}
+
+/**
+ * Encode executeTrade (legacy selector-based). Use encodePredictionVaultReportExecuteTrade for CRE.
  */
 export function encodeExecuteTrade(
   quote: {
@@ -172,25 +264,8 @@ export function encodeExecuteTrade(
 }
 
 /**
- * Encode seedMarketLiquidity(questionId, amountUsdc) for platform write.
- * Caller uses: evmClient.writeReport(runtime, prepareReportRequest(hexPayload)).result()
- * with CRE_ETH_PRIVATE_KEY (owner of PredictionVault).
- */
-export function encodeSeedMarketLiquidity(
-  questionId: `0x${string}`,
-  amountUsdc: bigint
-): `0x${string}` {
-  return encodeFunctionData({
-    abi: PREDICTION_VAULT_ABI,
-    functionName: "seedMarketLiquidity",
-    args: [questionId, amountUsdc],
-  });
-}
-
-/**
- * Submit seedMarketLiquidity as onchain write via CRE report.
- * Platform only: requires env private key to be PredictionVault owner.
- * Returns transaction hash when the reply includes it.
+ * Submit seedMarketLiquidity via CRE report (0x01 || abi.encode(questionId, amountUsdc)).
+ * Platform only: forwarder must be PredictionVault owner and have approved USDC.
  */
 export function submitSeedMarketLiquidity(
   runtime: Runtime<unknown>,
@@ -198,34 +273,12 @@ export function submitSeedMarketLiquidity(
   questionId: `0x${string}`,
   amountUsdc: bigint
 ): string {
-  const hexPayload = encodeSeedMarketLiquidity(questionId, amountUsdc);
-  const reportRequest = prepareReportRequest(hexPayload);
-  const network = getNetwork({
-    chainFamily: "evm",
-    chainSelectorName: config.chainSelectorName,
-    isTestnet: true,
-  });
-  if (!network) throw new Error(`Network not found: ${config.chainSelectorName}`);
-  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
-  const receiverHex = config.contracts.predictionVault.replace(/^0x/, "");
-  const receiver = new Uint8Array(20);
-  for (let i = 0; i < 20; i++) receiver[i] = parseInt(receiverHex.slice(i * 2, i * 2 + 2), 16);
-  const reply = evmClient
-    .writeReport(runtime, {
-      receiver,
-      report: runtime.report(reportRequest).result(),
-      $report: true,
-    })
-    .result();
-  if (reply.txHash != null && reply.txHash.length > 0) {
-    return typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash);
-  }
-  return "";
+  const hexPayload = encodePredictionVaultReportSeedLiquidity(questionId, amountUsdc);
+  return writePredictionVaultReport(runtime, config, hexPayload, "Seed liquidity");
 }
 
 /**
- * Submit executeTrade as onchain write via CRE report.
- * Contract expects: user (trader), donSignature (backend/DON), userSignature (trader/agent).
+ * Submit executeTrade via CRE report (0x00 || abi.encode(...)). Dual-signature: DON + user.
  */
 export function submitExecuteTrade(
   runtime: Runtime<unknown>,
@@ -244,27 +297,19 @@ export function submitExecuteTrade(
   donSignature: `0x${string}`,
   userSignature: `0x${string}`
 ): string {
-  const hexPayload = encodeExecuteTrade(quote, maxCostUsdc, user, donSignature, userSignature);
-  const reportRequest = prepareReportRequest(hexPayload);
-  const network = getNetwork({
-    chainFamily: "evm",
-    chainSelectorName: config.chainSelectorName,
-    isTestnet: true,
-  });
-  if (!network) throw new Error(`Network not found: ${config.chainSelectorName}`);
-  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
-  const receiverHex = config.contracts.predictionVault.replace(/^0x/, "");
-  const receiver = new Uint8Array(20);
-  for (let i = 0; i < 20; i++) receiver[i] = parseInt(receiverHex.slice(i * 2, i * 2 + 2), 16);
-  const reply = evmClient
-    .writeReport(runtime, {
-      receiver,
-      report: runtime.report(reportRequest).result(),
-      $report: true,
-    })
-    .result();
-  if (reply.txHash != null && reply.txHash.length > 0) {
-    return typeof reply.txHash === "string" ? reply.txHash : bytesToHex(reply.txHash);
-  }
-  return "";
+  const payload: PredictionVaultExecuteTradePayload = {
+    questionId: quote.questionId,
+    outcomeIndex: quote.outcomeIndex,
+    buy: quote.buy,
+    quantity: quote.quantity,
+    tradeCostUsdc: quote.tradeCostUsdc,
+    maxCostUsdc,
+    nonce: quote.nonce,
+    deadline: quote.deadline,
+    user,
+    donSignature,
+    userSignature,
+  };
+  const hexPayload = encodePredictionVaultReportExecuteTrade(payload);
+  return writePredictionVaultReport(runtime, config, hexPayload, "Execute trade");
 }

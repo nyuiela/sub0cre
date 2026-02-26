@@ -15,6 +15,7 @@ export interface CreateAgentKeyPayload {
 
 export interface CreateAgentKeyResponse {
   address: string;
+  txHash: string;
 }
 
 export interface ConfidentialTradePayload {
