@@ -38,6 +38,8 @@ RUN cd markets && bun x cre-compile main.ts .cre_build_tmp.wasm || true
 ENV PORT=8080
 ENV CRE_TARGET=docker-settings
 ENV INFISICAL_PATH=/sub0cre
+# Run simulate with --broadcast so create-market and seed get real onchain tx hashes. Override with -e CRE_GATEWAY_BROADCAST=false to dry-run.
+ENV CRE_GATEWAY_BROADCAST=true
 EXPOSE 8080
 
 # Entrypoint runs infisical run to fetch project secrets from path /sub0cre and inject into the process.

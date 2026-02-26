@@ -186,7 +186,7 @@ To mimic a deployed CRE HTTP endpoint locally, run the workflow behind an HTTP s
 
 5. **Health:** `GET /health` or `GET /` returns `{ "status": "ok", "service": "cre-simulate-gateway" }`.
 
-6. **Broadcast:** To run simulate with `--broadcast` (real onchain txs), send `"broadcast": true` in the JSON body.
+6. **Broadcast:** The Docker image sets `CRE_GATEWAY_BROADCAST=true` by default so every request runs with `--broadcast` (real onchain txs and tx hashes). To dry-run without writing to chain, pass `-e CRE_GATEWAY_BROADCAST=false`. You can also send `"broadcast": true` in the JSON body when not using the Docker default.
 
 After code or config changes, rebuild the image, then stop and run again: `docker stop sub0cre-gateway` (if it is running), then the same `docker run ...` command. Do not use `docker start sub0cre-gateway` after a rebuild — that starts the old container; you must run a new container from the new image.
 

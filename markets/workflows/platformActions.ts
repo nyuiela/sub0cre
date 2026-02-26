@@ -202,7 +202,13 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
   let seedTxHash = "";
   const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
   if (amountUsdc > 0n) {
-    // seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
+    try {
+      seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
+    } catch (err) {
+      runtime.log(
+        `Seed market liquidity failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
     if (seedTxHash) {
       runtime.log(`Seed market liquidity submitted for new market. Transaction: ${seedTxHash}`);
     } else {

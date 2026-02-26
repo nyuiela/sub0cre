@@ -13,6 +13,9 @@ import fs from "fs";
 const PORT = Number(process.env.PORT ?? "8080");
 const CRE_TARGET = process.env.CRE_TARGET ?? "staging-settings";
 const WORKFLOW_DIR = "markets";
+/** When true, run simulate with --broadcast (real onchain txs) even if body.broadcast is not set. Use for Docker so every trigger writes to chain. */
+const GATEWAY_BROADCAST_DEFAULT =
+  process.env.CRE_GATEWAY_BROADCAST === "true" || process.env.CRE_GATEWAY_BROADCAST === "1";
 const RESULT_PREFIX = "Workflow Simulation Result:";
 
 function log(msg: string, meta?: Record<string, unknown>): void {
@@ -41,7 +44,7 @@ function parseSimulateOutput(stdout: string, stderr: string): { result: string; 
 }
 
 /** Env var names that secrets.yaml uses for simulation. CRE CLI loads these from .env in cwd. */
-const SECRET_ENV_KEYS = ["BACKEND_API_KEY", "BACKEND_SIGNER_PRIVATE_KEY", "HTTP_API_KEY", "CRE_ETH_PRIVATE_KEY", "CRE_API_KEY"];
+const SECRET_ENV_KEYS = ["BACKEND_API_KEY", "BACKEND_SIGNER_PRIVATE_KEY", "HTTP_API_KEY", "CRE_ETH_PRIVATE_KEY", "CRE_API_KEY", "TEE_MASTER_ENCRYPTION_KEY"];
 /** Required for workflow; CRE_API_KEY is optional when using -v "$HOME/.cre:/root/.cre" for CLI auth. */
 const REQUIRED_SECRET_KEYS = ["BACKEND_API_KEY", "BACKEND_SIGNER_PRIVATE_KEY", "HTTP_API_KEY", "CRE_ETH_PRIVATE_KEY"];
 
@@ -152,19 +155,15 @@ const server = Bun.serve({
         typeof body === "object" && body !== null && "action" in body
           ? (body as { action?: string }).action
           : undefined;
-      const broadcastFlag = (body as { broadcast?: boolean })?.broadcast === true;
-      log("POST request", { path: url.pathname, action, broadcast: broadcastFlag });
-      if (action === "createMarketsFromBackend" && !broadcastFlag) {
-        console.log("[gateway] createMarketsFromBackend without broadcast: no real chain write; set body.broadcast=true or CRE_MARKET_CRON_BROADCAST=true for live txs.");
+      const broadcastFromBody = (body as { broadcast?: boolean })?.broadcast === true;
+      const broadcast = broadcastFromBody || GATEWAY_BROADCAST_DEFAULT;
+      log("POST request", { path: url.pathname, action, broadcastFromBody, gatewayBroadcastDefault: GATEWAY_BROADCAST_DEFAULT, broadcast });
+      if (action === "createMarketsFromBackend" && !broadcast) {
+        console.log("[gateway] createMarketsFromBackend without broadcast: no real chain write; set body.broadcast=true, CRE_MARKET_CRON_BROADCAST=true (backend), or CRE_GATEWAY_BROADCAST=true (gateway) for live txs.");
       }
 
       const payload =
         typeof body === "object" && body !== null ? JSON.stringify(body) : String(body);
-      const broadcast =
-        typeof body === "object" &&
-        body !== null &&
-        "broadcast" in body &&
-        (body as { broadcast?: boolean }).broadcast === true;
 
       const tmpPath = `/tmp/cre-payload-${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
       await Bun.write(tmpPath, payload);

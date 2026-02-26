@@ -43,9 +43,10 @@ export interface CreateMarketsFromBackendPayload {
 function toCallbackItem(
   payload: BackendMarketPayload,
   questionId: string,
-  createMarketTxHash: string
+  createMarketTxHash: string,
+  seedTxHash?: string
 ): Record<string, unknown> {
-  return {
+  const item: Record<string, unknown> = {
     questionId,
     createMarketTxHash,
     question: payload.question,
@@ -57,12 +58,14 @@ function toCallbackItem(
     marketType: Number(payload.marketType),
     agentSource: payload.agentSource ?? undefined,
   };
+  if (seedTxHash?.trim()) item.seedTxHash = seedTxHash.trim();
+  return item;
 }
 
 export async function handleCreateMarketsFromBackend(
   runtime: Runtime<WorkflowConfig>,
   payload?: CreateMarketsFromBackendPayload
-): Promise<Record<string, string>> {
+): Promise<Record<string, unknown>> {
   const config = runtime.config;
   const backendUrl = config.backendUrl?.trim();
   if (!backendUrl) {
@@ -129,11 +132,12 @@ export async function handleCreateMarketsFromBackend(
       const result = await handleCreateMarket(runtime, { input });
       const questionId = result.questionId;
       const createMarketTxHash = result.createMarketTxHash ?? "";
+      const seedTxHash = result.seedTxHash ?? "";
       if (!questionId) {
         errors++;
         continue;
       }
-      batchResults.push(toCallbackItem(item, questionId, createMarketTxHash));
+      batchResults.push(toCallbackItem(item, questionId, createMarketTxHash, seedTxHash));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       runtime.log(`Create market failed for "${item.question?.slice(0, 40)}...": ${msg}`);
@@ -171,11 +175,17 @@ export async function handleCreateMarketsFromBackend(
   }
 
   const created = batchResults.length;
+  const marketResults = batchResults.map((r) => ({
+    questionId: (r as { questionId?: string }).questionId,
+    createMarketTxHash: (r as { createMarketTxHash?: string }).createMarketTxHash,
+    seedTxHash: (r as { seedTxHash?: string }).seedTxHash ?? undefined,
+  }));
   return {
     status: "ok",
     result: "createMarketsFromBackend",
     created: String(created),
     errors: String(errors),
     total: String(data.length),
+    markets: marketResults,
   };
 }
