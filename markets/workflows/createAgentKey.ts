@@ -28,11 +28,16 @@ export function handleCreateAgentKey(
   const masterKey = masterKeySecret?.value?.trim();
 
   const { address, privateKey } = createRandomAddress();
-  // const encryptedAgentKey = AES.encrypt(privateKey, masterKey as string).toString();
+  // Encrypted blob is intentionally empty: the private key stays in the enclave and is not
+  // returned. The backend only stores the address; signing is done via CRE (quote/order).
+  // In simulation, getSecret often returns nothing, so encryption would yield empty anyway.
+  // To persist the key outside CRE you would encrypt with masterKey and return it here
+  // (and have the gateway call the backend callback with encryptedPrivateKey).
+  const encryptedKeyBlob = "";
 
   runtime.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
 
-  return { address, encryptedKeyBlob: "" };
+  return { address, encryptedKeyBlob };
 }
 
 // export function handleCreateAgentKey(runtime: Runtime<unknown>, payload: any): CreateAgentKeyResponse {

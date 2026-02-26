@@ -158,22 +158,27 @@ To mimic a deployed CRE HTTP endpoint locally, run the workflow behind an HTTP s
 
    If you do have a CRE Organization API key, you can instead pass `-e CRE_API_KEY="your-key"` and omit the volume mount.
 
-3. **Run** with secrets and CRE auth. **Important:** When using `--env-file`, your file may set `CRE_TARGET=staging-settings`, which uses `config.staging.json` and `backendUrl: http://localhost:4000`. From inside Docker, "localhost" is the container, so the workflow cannot reach your host backend. **Pass `-e CRE_TARGET=docker-settings` after `--env-file`** so it overrides; then the workflow uses `config.docker.json` and `backendUrl: http://host.docker.internal:4000`. On Linux add `--add-host=host.docker.internal:host-gateway`.
+3. **Run** with secrets. You can either load all env from a file (no Infisical) or use Infisical.
+
+   **Option A – All env from file (recommended for local/Docker):** Put all required vars in a `.env` file in `sub0cre` (see list below), then run:
 
    ```bash
+   cd sub0cre
    docker run --rm --name sub0cre-gateway -p 8080:8080 \
      --add-host=host.docker.internal:host-gateway \
+     -e CRE_TARGET=docker-settings \
      -v "$HOME/.cre:/root/.cre" \
      --env-file .env \
-     -e CRE_TARGET=docker-settings \
-     -e CRE_ETH_PRIVATE_KEY="0x..." \
-     -e BACKEND_SIGNER_PRIVATE_KEY="0x..." \
-     -e HTTP_API_KEY="optional-match-body-apiKey" \
-     -e BACKEND_API_KEY="<same value as backend API_KEY (x-api-key for internal routes)>" \
      sub0cre-gateway
    ```
 
-   On Linux use `--add-host=host.docker.internal:host-gateway` (included above). On macOS/Windows that flag is usually optional. The container name is `sub0cre-gateway` so you can stop it with `docker stop sub0cre-gateway` without looking up the random name.
+   Do **not** set `INFISICAL_TOKEN` in that `.env`; the entrypoint will then run without Infisical and use only env from the container (your `--env-file` and `-e`). Required vars in `.env`: `CRE_ETH_PRIVATE_KEY`, `BACKEND_SIGNER_PRIVATE_KEY`, `BACKEND_API_KEY` (same value as backend `API_KEY`), `HTTP_API_KEY` (optional; match if CRE checks body.apiKey), `CRE_TARGET=docker-settings` (or pass `-e CRE_TARGET=docker-settings` to override). Optional: `CRE_API_KEY` if you use CRE CLI auth.
+
+   **Option B – Infisical:** To load secrets from Infisical instead, set `-e INFISICAL_TOKEN=<token>` and do **not** pass `--env-file`. Ensure your Infisical path has secrets with **exact** names: `BACKEND_API_KEY`, `BACKEND_SIGNER_PRIVATE_KEY`, `HTTP_API_KEY`, `CRE_ETH_PRIVATE_KEY`, and optionally `CRE_API_KEY`. If names differ (e.g. only `CRE_ETH_PRIVATE_KEY` is set), the gateway will log "missing" for the others; use Option A or fix names in Infisical.
+
+   Use both: `-e CRE_TARGET=docker-settings` and `--add-host=host.docker.internal:host-gateway` (required on Linux) so the workflow reaches the host backend. The container name is `sub0cre-gateway`; stop with `docker stop sub0cre-gateway`.
+
+   **Troubleshooting:** If the workflow fails with `Get "http://host.docker.internal:4000/...": dial tcp: lookup host.docker.internal ... no such host`, the container cannot resolve the host. Add `--add-host=host.docker.internal:host-gateway` to your `docker run` (required on Linux).
 
    The gateway logs every request (path, action) and streams full `cre workflow simulate` stdout/stderr so workflow `runtime.log()` and errors appear in `docker logs`.
 

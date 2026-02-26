@@ -42,6 +42,8 @@ function parseSimulateOutput(stdout: string, stderr: string): { result: string; 
 
 /** Env var names that secrets.yaml uses for simulation. CRE CLI loads these from .env in cwd. */
 const SECRET_ENV_KEYS = ["BACKEND_API_KEY", "BACKEND_SIGNER_PRIVATE_KEY", "HTTP_API_KEY", "CRE_ETH_PRIVATE_KEY", "CRE_API_KEY"];
+/** Required for workflow; CRE_API_KEY is optional when using -v "$HOME/.cre:/root/.cre" for CLI auth. */
+const REQUIRED_SECRET_KEYS = ["BACKEND_API_KEY", "BACKEND_SIGNER_PRIVATE_KEY", "HTTP_API_KEY", "CRE_ETH_PRIVATE_KEY"];
 
 /** Log which secret env vars are set (masked) so we can verify Infisical injection. */
 function logSecretEnvStatus(): void {
@@ -56,9 +58,9 @@ function logSecretEnvStatus(): void {
     }
   }
   log("Infisical/secret env status", status);
-  const missing = SECRET_ENV_KEYS.filter((k) => process.env[k] == null || String(process.env[k]).trim() === "");
-  if (missing.length > 0) {
-    console.log("[gateway] Add these in Infisical at your path (exact names):", missing.join(", "));
+  const missingRequired = REQUIRED_SECRET_KEYS.filter((k) => process.env[k] == null || String(process.env[k]).trim() === "");
+  if (missingRequired.length > 0) {
+    console.log("[gateway] Add these in Infisical at your path (exact names):", missingRequired.join(", "));
   }
 }
 
@@ -218,5 +220,8 @@ console.log(`[gateway] CRE simulate gateway listening on http://0.0.0.0:${PORT}`
 console.log(`[gateway] CRE_TARGET=${CRE_TARGET} (workflow config). For Docker, use CRE_TARGET=docker-settings so the workflow can reach the host backend.`);
 if (CRE_TARGET === "staging-settings") {
   console.log("[gateway] Warning: staging-settings uses backendUrl from config.staging.json. From inside Docker, localhost will not reach the host; set CRE_TARGET=docker-settings (e.g. -e CRE_TARGET=docker-settings after --env-file).");
+}
+if (CRE_TARGET === "docker-settings") {
+  console.log("[gateway] On Linux, if backend URL fails (e.g. 'lookup host.docker.internal: no such host'), run docker with: --add-host=host.docker.internal:host-gateway");
 }
 console.log("[gateway] CLI auth: run 'cre login' on the host, then run this container with -v \"$HOME/.cre:/root/.cre\" (or set CRE_API_KEY if you have one).");

@@ -101,6 +101,7 @@ const onHTTPTrigger = async (
     const createPayload = {
       action: typeof body.action === "string" ? body.action : undefined,
       apiKey: typeof body.apiKey === "string" ? body.apiKey : undefined,
+      markets: Array.isArray(body.markets) ? body.markets : undefined,
     };
     return (await handleCreateMarketsFromBackend(runtime, createPayload)) as unknown as HttpResult;
   }

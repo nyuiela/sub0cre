@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Infisical entrypoint: inject env from Infisical project using INFISICAL_TOKEN (no CLI login).
-# Optional: INFISICAL_PROJECT_ID (machine identity), INFISICAL_ENV (e.g. prod), INFISICAL_PATH (default: /sub0cre).
+# Optional Infisical: if INFISICAL_TOKEN is set, inject env from Infisical. Otherwise run with env from docker (--env-file or -e).
+# Optional: INFISICAL_PROJECT_ID, INFISICAL_ENV (e.g. prod), INFISICAL_PATH (default: /sub0cre).
 set -e
 BASE="/app"
 cd "$BASE"
 
-if [ -z "${INFISICAL_TOKEN:-}" ]; then
-  echo "[gateway] ERROR: INFISICAL_TOKEN is not set. Pass -e INFISICAL_TOKEN=<secret> to load secrets from Infisical." >&2
-  exit 1
+if [ -n "${INFISICAL_TOKEN:-}" ]; then
+  INFISICAL_ARGS=(--path="${INFISICAL_PATH:-/sub0cre}" --include-imports=false)
+  [ -n "${INFISICAL_PROJECT_ID:-}" ] && INFISICAL_ARGS+=(--projectId="$INFISICAL_PROJECT_ID")
+  [ -n "${INFISICAL_ENV:-}" ] && INFISICAL_ARGS+=(--env="$INFISICAL_ENV")
+  echo "[gateway] infisical run ${INFISICAL_ARGS[*]} -- $*" >&2
+  exec infisical run "${INFISICAL_ARGS[@]}" -- "$@"
 fi
 
-INFISICAL_ARGS=(--path="${INFISICAL_PATH:-/sub0cre}" --include-imports=false)
-[ -n "${INFISICAL_PROJECT_ID:-}" ] && INFISICAL_ARGS+=(--projectId="$INFISICAL_PROJECT_ID")
-[ -n "${INFISICAL_ENV:-}" ] && INFISICAL_ARGS+=(--env="$INFISICAL_ENV")
-echo "[gateway] infisical run ${INFISICAL_ARGS[*]} -- $*" >&2
-exec infisical run "${INFISICAL_ARGS[@]}" -- "$@"
+echo "[gateway] Running without Infisical; using env from docker (--env-file or -e)." >&2
+exec "$@"

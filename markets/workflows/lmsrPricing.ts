@@ -12,6 +12,8 @@ import { getVaultBalanceForOutcome } from "../lib/ctf";
 import { signLMSRQuote, getNonceUsed } from "../lib/predictionVault";
 import { costToBuy, costToUsdcUnits } from "../lib/lmsrMath";
 
+declare function randomSeed(mode: 1 | 2): number;
+
 const DEFAULT_DEADLINE_SECONDS = 900;
 const DON_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 
@@ -27,12 +29,22 @@ export function parseLmsrPayload(input: Uint8Array): LmsrPricingRequestPayload {
 }
 
 
+/**
+ * Deterministic nonce for DON consensus: uses CRE host randomSeed(mode 2).
+ * Must not use Date.now(), Math.random(), or crypto.getRandomValues in workflow logic.
+ */
 function randomNonce(): bigint {
   const buf = new Uint8Array(32);
-  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.getRandomValues) {
-    globalThis.crypto.getRandomValues(buf);
+  if (typeof randomSeed === "function") {
+    for (let i = 0; i < 8; i++) {
+      const n = randomSeed(2) >>> 0;
+      buf[i * 4] = n & 0xff;
+      buf[i * 4 + 1] = (n >> 8) & 0xff;
+      buf[i * 4 + 2] = (n >> 16) & 0xff;
+      buf[i * 4 + 3] = (n >> 24) & 0xff;
+    }
   } else {
-    for (let i = 0; i < 32; i++) buf[i] = Math.floor(Math.random() * 256);
+    for (let i = 0; i < 32; i++) buf[i] = 0;
   }
   let hex = "0x";
   for (let i = 0; i < buf.length; i++) hex += buf[i].toString(16).padStart(2, "0");
@@ -103,7 +115,7 @@ export async function handleLmsrPricing(
   }
 
   const deadlineSeconds = runtime.config?.deadlineSeconds ?? DEFAULT_DEADLINE_SECONDS;
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
+  const deadline = BigInt(Math.floor(runtime.now().getTime() / 1000) + deadlineSeconds);
 
   const secret = runtime.getSecret({ id: DON_SIGNER_ID }).result();
   const privateKey = secret.value ?? "";

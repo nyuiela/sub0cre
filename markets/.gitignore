@@ -8,6 +8,7 @@ node_modules/
 ./markets/node_modules/*
 
 byoa-chainlink.integration.md
+cre-integration.agent-wallet.md
 ./markets/node_modules/
 
 ./markets/node_modules

@@ -24,3 +24,5 @@ Thumbs.db
 # CRE build artifacts
 *.wasm
 tmp.js
+
+cre-integration.agent-wallet.md
