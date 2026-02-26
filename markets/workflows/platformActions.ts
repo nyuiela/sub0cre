@@ -154,6 +154,7 @@ function toAddress(value: string): `0x${string}` {
 
 /**
  * HTTP handler: create market onchain via Sub0.create(Market). Platform only; requires config.contracts and env key with GAME_CREATOR_ROLE for Public markets.
+ * Response: when getMarket reads at last finalized block it will not see the just-submitted tx, so we fall back to payload-derived fields (question, oracle, owner, duration, etc.). Use sim-create-broadcast or --broadcast to send txs to the deployed contract.
  * Logging follows CRE bootcamp style for debugging (steps 1-6 in sub0.submitCreateMarket).
  */
 export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, payload: { input: Uint8Array }): Promise<Record<string, string>> {
@@ -192,41 +193,50 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
     oracleType: body.oracleType,
     marketType: body.marketType,
   });
-  runtime.log("Create market submitted.");
+  if (createMarketTxHash) {
+    runtime.log(`Create market submitted. Transaction: ${createMarketTxHash}`);
+  } else {
+    runtime.log("Create market submitted (no tx hash; use --broadcast for real onchain write).");
+  }
 
   let seedTxHash = "";
   const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
   if (amountUsdc > 0n) {
     // seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
-    runtime.log("Seed market liquidity submitted for new market.");
+    if (seedTxHash) {
+      runtime.log(`Seed market liquidity submitted for new market. Transaction: ${seedTxHash}`);
+    } else {
+      runtime.log("Seed market liquidity submitted (no tx hash; use --broadcast for real onchain write).");
+    }
   }
 
   const ctx = { runtime, config: contracts };
-  let market = await getMarket(ctx, questionId, { useLatestBlock: true });
-  if (isMarketEmpty(market)) {
-    runtime.log("Market not found on first read (block may not include tx yet); retrying once.");
-    market = await getMarket(ctx, questionId, { useLatestBlock: true });
+  let market: Awaited<ReturnType<typeof getMarket>> | undefined;
+  try {
+    market = await getMarket(ctx, questionId);
+  } catch {
+    market = undefined;
   }
-  // if (isMarketEmpty(market)) {
-  //   throw new Error(
-  //     `Reporter tx succeeded but market not found. The inner Sub0.create may have reverted (check GAME_CREATOR_ROLE and params). TxHash: ${createMarketTxHash}`
-  //   );
-  // }
+
+  const fromChain =
+    market != null &&
+    (market.question?.length > 0 ||
+      (market.conditionId != null && market.conditionId !== "0x0000000000000000000000000000000000000000000000000000000000000000"));
 
   const out: Record<string, string> = {
     status: "ok",
     result: "createMarket",
     txHash: createMarketTxHash ?? "",
     questionId,
-    question: market?.question ?? "",
+    question: fromChain ? (market?.question ?? "") : body.question.trim(),
     conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
-    oracle: market?.oracle ?? "0x0000000000000000000000000000000000000000",
-    owner: market?.owner ?? "0x0000000000000000000000000000000000000000",
+    oracle: fromChain ? (market?.oracle ?? "") : oracle,
+    owner: fromChain ? (market?.owner ?? "") : creator,
     createdAt: market?.createdAt != null ? String(market.createdAt) : "0",
-    duration: market?.duration != null ? String(market.duration) : "0",
-    outcomeSlotCount: String(market?.outcomeSlotCount ?? 0),
-    oracleType: String(market?.oracleType ?? 0),
-    marketType: String(market?.marketType ?? 0),
+    duration: fromChain && market?.duration != null ? String(market.duration) : String(duration),
+    outcomeSlotCount: String(market?.outcomeSlotCount ?? body.outcomeSlotCount),
+    oracleType: String(market?.oracleType ?? body.oracleType),
+    marketType: String(market?.marketType ?? body.marketType),
   };
   if (createMarketTxHash) out.createMarketTxHash = createMarketTxHash;
   if (seedTxHash) out.seedTxHash = seedTxHash;
@@ -396,10 +406,10 @@ export function handleRedeem(runtime: Runtime<WorkflowConfig>, payload: { input:
 }
 
 /**
- * Cron handler: placeholder for periodic platform checks (e.g. health, metrics).
- * Actual seed/settlement are triggered by backend or HTTP.
+ * Cron handler: runs settlement for due markets (fetch due from backend, run deliberation + writeReport + resolved per market).
+ * Also use HTTP for one-off actions: createMarket, seed, runSettlement, createMarketsFromBackend.
  */
-export function handlePlatformCron(runtime: Runtime<WorkflowConfig>): string {
-  runtime.log("Platform cron: no action (use HTTP to seed liquidity or trigger actions).");
-  return "ok";
+export async function handlePlatformCron(runtime: Runtime<WorkflowConfig>): Promise<string> {
+  const { handleSettlementCron } = await import("./settlementCron");
+  return handleSettlementCron(runtime);
 }

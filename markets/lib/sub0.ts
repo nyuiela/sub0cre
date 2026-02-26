@@ -246,6 +246,23 @@ export function computeQuestionId(
   return keccak256(packed);
 }
 
+const DEFAULT_GAS_LIMIT = "500000";
+
+function blockExplorerTxUrl(chainSelectorName: string, txHash: string): string {
+  if (chainSelectorName === "ethereum-testnet-sepolia-base-1") {
+    return `https://sepolia.basescan.org/tx/${txHash}`;
+  }
+  return `https://etherscan.io/tx/${txHash}`;
+}
+
+
+// function blockExplorerTxUrl(chainSelectorName: string, txHash: string): string {
+//   if (chainSelectorName === "ethereum-testnet-sepolia-base-1") {
+//     return `https://sepolia.basescan.org/tx/${txHash}`;
+//   }
+//   return `https://etherscan.io/tx/${txHash}`;
+// }
+
 /**
  * Write a Sub0 CRE report onchain. Shared by create, resolve, stake, redeem.
  * Receiver is Sub0; report = prefix (1 byte) + abi.encode(payload) per cre.contract.md.
@@ -256,6 +273,16 @@ export function writeSub0Report(
   hexPayload: `0x${string}`,
   label: string
 ): string {
+  const gasLimit = config.gasLimit ?? DEFAULT_GAS_LIMIT;
+  const receiverAddress = config.contracts.sub0.startsWith("0x")
+    ? (config.contracts.sub0 as `0x${string}`)
+    : (`0x${config.contracts.sub0}` as `0x${string}`);
+
+  runtime.log(`Writing report to Sub0 consumer: ${receiverAddress}`);
+  // runtime.log(
+  //   `Writing report to consumer contract - question: ${params.question}, oracle: ${params.oracle}, duration: ${params.duration}`
+  // );
+
   const network = getNetwork({
     chainFamily: "evm",
     chainSelectorName: config.chainSelectorName,
@@ -263,8 +290,6 @@ export function writeSub0Report(
   });
   if (!network) throw new Error(`Network not found: ${config.chainSelectorName}`);
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
-  const receiverAddress =
-    config.contracts.sub0.startsWith("0x") ? config.contracts.sub0 : `0x${config.contracts.sub0}`;
 
   const reportResponse = runtime
     .report({
@@ -294,7 +319,7 @@ export function writeSub0Report(
     return typeof rawHash === "string" ? rawHash : bytesToHex(rawHash);
   }
   runtime.log(
-    `${label}: no txHash returned (simulation skips chain write; deploy to a live target for real tx hash).`
+    `${label}: no txHash returned (simulate without --broadcast skips chain write; use broadcast: true in trigger or cre workflow simulate --broadcast for real tx hash).`
   );
   return "";
 }

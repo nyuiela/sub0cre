@@ -9,14 +9,17 @@
  * - createMarket: Sub0 CRE 0x00. getMarket: read by questionId.
  * - seed: PredictionVault CRE 0x01. resolveMarket, stake, redeem: Sub0 CRE 0x01–0x03.
  * - approveErc20, approveConditionalToken: sign with agent or backend key; return signed tx for broadcast.
+ * - createMarketsFromBackend: fetch agent markets from backend, create on-chain, POST onchain-created.
+ * - runSettlement: body { marketId, questionId }; deliberation + writeReport + POST resolved.
  *
  * executeConfidentialTrade remains standalone (async signing); use executeConfidentialTrade.ts.
  *
- * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed | resolveMarket | stake | redeem | approveErc20 | approveConditionalToken).
+ * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed | resolveMarket | stake | redeem | approveErc20 | approveConditionalToken | createMarketsFromBackend | runSettlement).
  */
 
 import { CronCapability, HTTPCapability, handler, Runner, ConfidentialHTTPClient, type Runtime } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "./types/config";
+import { workflowConfigSchema } from "./lib/configSchema";
 import { verifyApiKey } from "./lib/httpMiddleware";
 import { handleQuoteSigning } from "./workflows/quoteSigning";
 import { handleLmsrPricing } from "./workflows/lmsrPricing";
@@ -31,8 +34,10 @@ import {
   handlePlatformCron,
 } from "./workflows/platformActions";
 import { handleApproveErc20, handleApproveConditionalToken } from "./workflows/approveWorkflows";
+import { handleCreateMarketsFromBackend } from "./workflows/createMarketsFromBackend";
+import { handleRunSettlement } from "./workflows/runSettlement";
 
-const onCronTrigger = (runtime: Runtime<WorkflowConfig>): string => {
+const onCronTrigger = async (runtime: Runtime<WorkflowConfig>): Promise<string> => {
   return handlePlatformCron(runtime);
 };
 
@@ -92,12 +97,27 @@ const onHTTPTrigger = async (
   if (action === "approveConditionalToken") {
     return (await handleApproveConditionalToken(runtime, payload)) as unknown as HttpResult;
   }
+  if (action === "createMarketsFromBackend") {
+    const createPayload = {
+      action: typeof body.action === "string" ? body.action : undefined,
+      apiKey: typeof body.apiKey === "string" ? body.apiKey : undefined,
+    };
+    return (await handleCreateMarketsFromBackend(runtime, createPayload)) as unknown as HttpResult;
+  }
+  if (action === "runSettlement") {
+    return (await handleRunSettlement(runtime, payload)) as unknown as HttpResult;
+  }
 
-  runtime.log("HTTP action must be one of: quote, order, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken.");
+  runtime.log(
+    "HTTP action must be one of: quote, order, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement."
+  );
   throw new Error("Missing or invalid body.action");
 };
 
-const initWorkflow = (config: WorkflowConfig) => {
+const initWorkflow = (
+  config: WorkflowConfig,
+  _secretsProvider: { getSecret: (args: { id: string }) => { result: () => { value?: string } } }
+) => {
   const cron = new CronCapability();
   const http = new HTTPCapability();
 
@@ -108,6 +128,8 @@ const initWorkflow = (config: WorkflowConfig) => {
 };
 
 export async function main() {
-  const runner = await Runner.newRunner<WorkflowConfig>();
+  const runner = await Runner.newRunner<WorkflowConfig>({
+    configSchema: workflowConfigSchema as never,
+  });
   await runner.run(initWorkflow);
 }
