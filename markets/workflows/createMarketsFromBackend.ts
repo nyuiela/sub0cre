@@ -19,6 +19,17 @@ const MAX_MARKETS_PER_RUN = 4;
 /** When backend sends markets in the request body we use one batch callback; cap per run to avoid execution timeout. */
 const MAX_MARKETS_PER_RUN_BATCH = 50;
 
+/** Delay between each createMarket tx to avoid replacement-transaction / nonce conflicts. */
+const INTER_CREATE_DELAY_MS = 5_000;
+
+/** Blocking delay; CRE workflow runtime may not have setTimeout. */
+function delayMs(ms: number): void {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    /* spin */
+  }
+}
+
 interface BackendMarketPayload {
   action?: string;
   question: string;
@@ -30,6 +41,8 @@ interface BackendMarketPayload {
   creatorAddress: string;
   agentSource?: "gemini" | "grok" | "openwebui";
   amountUsdc?: string;
+  /** Backend market id; echoed in callback so backend can update draft by id. */
+  marketId?: string;
 }
 
 /** Optional trigger payload; apiKey is sent by the backend and used for backend internal routes. When markets is set, CRE skips GET and uses one batch callback. */
@@ -40,13 +53,13 @@ export interface CreateMarketsFromBackendPayload {
   markets?: BackendMarketPayload[];
 }
 
+/** Build callback payload for onchain-created. Create-market only; no seeding. Includes marketId when provided for draft-update flow. */
 function toCallbackItem(
   payload: BackendMarketPayload,
   questionId: string,
-  createMarketTxHash: string,
-  seedTxHash?: string
+  createMarketTxHash: string
 ): Record<string, unknown> {
-  const item: Record<string, unknown> = {
+  const out: Record<string, unknown> = {
     questionId,
     createMarketTxHash,
     question: payload.question,
@@ -56,10 +69,11 @@ function toCallbackItem(
     outcomeSlotCount: Number(payload.outcomeSlotCount),
     oracleType: Number(payload.oracleType),
     marketType: Number(payload.marketType),
-    agentSource: payload.agentSource ?? undefined,
   };
-  if (seedTxHash?.trim()) item.seedTxHash = seedTxHash.trim();
-  return item;
+  if (payload.marketId != null && payload.marketId !== "") {
+    out.marketId = payload.marketId;
+  }
+  return out;
 }
 
 export async function handleCreateMarketsFromBackend(
@@ -122,6 +136,10 @@ export async function handleCreateMarketsFromBackend(
   let errors = 0;
 
   for (let i = 0; i < toCreate.length; i++) {
+    if (i > 0) {
+      runtime.log(`Waiting ${INTER_CREATE_DELAY_MS}ms before next create (spacing txs to avoid nonce/gas conflicts).`);
+      delayMs(INTER_CREATE_DELAY_MS);
+    }
     const item = toCreate[i];
     if (!item?.question?.trim()) {
       errors++;
@@ -132,12 +150,11 @@ export async function handleCreateMarketsFromBackend(
       const result = await handleCreateMarket(runtime, { input });
       const questionId = result.questionId;
       const createMarketTxHash = result.createMarketTxHash ?? "";
-      const seedTxHash = result.seedTxHash ?? "";
       if (!questionId) {
         errors++;
         continue;
       }
-      batchResults.push(toCallbackItem(item, questionId, createMarketTxHash, seedTxHash));
+      batchResults.push(toCallbackItem(item, questionId, createMarketTxHash));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       runtime.log(`Create market failed for "${item.question?.slice(0, 40)}...": ${msg}`);
@@ -176,9 +193,8 @@ export async function handleCreateMarketsFromBackend(
 
   const created = batchResults.length;
   const marketResults = batchResults.map((r) => ({
-    questionId: (r as { questionId?: string }).questionId,
-    createMarketTxHash: (r as { createMarketTxHash?: string }).createMarketTxHash,
-    seedTxHash: (r as { seedTxHash?: string }).seedTxHash ?? undefined,
+    questionId: (r as { questionId?: string }).questionId ?? "",
+    createMarketTxHash: (r as { createMarketTxHash?: string }).createMarketTxHash ?? "",
   }));
   return {
     status: "ok",
