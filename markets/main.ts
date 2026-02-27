@@ -55,8 +55,7 @@ const onHTTPTrigger = async (
       return {};
     }
   })();
-  // const client = new ConfidentialHTTPClient();
-  // client.sendRequest
+  const client = new ConfidentialHTTPClient();
 
   verifyApiKey(runtime, body);
 
@@ -71,7 +70,7 @@ const onHTTPTrigger = async (
     return { ...(await handleLmsrPricing(runtime, payload)) };
   }
   if (action === "createAgentKey") {
-    return { ...handleCreateAgentKey(runtime, payload) };
+    return { ...(await handleCreateAgentKey(runtime, client, payload)) };
   }
   if (action === "createMarket") {
     return await handleCreateMarket(runtime, payload);

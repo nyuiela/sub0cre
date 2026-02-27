@@ -1,21 +1,5 @@
 // .cre_build_tmp.js
-var __create = Object.create;
-var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __toESM = (mod, isNodeMode, target) => {
-  target = mod != null ? __create(__getProtoOf(mod)) : {};
-  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
-  for (let key of __getOwnPropNames(mod))
-    if (!__hasOwnProp.call(to, key))
-      __defProp(to, key, {
-        get: () => mod[key],
-        enumerable: true
-      });
-  return to;
-};
-var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, {
@@ -22740,6 +22724,7 @@ var init_serializeSignature = __esm(() => {
 });
 var init__esm = __esm(() => {
   init_exports();
+  init_number();
   init_decodeFunctionResult();
   init_encodeAbiParameters();
   init_encodeFunctionData();
@@ -22752,476 +22737,10 @@ var init__esm = __esm(() => {
   init_toFunctionSelector();
   init_keccak256();
 });
-var require_scrypt = __commonJS((exports, module) => {
-  (function(root) {
-    const MAX_VALUE = 2147483647;
-    function SHA2563(m) {
-      const K = new Uint32Array([
-        1116352408,
-        1899447441,
-        3049323471,
-        3921009573,
-        961987163,
-        1508970993,
-        2453635748,
-        2870763221,
-        3624381080,
-        310598401,
-        607225278,
-        1426881987,
-        1925078388,
-        2162078206,
-        2614888103,
-        3248222580,
-        3835390401,
-        4022224774,
-        264347078,
-        604807628,
-        770255983,
-        1249150122,
-        1555081692,
-        1996064986,
-        2554220882,
-        2821834349,
-        2952996808,
-        3210313671,
-        3336571891,
-        3584528711,
-        113926993,
-        338241895,
-        666307205,
-        773529912,
-        1294757372,
-        1396182291,
-        1695183700,
-        1986661051,
-        2177026350,
-        2456956037,
-        2730485921,
-        2820302411,
-        3259730800,
-        3345764771,
-        3516065817,
-        3600352804,
-        4094571909,
-        275423344,
-        430227734,
-        506948616,
-        659060556,
-        883997877,
-        958139571,
-        1322822218,
-        1537002063,
-        1747873779,
-        1955562222,
-        2024104815,
-        2227730452,
-        2361852424,
-        2428436474,
-        2756734187,
-        3204031479,
-        3329325298
-      ]);
-      let h0 = 1779033703, h1 = 3144134277, h2 = 1013904242, h3 = 2773480762;
-      let h4 = 1359893119, h5 = 2600822924, h6 = 528734635, h7 = 1541459225;
-      const w = new Uint32Array(64);
-      function blocks(p2) {
-        let off = 0, len2 = p2.length;
-        while (len2 >= 64) {
-          let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7, u, i3, j, t1, t2;
-          for (i3 = 0;i3 < 16; i3++) {
-            j = off + i3 * 4;
-            w[i3] = (p2[j] & 255) << 24 | (p2[j + 1] & 255) << 16 | (p2[j + 2] & 255) << 8 | p2[j + 3] & 255;
-          }
-          for (i3 = 16;i3 < 64; i3++) {
-            u = w[i3 - 2];
-            t1 = (u >>> 17 | u << 32 - 17) ^ (u >>> 19 | u << 32 - 19) ^ u >>> 10;
-            u = w[i3 - 15];
-            t2 = (u >>> 7 | u << 32 - 7) ^ (u >>> 18 | u << 32 - 18) ^ u >>> 3;
-            w[i3] = (t1 + w[i3 - 7] | 0) + (t2 + w[i3 - 16] | 0) | 0;
-          }
-          for (i3 = 0;i3 < 64; i3++) {
-            t1 = (((e >>> 6 | e << 32 - 6) ^ (e >>> 11 | e << 32 - 11) ^ (e >>> 25 | e << 32 - 25)) + (e & f ^ ~e & g) | 0) + (h + (K[i3] + w[i3] | 0) | 0) | 0;
-            t2 = ((a >>> 2 | a << 32 - 2) ^ (a >>> 13 | a << 32 - 13) ^ (a >>> 22 | a << 32 - 22)) + (a & b ^ a & c ^ b & c) | 0;
-            h = g;
-            g = f;
-            f = e;
-            e = d + t1 | 0;
-            d = c;
-            c = b;
-            b = a;
-            a = t1 + t2 | 0;
-          }
-          h0 = h0 + a | 0;
-          h1 = h1 + b | 0;
-          h2 = h2 + c | 0;
-          h3 = h3 + d | 0;
-          h4 = h4 + e | 0;
-          h5 = h5 + f | 0;
-          h6 = h6 + g | 0;
-          h7 = h7 + h | 0;
-          off += 64;
-          len2 -= 64;
-        }
-      }
-      blocks(m);
-      let i2, bytesLeft = m.length % 64, bitLenHi = m.length / 536870912 | 0, bitLenLo = m.length << 3, numZeros = bytesLeft < 56 ? 56 : 120, p = m.slice(m.length - bytesLeft, m.length);
-      p.push(128);
-      for (i2 = bytesLeft + 1;i2 < numZeros; i2++) {
-        p.push(0);
-      }
-      p.push(bitLenHi >>> 24 & 255);
-      p.push(bitLenHi >>> 16 & 255);
-      p.push(bitLenHi >>> 8 & 255);
-      p.push(bitLenHi >>> 0 & 255);
-      p.push(bitLenLo >>> 24 & 255);
-      p.push(bitLenLo >>> 16 & 255);
-      p.push(bitLenLo >>> 8 & 255);
-      p.push(bitLenLo >>> 0 & 255);
-      blocks(p);
-      return [
-        h0 >>> 24 & 255,
-        h0 >>> 16 & 255,
-        h0 >>> 8 & 255,
-        h0 >>> 0 & 255,
-        h1 >>> 24 & 255,
-        h1 >>> 16 & 255,
-        h1 >>> 8 & 255,
-        h1 >>> 0 & 255,
-        h2 >>> 24 & 255,
-        h2 >>> 16 & 255,
-        h2 >>> 8 & 255,
-        h2 >>> 0 & 255,
-        h3 >>> 24 & 255,
-        h3 >>> 16 & 255,
-        h3 >>> 8 & 255,
-        h3 >>> 0 & 255,
-        h4 >>> 24 & 255,
-        h4 >>> 16 & 255,
-        h4 >>> 8 & 255,
-        h4 >>> 0 & 255,
-        h5 >>> 24 & 255,
-        h5 >>> 16 & 255,
-        h5 >>> 8 & 255,
-        h5 >>> 0 & 255,
-        h6 >>> 24 & 255,
-        h6 >>> 16 & 255,
-        h6 >>> 8 & 255,
-        h6 >>> 0 & 255,
-        h7 >>> 24 & 255,
-        h7 >>> 16 & 255,
-        h7 >>> 8 & 255,
-        h7 >>> 0 & 255
-      ];
-    }
-    function PBKDF2_HMAC_SHA256_OneIter(password, salt, dkLen) {
-      password = password.length <= 64 ? password : SHA2563(password);
-      const innerLen = 64 + salt.length + 4;
-      const inner = new Array(innerLen);
-      const outerKey = new Array(64);
-      let i2;
-      let dk = [];
-      for (i2 = 0;i2 < 64; i2++) {
-        inner[i2] = 54;
-      }
-      for (i2 = 0;i2 < password.length; i2++) {
-        inner[i2] ^= password[i2];
-      }
-      for (i2 = 0;i2 < salt.length; i2++) {
-        inner[64 + i2] = salt[i2];
-      }
-      for (i2 = innerLen - 4;i2 < innerLen; i2++) {
-        inner[i2] = 0;
-      }
-      for (i2 = 0;i2 < 64; i2++)
-        outerKey[i2] = 92;
-      for (i2 = 0;i2 < password.length; i2++)
-        outerKey[i2] ^= password[i2];
-      function incrementCounter() {
-        for (let i3 = innerLen - 1;i3 >= innerLen - 4; i3--) {
-          inner[i3]++;
-          if (inner[i3] <= 255)
-            return;
-          inner[i3] = 0;
-        }
-      }
-      while (dkLen >= 32) {
-        incrementCounter();
-        dk = dk.concat(SHA2563(outerKey.concat(SHA2563(inner))));
-        dkLen -= 32;
-      }
-      if (dkLen > 0) {
-        incrementCounter();
-        dk = dk.concat(SHA2563(outerKey.concat(SHA2563(inner))).slice(0, dkLen));
-      }
-      return dk;
-    }
-    function blockmix_salsa8(BY, Yi, r, x, _X) {
-      let i2;
-      arraycopy(BY, (2 * r - 1) * 16, _X, 0, 16);
-      for (i2 = 0;i2 < 2 * r; i2++) {
-        blockxor(BY, i2 * 16, _X, 16);
-        salsa20_8(_X, x);
-        arraycopy(_X, 0, BY, Yi + i2 * 16, 16);
-      }
-      for (i2 = 0;i2 < r; i2++) {
-        arraycopy(BY, Yi + i2 * 2 * 16, BY, i2 * 16, 16);
-      }
-      for (i2 = 0;i2 < r; i2++) {
-        arraycopy(BY, Yi + (i2 * 2 + 1) * 16, BY, (i2 + r) * 16, 16);
-      }
-    }
-    function R(a, b) {
-      return a << b | a >>> 32 - b;
-    }
-    function salsa20_8(B, x) {
-      arraycopy(B, 0, x, 0, 16);
-      for (let i2 = 8;i2 > 0; i2 -= 2) {
-        x[4] ^= R(x[0] + x[12], 7);
-        x[8] ^= R(x[4] + x[0], 9);
-        x[12] ^= R(x[8] + x[4], 13);
-        x[0] ^= R(x[12] + x[8], 18);
-        x[9] ^= R(x[5] + x[1], 7);
-        x[13] ^= R(x[9] + x[5], 9);
-        x[1] ^= R(x[13] + x[9], 13);
-        x[5] ^= R(x[1] + x[13], 18);
-        x[14] ^= R(x[10] + x[6], 7);
-        x[2] ^= R(x[14] + x[10], 9);
-        x[6] ^= R(x[2] + x[14], 13);
-        x[10] ^= R(x[6] + x[2], 18);
-        x[3] ^= R(x[15] + x[11], 7);
-        x[7] ^= R(x[3] + x[15], 9);
-        x[11] ^= R(x[7] + x[3], 13);
-        x[15] ^= R(x[11] + x[7], 18);
-        x[1] ^= R(x[0] + x[3], 7);
-        x[2] ^= R(x[1] + x[0], 9);
-        x[3] ^= R(x[2] + x[1], 13);
-        x[0] ^= R(x[3] + x[2], 18);
-        x[6] ^= R(x[5] + x[4], 7);
-        x[7] ^= R(x[6] + x[5], 9);
-        x[4] ^= R(x[7] + x[6], 13);
-        x[5] ^= R(x[4] + x[7], 18);
-        x[11] ^= R(x[10] + x[9], 7);
-        x[8] ^= R(x[11] + x[10], 9);
-        x[9] ^= R(x[8] + x[11], 13);
-        x[10] ^= R(x[9] + x[8], 18);
-        x[12] ^= R(x[15] + x[14], 7);
-        x[13] ^= R(x[12] + x[15], 9);
-        x[14] ^= R(x[13] + x[12], 13);
-        x[15] ^= R(x[14] + x[13], 18);
-      }
-      for (let i2 = 0;i2 < 16; ++i2) {
-        B[i2] += x[i2];
-      }
-    }
-    function blockxor(S, Si, D, len2) {
-      for (let i2 = 0;i2 < len2; i2++) {
-        D[i2] ^= S[Si + i2];
-      }
-    }
-    function arraycopy(src, srcPos, dest, destPos, length) {
-      while (length--) {
-        dest[destPos++] = src[srcPos++];
-      }
-    }
-    function checkBufferish(o) {
-      if (!o || typeof o.length !== "number") {
-        return false;
-      }
-      for (let i2 = 0;i2 < o.length; i2++) {
-        const v = o[i2];
-        if (typeof v !== "number" || v % 1 || v < 0 || v >= 256) {
-          return false;
-        }
-      }
-      return true;
-    }
-    function ensureInteger(value2, name) {
-      if (typeof value2 !== "number" || value2 % 1) {
-        throw new Error("invalid " + name);
-      }
-      return value2;
-    }
-    function _scrypt(password, salt, N, r, p, dkLen, callback) {
-      N = ensureInteger(N, "N");
-      r = ensureInteger(r, "r");
-      p = ensureInteger(p, "p");
-      dkLen = ensureInteger(dkLen, "dkLen");
-      if (N === 0 || (N & N - 1) !== 0) {
-        throw new Error("N must be power of 2");
-      }
-      if (N > MAX_VALUE / 128 / r) {
-        throw new Error("N too large");
-      }
-      if (r > MAX_VALUE / 128 / p) {
-        throw new Error("r too large");
-      }
-      if (!checkBufferish(password)) {
-        throw new Error("password must be an array or buffer");
-      }
-      password = Array.prototype.slice.call(password);
-      if (!checkBufferish(salt)) {
-        throw new Error("salt must be an array or buffer");
-      }
-      salt = Array.prototype.slice.call(salt);
-      let b = PBKDF2_HMAC_SHA256_OneIter(password, salt, p * 128 * r);
-      const B = new Uint32Array(p * 32 * r);
-      for (let i2 = 0;i2 < B.length; i2++) {
-        const j = i2 * 4;
-        B[i2] = (b[j + 3] & 255) << 24 | (b[j + 2] & 255) << 16 | (b[j + 1] & 255) << 8 | (b[j + 0] & 255) << 0;
-      }
-      const XY = new Uint32Array(64 * r);
-      const V = new Uint32Array(32 * r * N);
-      const Yi = 32 * r;
-      const x = new Uint32Array(16);
-      const _X = new Uint32Array(16);
-      const totalOps = p * N * 2;
-      let currentOp = 0;
-      let lastPercent10 = null;
-      let stop = false;
-      let state = 0;
-      let i0 = 0, i1;
-      let Bi;
-      const limit = callback ? parseInt(1000 / r) : 4294967295;
-      const nextTick = typeof setImmediate !== "undefined" ? setImmediate : setTimeout;
-      const incrementalSMix = function() {
-        if (stop) {
-          return callback(new Error("cancelled"), currentOp / totalOps);
-        }
-        let steps;
-        switch (state) {
-          case 0:
-            Bi = i0 * 32 * r;
-            arraycopy(B, Bi, XY, 0, Yi);
-            state = 1;
-            i1 = 0;
-          case 1:
-            steps = N - i1;
-            if (steps > limit) {
-              steps = limit;
-            }
-            for (let i2 = 0;i2 < steps; i2++) {
-              arraycopy(XY, 0, V, (i1 + i2) * Yi, Yi);
-              blockmix_salsa8(XY, Yi, r, x, _X);
-            }
-            i1 += steps;
-            currentOp += steps;
-            if (callback) {
-              const percent10 = parseInt(1000 * currentOp / totalOps);
-              if (percent10 !== lastPercent10) {
-                stop = callback(null, currentOp / totalOps);
-                if (stop) {
-                  break;
-                }
-                lastPercent10 = percent10;
-              }
-            }
-            if (i1 < N) {
-              break;
-            }
-            i1 = 0;
-            state = 2;
-          case 2:
-            steps = N - i1;
-            if (steps > limit) {
-              steps = limit;
-            }
-            for (let i2 = 0;i2 < steps; i2++) {
-              const offset = (2 * r - 1) * 16;
-              const j = XY[offset] & N - 1;
-              blockxor(V, j * Yi, XY, Yi);
-              blockmix_salsa8(XY, Yi, r, x, _X);
-            }
-            i1 += steps;
-            currentOp += steps;
-            if (callback) {
-              const percent10 = parseInt(1000 * currentOp / totalOps);
-              if (percent10 !== lastPercent10) {
-                stop = callback(null, currentOp / totalOps);
-                if (stop) {
-                  break;
-                }
-                lastPercent10 = percent10;
-              }
-            }
-            if (i1 < N) {
-              break;
-            }
-            arraycopy(XY, 0, B, Bi, Yi);
-            i0++;
-            if (i0 < p) {
-              state = 0;
-              break;
-            }
-            b = [];
-            for (let i2 = 0;i2 < B.length; i2++) {
-              b.push(B[i2] >> 0 & 255);
-              b.push(B[i2] >> 8 & 255);
-              b.push(B[i2] >> 16 & 255);
-              b.push(B[i2] >> 24 & 255);
-            }
-            const derivedKey = PBKDF2_HMAC_SHA256_OneIter(password, b, dkLen);
-            if (callback) {
-              callback(null, 1, derivedKey);
-            }
-            return derivedKey;
-        }
-        if (callback) {
-          nextTick(incrementalSMix);
-        }
-      };
-      if (!callback) {
-        while (true) {
-          const derivedKey = incrementalSMix();
-          if (derivedKey != null) {
-            return derivedKey;
-          }
-        }
-      }
-      incrementalSMix();
-    }
-    const lib = {
-      scrypt: function(password, salt, N, r, p, dkLen, progressCallback) {
-        return new Promise(function(resolve, reject) {
-          let lastProgress = 0;
-          if (progressCallback) {
-            progressCallback(0);
-          }
-          _scrypt(password, salt, N, r, p, dkLen, function(error, progress, key) {
-            if (error) {
-              reject(error);
-            } else if (key) {
-              if (progressCallback && lastProgress !== 1) {
-                progressCallback(1);
-              }
-              resolve(new Uint8Array(key));
-            } else if (progressCallback && progress !== lastProgress) {
-              lastProgress = progress;
-              return progressCallback(progress);
-            }
-          });
-        });
-      },
-      syncScrypt: function(password, salt, N, r, p, dkLen) {
-        return new Uint8Array(_scrypt(password, salt, N, r, p, dkLen));
-      }
-    };
-    if (typeof exports !== "undefined") {
-      module.exports = lib;
-    } else if (typeof define === "function" && define.amd) {
-      define(lib);
-    } else if (root) {
-      if (root.scrypt) {
-        root._scrypt = root.scrypt;
-      }
-      root.scrypt = lib;
-    }
-  })(exports);
-});
-function uint8ArrayToBase64(u82) {
+function uint8ArrayToBase64(u8) {
   let binary = "";
-  for (let i2 = 0;i2 < u82.length; i2++)
-    binary += String.fromCharCode(u82[i2]);
+  for (let i2 = 0;i2 < u8.length; i2++)
+    binary += String.fromCharCode(u8[i2]);
   return btoa(binary);
 }
 function sendBackendRequestNoAuth(runtime2, options) {
@@ -31184,945 +30703,6 @@ async function handleLmsrPricing(runtime2, payload) {
     nonce: signed.nonce
   };
 }
-/*! noble-ciphers - MIT License (c) 2023 Paul Miller (paulmillr.com) */
-function isBytes3(a) {
-  return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
-}
-function abool(b) {
-  if (typeof b !== "boolean")
-    throw new Error(`boolean expected, not ${b}`);
-}
-function abytes3(b, ...lengths) {
-  if (!isBytes3(b))
-    throw new Error("Uint8Array expected");
-  if (lengths.length > 0 && !lengths.includes(b.length))
-    throw new Error("Uint8Array expected of length " + lengths + ", got length=" + b.length);
-}
-function aexists3(instance, checkFinished = true) {
-  if (instance.destroyed)
-    throw new Error("Hash instance has been destroyed");
-  if (checkFinished && instance.finished)
-    throw new Error("Hash#digest() has already been called");
-}
-function aoutput3(out, instance) {
-  abytes3(out);
-  const min2 = instance.outputLen;
-  if (out.length < min2) {
-    throw new Error("digestInto() expects output buffer of length at least " + min2);
-  }
-}
-function u8(arr) {
-  return new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
-}
-function u322(arr) {
-  return new Uint32Array(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / 4));
-}
-function clean3(...arrays) {
-  for (let i2 = 0;i2 < arrays.length; i2++) {
-    arrays[i2].fill(0);
-  }
-}
-function createView3(arr) {
-  return new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
-}
-var isLE2 = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
-function utf8ToBytes4(str) {
-  if (typeof str !== "string")
-    throw new Error("string expected");
-  return new Uint8Array(new TextEncoder().encode(str));
-}
-function toBytes4(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes4(data);
-  else if (isBytes3(data))
-    data = copyBytes(data);
-  else
-    throw new Error("Uint8Array expected, got " + typeof data);
-  return data;
-}
-function equalBytes(a, b) {
-  if (a.length !== b.length)
-    return false;
-  let diff = 0;
-  for (let i2 = 0;i2 < a.length; i2++)
-    diff |= a[i2] ^ b[i2];
-  return diff === 0;
-}
-var wrapCipher = (params, constructor) => {
-  function wrappedCipher(key, ...args) {
-    abytes3(key);
-    if (!isLE2)
-      throw new Error("Non little-endian hardware is not yet supported");
-    if (params.nonceLength !== undefined) {
-      const nonce = args[0];
-      if (!nonce)
-        throw new Error("nonce / iv required");
-      if (params.varSizeNonce)
-        abytes3(nonce);
-      else
-        abytes3(nonce, params.nonceLength);
-    }
-    const tagl = params.tagLength;
-    if (tagl && args[1] !== undefined) {
-      abytes3(args[1]);
-    }
-    const cipher = constructor(key, ...args);
-    const checkOutput = (fnLength, output) => {
-      if (output !== undefined) {
-        if (fnLength !== 2)
-          throw new Error("cipher output not supported");
-        abytes3(output);
-      }
-    };
-    let called = false;
-    const wrCipher = {
-      encrypt(data, output) {
-        if (called)
-          throw new Error("cannot encrypt() twice with same key + nonce");
-        called = true;
-        abytes3(data);
-        checkOutput(cipher.encrypt.length, output);
-        return cipher.encrypt(data, output);
-      },
-      decrypt(data, output) {
-        abytes3(data);
-        if (tagl && data.length < tagl)
-          throw new Error("invalid ciphertext length: smaller than tagLength=" + tagl);
-        checkOutput(cipher.decrypt.length, output);
-        return cipher.decrypt(data, output);
-      }
-    };
-    return wrCipher;
-  }
-  Object.assign(wrappedCipher, params);
-  return wrappedCipher;
-};
-function getOutput(expectedLength, out, onlyAligned = true) {
-  if (out === undefined)
-    return new Uint8Array(expectedLength);
-  if (out.length !== expectedLength)
-    throw new Error("invalid output length, expected " + expectedLength + ", got: " + out.length);
-  if (onlyAligned && !isAligned32(out))
-    throw new Error("invalid output, must be aligned");
-  return out;
-}
-function setBigUint643(view, byteOffset, value2, isLE3) {
-  if (typeof view.setBigUint64 === "function")
-    return view.setBigUint64(byteOffset, value2, isLE3);
-  const _32n2 = BigInt(32);
-  const _u32_max = BigInt(4294967295);
-  const wh = Number(value2 >> _32n2 & _u32_max);
-  const wl = Number(value2 & _u32_max);
-  const h = isLE3 ? 4 : 0;
-  const l = isLE3 ? 0 : 4;
-  view.setUint32(byteOffset + h, wh, isLE3);
-  view.setUint32(byteOffset + l, wl, isLE3);
-}
-function u64Lengths(dataLength, aadLength, isLE3) {
-  abool(isLE3);
-  const num = new Uint8Array(16);
-  const view = createView3(num);
-  setBigUint643(view, 0, BigInt(aadLength), isLE3);
-  setBigUint643(view, 8, BigInt(dataLength), isLE3);
-  return num;
-}
-function isAligned32(bytes) {
-  return bytes.byteOffset % 4 === 0;
-}
-function copyBytes(bytes) {
-  return Uint8Array.from(bytes);
-}
-var BLOCK_SIZE = 16;
-var ZEROS16 = /* @__PURE__ */ new Uint8Array(16);
-var ZEROS32 = u322(ZEROS16);
-var POLY = 225;
-var mul2 = (s0, s1, s2, s3) => {
-  const hiBit = s3 & 1;
-  return {
-    s3: s2 << 31 | s3 >>> 1,
-    s2: s1 << 31 | s2 >>> 1,
-    s1: s0 << 31 | s1 >>> 1,
-    s0: s0 >>> 1 ^ POLY << 24 & -(hiBit & 1)
-  };
-};
-var swapLE = (n) => (n >>> 0 & 255) << 24 | (n >>> 8 & 255) << 16 | (n >>> 16 & 255) << 8 | n >>> 24 & 255 | 0;
-function _toGHASHKey(k) {
-  k.reverse();
-  const hiBit = k[15] & 1;
-  let carry = 0;
-  for (let i2 = 0;i2 < k.length; i2++) {
-    const t = k[i2];
-    k[i2] = t >>> 1 | carry;
-    carry = (t & 1) << 7;
-  }
-  k[0] ^= -hiBit & 225;
-  return k;
-}
-var estimateWindow = (bytes) => {
-  if (bytes > 64 * 1024)
-    return 8;
-  if (bytes > 1024)
-    return 4;
-  return 2;
-};
-
-class GHASH {
-  constructor(key, expectedLength) {
-    this.blockLen = BLOCK_SIZE;
-    this.outputLen = BLOCK_SIZE;
-    this.s0 = 0;
-    this.s1 = 0;
-    this.s2 = 0;
-    this.s3 = 0;
-    this.finished = false;
-    key = toBytes4(key);
-    abytes3(key, 16);
-    const kView = createView3(key);
-    let k0 = kView.getUint32(0, false);
-    let k1 = kView.getUint32(4, false);
-    let k2 = kView.getUint32(8, false);
-    let k3 = kView.getUint32(12, false);
-    const doubles = [];
-    for (let i2 = 0;i2 < 128; i2++) {
-      doubles.push({ s0: swapLE(k0), s1: swapLE(k1), s2: swapLE(k2), s3: swapLE(k3) });
-      ({ s0: k0, s1: k1, s2: k2, s3: k3 } = mul2(k0, k1, k2, k3));
-    }
-    const W = estimateWindow(expectedLength || 1024);
-    if (![1, 2, 4, 8].includes(W))
-      throw new Error("ghash: invalid window size, expected 2, 4 or 8");
-    this.W = W;
-    const bits = 128;
-    const windows = bits / W;
-    const windowSize = this.windowSize = 2 ** W;
-    const items = [];
-    for (let w = 0;w < windows; w++) {
-      for (let byte = 0;byte < windowSize; byte++) {
-        let s0 = 0, s1 = 0, s2 = 0, s3 = 0;
-        for (let j = 0;j < W; j++) {
-          const bit = byte >>> W - j - 1 & 1;
-          if (!bit)
-            continue;
-          const { s0: d0, s1: d1, s2: d2, s3: d3 } = doubles[W * w + j];
-          s0 ^= d0, s1 ^= d1, s2 ^= d2, s3 ^= d3;
-        }
-        items.push({ s0, s1, s2, s3 });
-      }
-    }
-    this.t = items;
-  }
-  _updateBlock(s0, s1, s2, s3) {
-    s0 ^= this.s0, s1 ^= this.s1, s2 ^= this.s2, s3 ^= this.s3;
-    const { W, t, windowSize } = this;
-    let o0 = 0, o1 = 0, o2 = 0, o3 = 0;
-    const mask = (1 << W) - 1;
-    let w = 0;
-    for (const num of [s0, s1, s2, s3]) {
-      for (let bytePos = 0;bytePos < 4; bytePos++) {
-        const byte = num >>> 8 * bytePos & 255;
-        for (let bitPos = 8 / W - 1;bitPos >= 0; bitPos--) {
-          const bit = byte >>> W * bitPos & mask;
-          const { s0: e0, s1: e1, s2: e2, s3: e3 } = t[w * windowSize + bit];
-          o0 ^= e0, o1 ^= e1, o2 ^= e2, o3 ^= e3;
-          w += 1;
-        }
-      }
-    }
-    this.s0 = o0;
-    this.s1 = o1;
-    this.s2 = o2;
-    this.s3 = o3;
-  }
-  update(data) {
-    aexists3(this);
-    data = toBytes4(data);
-    abytes3(data);
-    const b32 = u322(data);
-    const blocks = Math.floor(data.length / BLOCK_SIZE);
-    const left = data.length % BLOCK_SIZE;
-    for (let i2 = 0;i2 < blocks; i2++) {
-      this._updateBlock(b32[i2 * 4 + 0], b32[i2 * 4 + 1], b32[i2 * 4 + 2], b32[i2 * 4 + 3]);
-    }
-    if (left) {
-      ZEROS16.set(data.subarray(blocks * BLOCK_SIZE));
-      this._updateBlock(ZEROS32[0], ZEROS32[1], ZEROS32[2], ZEROS32[3]);
-      clean3(ZEROS32);
-    }
-    return this;
-  }
-  destroy() {
-    const { t } = this;
-    for (const elm of t) {
-      elm.s0 = 0, elm.s1 = 0, elm.s2 = 0, elm.s3 = 0;
-    }
-  }
-  digestInto(out) {
-    aexists3(this);
-    aoutput3(out, this);
-    this.finished = true;
-    const { s0, s1, s2, s3 } = this;
-    const o32 = u322(out);
-    o32[0] = s0;
-    o32[1] = s1;
-    o32[2] = s2;
-    o32[3] = s3;
-    return out;
-  }
-  digest() {
-    const res = new Uint8Array(BLOCK_SIZE);
-    this.digestInto(res);
-    this.destroy();
-    return res;
-  }
-}
-
-class Polyval extends GHASH {
-  constructor(key, expectedLength) {
-    key = toBytes4(key);
-    abytes3(key);
-    const ghKey = _toGHASHKey(copyBytes(key));
-    super(ghKey, expectedLength);
-    clean3(ghKey);
-  }
-  update(data) {
-    data = toBytes4(data);
-    aexists3(this);
-    const b32 = u322(data);
-    const left = data.length % BLOCK_SIZE;
-    const blocks = Math.floor(data.length / BLOCK_SIZE);
-    for (let i2 = 0;i2 < blocks; i2++) {
-      this._updateBlock(swapLE(b32[i2 * 4 + 3]), swapLE(b32[i2 * 4 + 2]), swapLE(b32[i2 * 4 + 1]), swapLE(b32[i2 * 4 + 0]));
-    }
-    if (left) {
-      ZEROS16.set(data.subarray(blocks * BLOCK_SIZE));
-      this._updateBlock(swapLE(ZEROS32[3]), swapLE(ZEROS32[2]), swapLE(ZEROS32[1]), swapLE(ZEROS32[0]));
-      clean3(ZEROS32);
-    }
-    return this;
-  }
-  digestInto(out) {
-    aexists3(this);
-    aoutput3(out, this);
-    this.finished = true;
-    const { s0, s1, s2, s3 } = this;
-    const o32 = u322(out);
-    o32[0] = s0;
-    o32[1] = s1;
-    o32[2] = s2;
-    o32[3] = s3;
-    return out.reverse();
-  }
-}
-function wrapConstructorWithKey(hashCons) {
-  const hashC = (msg, key) => hashCons(key, msg.length).update(toBytes4(msg)).digest();
-  const tmp = hashCons(new Uint8Array(16), 0);
-  hashC.outputLen = tmp.outputLen;
-  hashC.blockLen = tmp.blockLen;
-  hashC.create = (key, expectedLength) => hashCons(key, expectedLength);
-  return hashC;
-}
-var ghash = wrapConstructorWithKey((key, expectedLength) => new GHASH(key, expectedLength));
-var polyval = wrapConstructorWithKey((key, expectedLength) => new Polyval(key, expectedLength));
-var BLOCK_SIZE2 = 16;
-var BLOCK_SIZE32 = 4;
-var EMPTY_BLOCK = /* @__PURE__ */ new Uint8Array(BLOCK_SIZE2);
-var POLY2 = 283;
-function mul22(n) {
-  return n << 1 ^ POLY2 & -(n >> 7);
-}
-function mul3(a, b) {
-  let res = 0;
-  for (;b > 0; b >>= 1) {
-    res ^= a & -(b & 1);
-    a = mul22(a);
-  }
-  return res;
-}
-var sbox = /* @__PURE__ */ (() => {
-  const t = new Uint8Array(256);
-  for (let i2 = 0, x = 1;i2 < 256; i2++, x ^= mul22(x))
-    t[i2] = x;
-  const box = new Uint8Array(256);
-  box[0] = 99;
-  for (let i2 = 0;i2 < 255; i2++) {
-    let x = t[255 - i2];
-    x |= x << 8;
-    box[t[i2]] = (x ^ x >> 4 ^ x >> 5 ^ x >> 6 ^ x >> 7 ^ 99) & 255;
-  }
-  clean3(t);
-  return box;
-})();
-var rotr32_8 = (n) => n << 24 | n >>> 8;
-var rotl32_8 = (n) => n << 8 | n >>> 24;
-function genTtable(sbox2, fn) {
-  if (sbox2.length !== 256)
-    throw new Error("Wrong sbox length");
-  const T0 = new Uint32Array(256).map((_, j) => fn(sbox2[j]));
-  const T1 = T0.map(rotl32_8);
-  const T2 = T1.map(rotl32_8);
-  const T3 = T2.map(rotl32_8);
-  const T01 = new Uint32Array(256 * 256);
-  const T23 = new Uint32Array(256 * 256);
-  const sbox22 = new Uint16Array(256 * 256);
-  for (let i2 = 0;i2 < 256; i2++) {
-    for (let j = 0;j < 256; j++) {
-      const idx = i2 * 256 + j;
-      T01[idx] = T0[i2] ^ T1[j];
-      T23[idx] = T2[i2] ^ T3[j];
-      sbox22[idx] = sbox2[i2] << 8 | sbox2[j];
-    }
-  }
-  return { sbox: sbox2, sbox2: sbox22, T0, T1, T2, T3, T01, T23 };
-}
-var tableEncoding = /* @__PURE__ */ genTtable(sbox, (s) => mul3(s, 3) << 24 | s << 16 | s << 8 | mul3(s, 2));
-var xPowers = /* @__PURE__ */ (() => {
-  const p = new Uint8Array(16);
-  for (let i2 = 0, x = 1;i2 < 16; i2++, x = mul22(x))
-    p[i2] = x;
-  return p;
-})();
-function expandKeyLE(key) {
-  abytes3(key);
-  const len2 = key.length;
-  if (![16, 24, 32].includes(len2))
-    throw new Error("aes: invalid key size, should be 16, 24 or 32, got " + len2);
-  const { sbox2 } = tableEncoding;
-  const toClean = [];
-  if (!isAligned32(key))
-    toClean.push(key = copyBytes(key));
-  const k32 = u322(key);
-  const Nk = k32.length;
-  const subByte = (n) => applySbox(sbox2, n, n, n, n);
-  const xk = new Uint32Array(len2 + 28);
-  xk.set(k32);
-  for (let i2 = Nk;i2 < xk.length; i2++) {
-    let t = xk[i2 - 1];
-    if (i2 % Nk === 0)
-      t = subByte(rotr32_8(t)) ^ xPowers[i2 / Nk - 1];
-    else if (Nk > 6 && i2 % Nk === 4)
-      t = subByte(t);
-    xk[i2] = xk[i2 - Nk] ^ t;
-  }
-  clean3(...toClean);
-  return xk;
-}
-function apply0123(T01, T23, s0, s1, s2, s3) {
-  return T01[s0 << 8 & 65280 | s1 >>> 8 & 255] ^ T23[s2 >>> 8 & 65280 | s3 >>> 24 & 255];
-}
-function applySbox(sbox2, s0, s1, s2, s3) {
-  return sbox2[s0 & 255 | s1 & 65280] | sbox2[s2 >>> 16 & 255 | s3 >>> 16 & 65280] << 16;
-}
-function encrypt(xk, s0, s1, s2, s3) {
-  const { sbox2, T01, T23 } = tableEncoding;
-  let k = 0;
-  s0 ^= xk[k++], s1 ^= xk[k++], s2 ^= xk[k++], s3 ^= xk[k++];
-  const rounds = xk.length / 4 - 2;
-  for (let i2 = 0;i2 < rounds; i2++) {
-    const t02 = xk[k++] ^ apply0123(T01, T23, s0, s1, s2, s3);
-    const t12 = xk[k++] ^ apply0123(T01, T23, s1, s2, s3, s0);
-    const t22 = xk[k++] ^ apply0123(T01, T23, s2, s3, s0, s1);
-    const t32 = xk[k++] ^ apply0123(T01, T23, s3, s0, s1, s2);
-    s0 = t02, s1 = t12, s2 = t22, s3 = t32;
-  }
-  const t0 = xk[k++] ^ applySbox(sbox2, s0, s1, s2, s3);
-  const t1 = xk[k++] ^ applySbox(sbox2, s1, s2, s3, s0);
-  const t2 = xk[k++] ^ applySbox(sbox2, s2, s3, s0, s1);
-  const t3 = xk[k++] ^ applySbox(sbox2, s3, s0, s1, s2);
-  return { s0: t0, s1: t1, s2: t2, s3: t3 };
-}
-function ctr32(xk, isLE3, nonce, src, dst) {
-  abytes3(nonce, BLOCK_SIZE2);
-  abytes3(src);
-  dst = getOutput(src.length, dst);
-  const ctr = nonce;
-  const c32 = u322(ctr);
-  const view = createView3(ctr);
-  const src32 = u322(src);
-  const dst32 = u322(dst);
-  const ctrPos = isLE3 ? 0 : 12;
-  const srcLen = src.length;
-  let ctrNum = view.getUint32(ctrPos, isLE3);
-  let { s0, s1, s2, s3 } = encrypt(xk, c32[0], c32[1], c32[2], c32[3]);
-  for (let i2 = 0;i2 + 4 <= src32.length; i2 += 4) {
-    dst32[i2 + 0] = src32[i2 + 0] ^ s0;
-    dst32[i2 + 1] = src32[i2 + 1] ^ s1;
-    dst32[i2 + 2] = src32[i2 + 2] ^ s2;
-    dst32[i2 + 3] = src32[i2 + 3] ^ s3;
-    ctrNum = ctrNum + 1 >>> 0;
-    view.setUint32(ctrPos, ctrNum, isLE3);
-    ({ s0, s1, s2, s3 } = encrypt(xk, c32[0], c32[1], c32[2], c32[3]));
-  }
-  const start = BLOCK_SIZE2 * Math.floor(src32.length / BLOCK_SIZE32);
-  if (start < srcLen) {
-    const b32 = new Uint32Array([s0, s1, s2, s3]);
-    const buf = u8(b32);
-    for (let i2 = start, pos = 0;i2 < srcLen; i2++, pos++)
-      dst[i2] = src[i2] ^ buf[pos];
-    clean3(b32);
-  }
-  return dst;
-}
-function computeTag(fn, isLE3, key, data, AAD) {
-  const aadLength = AAD ? AAD.length : 0;
-  const h = fn.create(key, data.length + aadLength);
-  if (AAD)
-    h.update(AAD);
-  const num = u64Lengths(8 * data.length, 8 * aadLength, isLE3);
-  h.update(data);
-  h.update(num);
-  const res = h.digest();
-  clean3(num);
-  return res;
-}
-var gcm = /* @__PURE__ */ wrapCipher({ blockSize: 16, nonceLength: 12, tagLength: 16, varSizeNonce: true }, function aesgcm(key, nonce, AAD) {
-  if (nonce.length < 8)
-    throw new Error("aes/gcm: invalid nonce length");
-  const tagLength = 16;
-  function _computeTag(authKey, tagMask, data) {
-    const tag2 = computeTag(ghash, false, authKey, data, AAD);
-    for (let i2 = 0;i2 < tagMask.length; i2++)
-      tag2[i2] ^= tagMask[i2];
-    return tag2;
-  }
-  function deriveKeys() {
-    const xk = expandKeyLE(key);
-    const authKey = EMPTY_BLOCK.slice();
-    const counter = EMPTY_BLOCK.slice();
-    ctr32(xk, false, counter, counter, authKey);
-    if (nonce.length === 12) {
-      counter.set(nonce);
-    } else {
-      const nonceLen = EMPTY_BLOCK.slice();
-      const view = createView3(nonceLen);
-      setBigUint643(view, 8, BigInt(nonce.length * 8), false);
-      const g = ghash.create(authKey).update(nonce).update(nonceLen);
-      g.digestInto(counter);
-      g.destroy();
-    }
-    const tagMask = ctr32(xk, false, counter, EMPTY_BLOCK);
-    return { xk, authKey, counter, tagMask };
-  }
-  return {
-    encrypt(plaintext) {
-      const { xk, authKey, counter, tagMask } = deriveKeys();
-      const out = new Uint8Array(plaintext.length + tagLength);
-      const toClean = [xk, authKey, counter, tagMask];
-      if (!isAligned32(plaintext))
-        toClean.push(plaintext = copyBytes(plaintext));
-      ctr32(xk, false, counter, plaintext, out.subarray(0, plaintext.length));
-      const tag2 = _computeTag(authKey, tagMask, out.subarray(0, out.length - tagLength));
-      toClean.push(tag2);
-      out.set(tag2, plaintext.length);
-      clean3(...toClean);
-      return out;
-    },
-    decrypt(ciphertext) {
-      const { xk, authKey, counter, tagMask } = deriveKeys();
-      const toClean = [xk, authKey, tagMask, counter];
-      if (!isAligned32(ciphertext))
-        toClean.push(ciphertext = copyBytes(ciphertext));
-      const data = ciphertext.subarray(0, -tagLength);
-      const passedTag = ciphertext.subarray(-tagLength);
-      const tag2 = _computeTag(authKey, tagMask, data);
-      toClean.push(tag2);
-      if (!equalBytes(tag2, passedTag))
-        throw new Error("aes/gcm: invalid ghash tag");
-      const out = ctr32(xk, false, counter, data);
-      clean3(...toClean);
-      return out;
-    }
-  };
-});
-var crypto4 = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : undefined;
-function randomBytes3(bytesLength = 32) {
-  if (crypto4 && typeof crypto4.getRandomValues === "function") {
-    return crypto4.getRandomValues(new Uint8Array(bytesLength));
-  }
-  if (crypto4 && typeof crypto4.randomBytes === "function") {
-    return Uint8Array.from(crypto4.randomBytes(bytesLength));
-  }
-  throw new Error("crypto.getRandomValues must be defined");
-}
-var import_scrypt_js = __toESM(require_scrypt(), 1);
-init__esm();
-function randomPrivateKeyBytes() {
-  const out = new Uint8Array(32);
-  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.getRandomValues) {
-    globalThis.crypto.getRandomValues(out);
-  } else {
-    for (let i2 = 0;i2 < 32; i2++)
-      out[i2] = Math.floor(Math.random() * 256);
-  }
-  return out;
-}
-function createWalletSync() {
-  const privKeyBytes = randomPrivateKeyBytes();
-  const pubKey = secp256k12.getPublicKey(privKeyBytes, false);
-  const pubKeyNoPrefix = pubKey.slice(1);
-  const hash2 = keccak256(pubKeyNoPrefix);
-  const addressHex = `0x${hash2.slice(-40)}`;
-  const address = getAddress(addressHex);
-  const privateKey = bytesToHex2(privKeyBytes);
-  return { address, privateKey };
-}
-function createRandomAddress() {
-  return createWalletSync();
-}
-var IV_LENGTH = 16;
-var KEY_LENGTH = 32;
-var GCM_TAG_LENGTH = 16;
-var SALT_STR = "sub0-agent-key-v1";
-var SCRYPT_N = 16384;
-var SCRYPT_R = 8;
-var SCRYPT_P = 1;
-function deriveKey(masterKey) {
-  const password = new TextEncoder().encode(masterKey.normalize("NFKC"));
-  const salt = new TextEncoder().encode(SALT_STR);
-  return import_scrypt_js.syncScrypt(password, salt, SCRYPT_N, SCRYPT_R, SCRYPT_P, KEY_LENGTH);
-}
-function encryptPrivateKeyHex(privateKeyHex, masterKey) {
-  const key = deriveKey(masterKey);
-  const iv = randomBytes3(IV_LENGTH);
-  const aes = gcm(key, iv);
-  const plaintext = new TextEncoder().encode(privateKeyHex);
-  const ciphertextWithTag = aes.encrypt(plaintext);
-  const tag2 = ciphertextWithTag.slice(-GCM_TAG_LENGTH);
-  const ciphertext = ciphertextWithTag.slice(0, -GCM_TAG_LENGTH);
-  const combined = new Uint8Array(IV_LENGTH + GCM_TAG_LENGTH + ciphertext.length);
-  combined.set(iv, 0);
-  combined.set(tag2, IV_LENGTH);
-  combined.set(ciphertext, IV_LENGTH + GCM_TAG_LENGTH);
-  return uint8ArrayToBase64Url(combined);
-}
-function uint8ArrayToBase64Url(u82) {
-  let binary = "";
-  for (let i2 = 0;i2 < u82.length; i2++)
-    binary += String.fromCharCode(u82[i2]);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-function parseCreateAgentKeyPayload(input) {
-  const text = new TextDecoder().decode(input);
-  const raw = JSON.parse(text);
-  const agentId = typeof raw.agentId === "string" ? raw.agentId.trim() : "";
-  if (!agentId) {
-    throw new Error("Missing or invalid body.agentId");
-  }
-  return { agentId };
-}
-function handleCreateAgentKey(runtime2, payload) {
-  const body = parseCreateAgentKeyPayload(payload.input);
-  const masterKeySecret = runtime2.getSecret({ id: "TEE_MASTER_ENCRYPTION_KEY" }).result();
-  const masterKey = masterKeySecret?.value?.trim();
-  const { address, privateKey } = createRandomAddress();
-  let encryptedKeyBlob = "";
-  if (masterKey && masterKey.length > 0) {
-    try {
-      encryptedKeyBlob = encryptPrivateKeyHex(privateKey, masterKey);
-    } catch (err) {
-      runtime2.log(`TEE encryption failed (key length or crypto error); returning empty blob: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  } else {
-    runtime2.log("TEE_MASTER_ENCRYPTION_KEY not set or empty; returning empty blob (backend will use server-generated keys).");
-  }
-  runtime2.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
-  return { address, encryptedKeyBlob };
-}
-function parseCreateMarketPayload(input) {
-  const text = new TextDecoder().decode(input);
-  const raw = JSON.parse(text);
-  return {
-    question: String(raw.question ?? ""),
-    oracle: String(raw.oracle ?? ""),
-    duration: Number(raw.duration ?? 0),
-    outcomeSlotCount: Number(raw.outcomeSlotCount ?? 2),
-    oracleType: Number(raw.oracleType ?? 1),
-    marketType: Number(raw.marketType ?? 0),
-    amountUsdc: raw.amountUsdc != null ? String(raw.amountUsdc) : undefined,
-    creatorAddress: String(raw.creatorAddress ?? "")
-  };
-}
-function parseSeedPayload(input) {
-  const text = new TextDecoder().decode(input);
-  const raw = JSON.parse(text);
-  return {
-    questionId: String(raw.questionId ?? ""),
-    amountUsdc: String(raw.amountUsdc ?? "0")
-  };
-}
-function parseGetMarketPayload(input) {
-  const text = new TextDecoder().decode(input);
-  const raw = JSON.parse(text);
-  return {
-    questionId: String(raw.questionId ?? "")
-  };
-}
-function parseResolveMarketPayload(input) {
-  const text = new TextDecoder().decode(input);
-  const raw = JSON.parse(text);
-  const payouts = raw.payouts;
-  return {
-    questionId: String(raw.questionId ?? ""),
-    payouts: Array.isArray(payouts) ? payouts.map((p) => String(p ?? "0")) : [],
-    oracle: String(raw.oracle ?? "")
-  };
-}
-function parseStakePayload(input) {
-  const text = new TextDecoder().decode(input);
-  const raw = JSON.parse(text);
-  const partition = raw.partition;
-  return {
-    questionId: String(raw.questionId ?? ""),
-    parentCollectionId: String(raw.parentCollectionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000"),
-    partition: Array.isArray(partition) ? partition : [],
-    token: String(raw.token ?? ""),
-    amount: String(raw.amount ?? "0"),
-    owner: String(raw.owner ?? "")
-  };
-}
-function parseRedeemPayload(input) {
-  const text = new TextDecoder().decode(input);
-  const raw = JSON.parse(text);
-  const indexSets = raw.indexSets;
-  return {
-    parentCollectionId: String(raw.parentCollectionId ?? ""),
-    conditionId: String(raw.conditionId ?? ""),
-    indexSets: Array.isArray(indexSets) ? indexSets : [],
-    token: String(raw.token ?? ""),
-    owner: String(raw.owner ?? ""),
-    deadline: String(raw.deadline ?? "0"),
-    nonce: String(raw.nonce ?? "0"),
-    signature: String(raw.signature ?? "")
-  };
-}
-function toHex32(value2) {
-  const s = value2.trim().toLowerCase();
-  if (s.startsWith("0x"))
-    return s;
-  return `0x${s}`;
-}
-function toAddress(value2) {
-  const s = value2.trim();
-  if (s.startsWith("0x"))
-    return s;
-  return `0x${s}`;
-}
-async function handleCreateMarket(runtime2, payload) {
-  runtime2.log("CRE Workflow: HTTP Trigger - Create Market (Sub0)");
-  const config2 = runtime2.config;
-  const contracts = config2.contracts;
-  if (!contracts) {
-    runtime2.log("Create market requires config.contracts.");
-    throw new Error("Missing config.contracts for platform actions");
-  }
-  const body = parseCreateMarketPayload(payload.input);
-  runtime2.log(`[Request] question: "${body.question?.slice(0, 50)}${(body.question?.length ?? 0) > 50 ? "..." : ""}", oracle: ${body.oracle}, creator: ${body.creatorAddress}`);
-  if (!body.question?.trim())
-    throw new Error("question is required");
-  if (body.outcomeSlotCount < 2 || body.outcomeSlotCount > 255)
-    throw new Error("outcomeSlotCount must be 2-255");
-  const duration = Number(body.duration);
-  if (duration <= 0)
-    throw new Error("duration must be positive");
-  const oracle = body.oracle.startsWith("0x") ? body.oracle : `0x${body.oracle}`;
-  if (oracle.length !== 42)
-    throw new Error("oracle must be a valid 20-byte address");
-  const creatorAddress = body.creatorAddress?.trim();
-  if (!creatorAddress)
-    throw new Error("creatorAddress is required (address that signs create tx, e.g. CRE platform key)");
-  const creator = creatorAddress.startsWith("0x") ? creatorAddress : `0x${creatorAddress}`;
-  if (creator.length !== 42)
-    throw new Error("creatorAddress must be a valid 20-byte address");
-  const questionId = computeQuestionId(body.question.trim(), creator, oracle);
-  const createMarketTxHash = submitCreateMarket(runtime2, contracts, {
-    question: body.question.trim(),
-    oracle,
-    duration,
-    outcomeSlotCount: body.outcomeSlotCount,
-    oracleType: body.oracleType,
-    marketType: body.marketType
-  });
-  if (createMarketTxHash) {
-    runtime2.log(`Create market submitted. Transaction: ${createMarketTxHash}`);
-  } else {
-    runtime2.log("Create market submitted (no tx hash; use --broadcast for real onchain write).");
-  }
-  let seedTxHash = "";
-  const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
-  if (amountUsdc > 0n) {
-    try {
-      seedTxHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
-    } catch (err) {
-      runtime2.log(`Seed market liquidity failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    if (seedTxHash) {
-      runtime2.log(`Seed market liquidity submitted for new market. Transaction: ${seedTxHash}`);
-    } else {
-      runtime2.log("Seed market liquidity submitted (no tx hash; use --broadcast for real onchain write).");
-    }
-  }
-  const ctx = { runtime: runtime2, config: contracts };
-  let market;
-  try {
-    market = await getMarket(ctx, questionId);
-  } catch {
-    market = undefined;
-  }
-  const fromChain = market != null && (market.question?.length > 0 || market.conditionId != null && market.conditionId !== "0x0000000000000000000000000000000000000000000000000000000000000000");
-  const out = {
-    status: "ok",
-    result: "createMarket",
-    txHash: createMarketTxHash ?? "",
-    questionId,
-    question: fromChain ? market?.question ?? "" : body.question.trim(),
-    conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
-    oracle: fromChain ? market?.oracle ?? "" : oracle,
-    owner: fromChain ? market?.owner ?? "" : creator,
-    createdAt: market?.createdAt != null ? String(market.createdAt) : "0",
-    duration: fromChain && market?.duration != null ? String(market.duration) : String(duration),
-    outcomeSlotCount: String(market?.outcomeSlotCount ?? body.outcomeSlotCount),
-    oracleType: String(market?.oracleType ?? body.oracleType),
-    marketType: String(market?.marketType ?? body.marketType)
-  };
-  if (createMarketTxHash)
-    out.createMarketTxHash = createMarketTxHash;
-  if (seedTxHash)
-    out.seedTxHash = seedTxHash;
-  return out;
-}
-async function handleGetMarket(runtime2, payload) {
-  runtime2.log("CRE Workflow: HTTP Trigger - Get Market");
-  const config2 = runtime2.config;
-  const contracts = config2.contracts;
-  if (!contracts) {
-    runtime2.log("Get market requires config.contracts.");
-    throw new Error("Missing config.contracts for platform actions");
-  }
-  const body = parseGetMarketPayload(payload.input);
-  const questionIdRaw = body.questionId?.trim();
-  if (!questionIdRaw) {
-    throw new Error("questionId is required");
-  }
-  const questionId = questionIdRaw.startsWith("0x") ? questionIdRaw : `0x${questionIdRaw}`;
-  if (questionId.length !== 66) {
-    throw new Error("questionId must be a 32-byte hex string (0x + 64 hex chars)");
-  }
-  const ctx = { runtime: runtime2, config: contracts };
-  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
-  return {
-    status: "ok",
-    result: "getMarket",
-    questionId,
-    question: market.question ?? "",
-    conditionId: market.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
-    oracle: market.oracle ?? "0x0000000000000000000000000000000000000000",
-    owner: market.owner ?? "0x0000000000000000000000000000000000000000",
-    createdAt: market.createdAt != null ? String(market.createdAt) : "0",
-    duration: market.duration != null ? String(market.duration) : "0",
-    outcomeSlotCount: String(market.outcomeSlotCount ?? 0),
-    oracleType: String(market.oracleType ?? 0),
-    marketType: String(market.marketType ?? 0)
-  };
-}
-function handleSeedLiquidity(runtime2, payload) {
-  const config2 = runtime2.config;
-  const contracts = config2.contracts;
-  if (!contracts) {
-    runtime2.log("Seed liquidity requires config.contracts.");
-    throw new Error("Missing config.contracts for platform actions");
-  }
-  const body = parseSeedPayload(payload.input);
-  const questionId = body.questionId.startsWith("0x") ? body.questionId : `0x${body.questionId}`;
-  const amountUsdc = BigInt(body.amountUsdc);
-  if (amountUsdc <= 0n) {
-    throw new Error("amountUsdc must be positive");
-  }
-  const txHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
-  runtime2.log("Seed market liquidity submitted.");
-  return { status: "ok", txHash: txHash ?? "" };
-}
-function handleResolveMarket(runtime2, payload) {
-  const config2 = runtime2.config;
-  const contracts = config2.contracts;
-  if (!contracts)
-    throw new Error("Missing config.contracts for platform actions");
-  const body = parseResolveMarketPayload(payload.input);
-  const questionId = toHex32(body.questionId);
-  if (questionId.length !== 66)
-    throw new Error("questionId must be 32-byte hex (0x + 64 chars)");
-  const payouts = body.payouts.map((p) => BigInt(p));
-  if (payouts.length === 0)
-    throw new Error("payouts array is required");
-  const oracle = toAddress(body.oracle);
-  if (oracle.length !== 42)
-    throw new Error("oracle must be a valid 20-byte address");
-  const txHash = submitResolveMarket(runtime2, contracts, { questionId, payouts, oracle });
-  runtime2.log("Resolve market submitted.");
-  return { status: "ok", result: "resolveMarket", txHash: txHash ?? "" };
-}
-function handleStake(runtime2, payload) {
-  const config2 = runtime2.config;
-  const contracts = config2.contracts;
-  if (!contracts)
-    throw new Error("Missing config.contracts for platform actions");
-  const body = parseStakePayload(payload.input);
-  const questionId = toHex32(body.questionId);
-  if (questionId.length !== 66)
-    throw new Error("questionId must be 32-byte hex");
-  const parentCollectionId = toHex32(body.parentCollectionId);
-  const partition = body.partition.map((p) => BigInt(p));
-  const token = toAddress(body.token);
-  const amount = BigInt(body.amount);
-  if (amount <= 0n)
-    throw new Error("amount must be positive");
-  const owner = toAddress(body.owner);
-  if (owner.length !== 42)
-    throw new Error("owner must be a valid 20-byte address");
-  const txHash = submitStake(runtime2, contracts, {
-    questionId,
-    parentCollectionId,
-    partition,
-    token,
-    amount,
-    owner
-  });
-  runtime2.log("Stake submitted.");
-  return { status: "ok", result: "stake", txHash: txHash ?? "" };
-}
-function handleRedeem(runtime2, payload) {
-  const config2 = runtime2.config;
-  const contracts = config2.contracts;
-  if (!contracts)
-    throw new Error("Missing config.contracts for platform actions");
-  const body = parseRedeemPayload(payload.input);
-  const parentCollectionId = toHex32(body.parentCollectionId);
-  const conditionId = toHex32(body.conditionId);
-  const indexSets = body.indexSets.map((i2) => BigInt(i2));
-  const token = toAddress(body.token);
-  const owner = toAddress(body.owner);
-  if (owner.length !== 42)
-    throw new Error("owner must be a valid 20-byte address");
-  const deadline = BigInt(body.deadline);
-  const nonce = BigInt(body.nonce);
-  const signature = body.signature.startsWith("0x") ? body.signature : `0x${body.signature}`;
-  if (!signature || signature.length < 10)
-    throw new Error("signature is required (EIP-712 Redeem from owner)");
-  const txHash = submitRedeem(runtime2, contracts, {
-    parentCollectionId,
-    conditionId,
-    indexSets,
-    token,
-    owner,
-    deadline,
-    nonce,
-    signature
-  });
-  runtime2.log("Redeem submitted.");
-  return { status: "ok", result: "redeem", txHash: txHash ?? "" };
-}
-async function handlePlatformCron(runtime2) {
-  const { handleSettlementCron: handleSettlementCron2 } = await Promise.resolve().then(() => (init_settlementCron(), exports_settlementCron));
-  return handleSettlementCron2(runtime2);
-}
-init__esm();
 init_secp256k1();
 init_toHex();
 init_address();
@@ -32251,6 +30831,41 @@ function privateKeyToAccount(privateKey, options = {}) {
     source: "privateKey"
   };
 }
+init__esm();
+function randomPrivateKeyBytes(entropy) {
+  const out = new Uint8Array(32);
+  if (typeof globalThis.crypto !== "undefined" && globalThis.crypto.getRandomValues) {
+    globalThis.crypto.getRandomValues(out);
+  } else {
+    for (let i2 = 0;i2 < 32; i2++)
+      out[i2] = Math.floor(Math.random() * 256);
+  }
+  if (entropy != null && entropy.length > 0) {
+    const entropyBytes = new TextEncoder().encode(entropy);
+    const mix = keccak256(entropyBytes.length ? entropyBytes : new Uint8Array([0]));
+    const mixHex = mix.startsWith("0x") ? mix.slice(2) : mix;
+    for (let i2 = 0;i2 < 32; i2++) {
+      out[i2] ^= parseInt(mixHex.slice(i2 * 2, i2 * 2 + 2), 16) ?? 0;
+    }
+    if (out[0] === 0)
+      out[0] = 1;
+  }
+  return out;
+}
+function createWalletSync(entropy) {
+  const privKeyBytes = randomPrivateKeyBytes(entropy);
+  const pubKey = secp256k12.getPublicKey(privKeyBytes, false);
+  const pubKeyNoPrefix = pubKey.slice(1);
+  const hash2 = keccak256(pubKeyNoPrefix);
+  const addressHex = `0x${hash2.slice(-40)}`;
+  const address = getAddress(addressHex);
+  const privateKey = bytesToHex2(privKeyBytes);
+  return { address, privateKey };
+}
+function createRandomAddress(entropy) {
+  return createWalletSync(entropy);
+}
+init__esm();
 var BACKEND_SIGNER_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 var ERC20_APPROVE_ABI = [
   {
@@ -32268,7 +30883,7 @@ var DEFAULT_GAS_LIMIT2 = 300000n;
 var DEFAULT_NONCE = 0;
 var DEFAULT_MAX_FEE_PER_GAS = 2n * 10n ** 9n;
 var DEFAULT_MAX_PRIORITY_FEE_PER_GAS = 1n * 10n ** 9n;
-function toAddress2(value2) {
+function toAddress(value2) {
   const s = String(value2 ?? "").trim();
   if (s.startsWith("0x"))
     return s;
@@ -32345,8 +30960,8 @@ async function handleApproveErc20(runtime2, payload) {
   if (!body.spender?.trim()) {
     throw new Error("spender is required");
   }
-  const tokenAddress = body.token?.trim() ? toAddress2(body.token) : contracts.contracts.usdc;
-  const spender = toAddress2(body.spender);
+  const tokenAddress = body.token?.trim() ? toAddress(body.token) : contracts.contracts.usdc;
+  const spender = toAddress(body.spender);
   const amount = BigInt(body.amount ?? "0");
   const { privateKey, signerAddress } = resolvePrivateKey(runtime2, body.signer, body.agentId);
   const data = encodeFunctionData({
@@ -32389,8 +31004,8 @@ async function handleApproveConditionalToken(runtime2, payload) {
   if (!body.operator?.trim()) {
     throw new Error("operator is required");
   }
-  const ctAddress = body.conditionalTokens?.trim() ? toAddress2(body.conditionalTokens) : contracts.contracts.conditionalTokens;
-  const operator = toAddress2(body.operator);
+  const ctAddress = body.conditionalTokens?.trim() ? toAddress(body.conditionalTokens) : contracts.contracts.conditionalTokens;
+  const operator = toAddress(body.operator);
   const { privateKey, signerAddress } = resolvePrivateKey(runtime2, body.signer, body.agentId);
   const data = encodeFunctionData({
     abi: CTF_ABI,
@@ -32420,6 +31035,457 @@ async function handleApproveConditionalToken(runtime2, payload) {
     broadcastRequired,
     note: broadcastRequired ? "Fetch nonce: cast nonce <signerAddress> --rpc-url <RPC_URL>. Broadcast: cast rpc eth_sendRawTransaction <signedTx> --rpc-url <RPC_URL>" : "Returned signed tx for client to broadcast when ready."
   };
+}
+async function signApproveErc20WithKey(runtime2, privateKeyHex, params) {
+  const config2 = runtime2.config;
+  const contracts = config2?.contracts;
+  if (!contracts) {
+    throw new Error("Missing config.contracts for signApproveErc20WithKey");
+  }
+  const tokenAddress = params.token?.trim() ? toAddress(params.token) : contracts.contracts.usdc;
+  const spender = toAddress(params.spender);
+  const amount = params.amount ?? maxUint256;
+  const nonce = params.nonce ?? DEFAULT_NONCE;
+  const data = encodeFunctionData({
+    abi: ERC20_APPROVE_ABI,
+    functionName: "approve",
+    args: [spender, amount]
+  });
+  const account = privateKeyToAccount(privateKeyHex.startsWith("0x") ? privateKeyHex : `0x${privateKeyHex}`);
+  const signedTx = await account.signTransaction({
+    type: "eip1559",
+    to: tokenAddress,
+    data,
+    value: 0n,
+    gas: DEFAULT_GAS_LIMIT2,
+    nonce,
+    chainId: contracts.chainId,
+    maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
+    maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS
+  });
+  return { signedTx };
+}
+async function signApproveConditionalTokenWithKey(runtime2, privateKeyHex, params) {
+  const config2 = runtime2.config;
+  const contracts = config2?.contracts;
+  if (!contracts) {
+    throw new Error("Missing config.contracts for signApproveConditionalTokenWithKey");
+  }
+  const ctAddress = params.conditionalTokens?.trim() ? toAddress(params.conditionalTokens) : contracts.contracts.conditionalTokens;
+  const operator = toAddress(params.operator);
+  const nonce = params.nonce ?? DEFAULT_NONCE;
+  const data = encodeFunctionData({
+    abi: CTF_ABI,
+    functionName: "setApprovalForAll",
+    args: [operator, params.approved !== false]
+  });
+  const account = privateKeyToAccount(privateKeyHex.startsWith("0x") ? privateKeyHex : `0x${privateKeyHex}`);
+  const signedTx = await account.signTransaction({
+    type: "eip1559",
+    to: ctAddress,
+    data,
+    value: 0n,
+    gas: DEFAULT_GAS_LIMIT2,
+    nonce,
+    chainId: contracts.chainId,
+    maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
+    maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS
+  });
+  return { signedTx };
+}
+var ETH_AGENT_FUNDING_WEI = 3n * 10n ** 15n;
+var DEFAULT_GAS_LIMIT3 = 300000n;
+var DEFAULT_NONCE2 = 0;
+var DEFAULT_MAX_FEE_PER_GAS2 = 2n * 10n ** 9n;
+var DEFAULT_MAX_PRIORITY_FEE_PER_GAS2 = 1n * 10n ** 9n;
+function parseCreateAgentKeyPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const agentId = typeof raw.agentId === "string" ? raw.agentId.trim() : "";
+  if (!agentId) {
+    throw new Error("Missing or invalid body.agentId");
+  }
+  const funderNonce = raw.funderNonce != null ? Number(raw.funderNonce) : undefined;
+  const entropy = typeof raw.entropy === "string" ? raw.entropy.trim() || undefined : undefined;
+  return { agentId, funderNonce, entropy };
+}
+async function handleCreateAgentKey(runtime2, client, payload) {
+  const body = parseCreateAgentKeyPayload(payload.input);
+  const masterKeySecret = runtime2.getSecret({ id: "TEE_MASTER_ENCRYPTION_KEY" }).result();
+  const masterKey = masterKeySecret?.value?.trim();
+  const { address, privateKey } = createRandomAddress(body.entropy ?? body.agentId);
+  let encryptedKeyBlob = privateKey;
+  const config2 = runtime2.config;
+  const contracts = config2?.contracts;
+  let signedEthTransfer;
+  let signedErc20;
+  let signedCT;
+  if (contracts) {
+    const funderSecret = runtime2.getSecret({ id: "BACKEND_SIGNER_PRIVATE_KEY" }).result();
+    const funderKeyRaw = funderSecret?.value?.trim() ?? "";
+    if (funderKeyRaw) {
+      const funderKey = funderKeyRaw.startsWith("0x") ? funderKeyRaw : `0x${funderKeyRaw}`;
+      const funderAccount = privateKeyToAccount(funderKey);
+      const funderNonce = body.funderNonce ?? DEFAULT_NONCE2;
+      try {
+        signedEthTransfer = await funderAccount.signTransaction({
+          type: "eip1559",
+          to: address,
+          data: "0x",
+          value: ETH_AGENT_FUNDING_WEI,
+          gas: DEFAULT_GAS_LIMIT3,
+          nonce: funderNonce,
+          chainId: contracts.chainId,
+          maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS2,
+          maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS2
+        });
+        runtime2.log(`Signed ETH transfer (~$10) to agent ${address} for broadcast by backend.`);
+      } catch (err) {
+        runtime2.log(`Failed to sign ETH transfer: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      runtime2.log("BACKEND_SIGNER_PRIVATE_KEY not set; skipping signedEthTransfer.");
+    }
+    const agentKeyHex = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
+    const predictionVault = contracts.contracts.predictionVault;
+    try {
+      const erc20Result = await signApproveErc20WithKey(runtime2, agentKeyHex, {
+        spender: predictionVault,
+        nonce: 0
+      });
+      signedErc20 = erc20Result.signedTx;
+      runtime2.log("Signed ERC20 approve for agent; backend will broadcast.");
+    } catch (err) {
+      runtime2.log(`Failed to sign ERC20 approve: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    try {
+      const ctResult = await signApproveConditionalTokenWithKey(runtime2, agentKeyHex, {
+        operator: predictionVault,
+        approved: true,
+        nonce: 0
+      });
+      signedCT = ctResult.signedTx;
+      runtime2.log("Signed conditional token setApprovalForAll for agent; backend will broadcast.");
+    } catch (err) {
+      runtime2.log(`Failed to sign CT approve: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    runtime2.log("No config.contracts; skipping signedEthTransfer, signedErc20, signedCT.");
+  }
+  const postBody = {
+    agentId: body.agentId,
+    address,
+    encryptedKeyBlob
+  };
+  if (signedEthTransfer != null)
+    postBody.signedEthTransfer = signedEthTransfer;
+  if (signedErc20 != null)
+    postBody.signedErc20 = signedErc20;
+  if (signedCT != null)
+    postBody.signedCT = signedCT;
+  client.sendRequest(runtime2, {
+    request: {
+      url: `${config2?.backendUrl ?? runtime2.config.backendUrl}/api/cre/agent-keys`,
+      method: "POST",
+      multiHeaders: {
+        Authorization: { values: ["Basic {{.apiKey}}"] }
+      },
+      bodyString: JSON.stringify(postBody)
+    },
+    vaultDonSecrets: [{ key: "BACKEND_API_VAR" }]
+  }).result();
+  runtime2.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
+  const response = { address, encryptedKeyBlob };
+  if (signedEthTransfer != null)
+    response.signedEthTransfer = signedEthTransfer;
+  if (signedErc20 != null)
+    response.signedErc20 = signedErc20;
+  if (signedCT != null)
+    response.signedCT = signedCT;
+  return response;
+}
+function parseCreateMarketPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    question: String(raw.question ?? ""),
+    oracle: String(raw.oracle ?? ""),
+    duration: Number(raw.duration ?? 0),
+    outcomeSlotCount: Number(raw.outcomeSlotCount ?? 2),
+    oracleType: Number(raw.oracleType ?? 1),
+    marketType: Number(raw.marketType ?? 0),
+    amountUsdc: raw.amountUsdc != null ? String(raw.amountUsdc) : undefined,
+    creatorAddress: String(raw.creatorAddress ?? "")
+  };
+}
+function parseSeedPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    questionId: String(raw.questionId ?? ""),
+    amountUsdc: String(raw.amountUsdc ?? "0")
+  };
+}
+function parseGetMarketPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    questionId: String(raw.questionId ?? "")
+  };
+}
+function parseResolveMarketPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const payouts = raw.payouts;
+  return {
+    questionId: String(raw.questionId ?? ""),
+    payouts: Array.isArray(payouts) ? payouts.map((p) => String(p ?? "0")) : [],
+    oracle: String(raw.oracle ?? "")
+  };
+}
+function parseStakePayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const partition = raw.partition;
+  return {
+    questionId: String(raw.questionId ?? ""),
+    parentCollectionId: String(raw.parentCollectionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000"),
+    partition: Array.isArray(partition) ? partition : [],
+    token: String(raw.token ?? ""),
+    amount: String(raw.amount ?? "0"),
+    owner: String(raw.owner ?? "")
+  };
+}
+function parseRedeemPayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  const indexSets = raw.indexSets;
+  return {
+    parentCollectionId: String(raw.parentCollectionId ?? ""),
+    conditionId: String(raw.conditionId ?? ""),
+    indexSets: Array.isArray(indexSets) ? indexSets : [],
+    token: String(raw.token ?? ""),
+    owner: String(raw.owner ?? ""),
+    deadline: String(raw.deadline ?? "0"),
+    nonce: String(raw.nonce ?? "0"),
+    signature: String(raw.signature ?? "")
+  };
+}
+function toHex32(value2) {
+  const s = value2.trim().toLowerCase();
+  if (s.startsWith("0x"))
+    return s;
+  return `0x${s}`;
+}
+function toAddress2(value2) {
+  const s = value2.trim();
+  if (s.startsWith("0x"))
+    return s;
+  return `0x${s}`;
+}
+async function handleCreateMarket(runtime2, payload) {
+  runtime2.log("CRE Workflow: HTTP Trigger - Create Market (Sub0)");
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts) {
+    runtime2.log("Create market requires config.contracts.");
+    throw new Error("Missing config.contracts for platform actions");
+  }
+  const body = parseCreateMarketPayload(payload.input);
+  runtime2.log(`[Request] question: "${body.question?.slice(0, 50)}${(body.question?.length ?? 0) > 50 ? "..." : ""}", oracle: ${body.oracle}, creator: ${body.creatorAddress}`);
+  if (!body.question?.trim())
+    throw new Error("question is required");
+  if (body.outcomeSlotCount < 2 || body.outcomeSlotCount > 255)
+    throw new Error("outcomeSlotCount must be 2-255");
+  const duration = Number(body.duration);
+  if (duration <= 0)
+    throw new Error("duration must be positive");
+  const oracle = body.oracle.startsWith("0x") ? body.oracle : `0x${body.oracle}`;
+  if (oracle.length !== 42)
+    throw new Error("oracle must be a valid 20-byte address");
+  const creatorAddress = body.creatorAddress?.trim();
+  if (!creatorAddress)
+    throw new Error("creatorAddress is required (address that signs create tx, e.g. CRE platform key)");
+  const creator = creatorAddress.startsWith("0x") ? creatorAddress : `0x${creatorAddress}`;
+  if (creator.length !== 42)
+    throw new Error("creatorAddress must be a valid 20-byte address");
+  const questionId = computeQuestionId(body.question.trim(), creator, oracle);
+  const createMarketTxHash = submitCreateMarket(runtime2, contracts, {
+    question: body.question.trim(),
+    oracle,
+    duration,
+    outcomeSlotCount: body.outcomeSlotCount,
+    oracleType: body.oracleType,
+    marketType: body.marketType
+  });
+  if (createMarketTxHash) {
+    runtime2.log(`Create market submitted. Transaction: ${createMarketTxHash}`);
+  } else {
+    runtime2.log("Create market submitted (no tx hash; use --broadcast for real onchain write).");
+  }
+  let seedTxHash = "";
+  const ctx = { runtime: runtime2, config: contracts };
+  let market;
+  try {
+    market = await getMarket(ctx, questionId);
+  } catch {
+    market = undefined;
+  }
+  const fromChain = market != null && (market.question?.length > 0 || market.conditionId != null && market.conditionId !== "0x0000000000000000000000000000000000000000000000000000000000000000");
+  const out = {
+    status: "ok",
+    result: "createMarket",
+    txHash: createMarketTxHash ?? "",
+    questionId,
+    question: fromChain ? market?.question ?? "" : body.question.trim(),
+    conditionId: market?.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
+    oracle: fromChain ? market?.oracle ?? "" : oracle,
+    owner: fromChain ? market?.owner ?? "" : creator,
+    createdAt: market?.createdAt != null ? String(market.createdAt) : "0",
+    duration: fromChain && market?.duration != null ? String(market.duration) : String(duration),
+    outcomeSlotCount: String(market?.outcomeSlotCount ?? body.outcomeSlotCount),
+    oracleType: String(market?.oracleType ?? body.oracleType),
+    marketType: String(market?.marketType ?? body.marketType)
+  };
+  if (createMarketTxHash)
+    out.createMarketTxHash = createMarketTxHash;
+  if (seedTxHash)
+    out.seedTxHash = seedTxHash;
+  return out;
+}
+async function handleGetMarket(runtime2, payload) {
+  runtime2.log("CRE Workflow: HTTP Trigger - Get Market");
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts) {
+    runtime2.log("Get market requires config.contracts.");
+    throw new Error("Missing config.contracts for platform actions");
+  }
+  const body = parseGetMarketPayload(payload.input);
+  const questionIdRaw = body.questionId?.trim();
+  if (!questionIdRaw) {
+    throw new Error("questionId is required");
+  }
+  const questionId = questionIdRaw.startsWith("0x") ? questionIdRaw : `0x${questionIdRaw}`;
+  if (questionId.length !== 66) {
+    throw new Error("questionId must be a 32-byte hex string (0x + 64 hex chars)");
+  }
+  const ctx = { runtime: runtime2, config: contracts };
+  const market = await getMarket(ctx, questionId, { useLatestBlock: true });
+  return {
+    status: "ok",
+    result: "getMarket",
+    questionId,
+    question: market.question ?? "",
+    conditionId: market.conditionId ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
+    oracle: market.oracle ?? "0x0000000000000000000000000000000000000000",
+    owner: market.owner ?? "0x0000000000000000000000000000000000000000",
+    createdAt: market.createdAt != null ? String(market.createdAt) : "0",
+    duration: market.duration != null ? String(market.duration) : "0",
+    outcomeSlotCount: String(market.outcomeSlotCount ?? 0),
+    oracleType: String(market.oracleType ?? 0),
+    marketType: String(market.marketType ?? 0)
+  };
+}
+function handleSeedLiquidity(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts) {
+    runtime2.log("Seed liquidity requires config.contracts.");
+    throw new Error("Missing config.contracts for platform actions");
+  }
+  const body = parseSeedPayload(payload.input);
+  const questionId = body.questionId.startsWith("0x") ? body.questionId : `0x${body.questionId}`;
+  const amountUsdc = BigInt(body.amountUsdc);
+  if (amountUsdc <= 0n) {
+    throw new Error("amountUsdc must be positive");
+  }
+  const txHash = submitSeedMarketLiquidity(runtime2, contracts, questionId, amountUsdc);
+  runtime2.log("Seed market liquidity submitted.");
+  return { status: "ok", txHash: txHash ?? "" };
+}
+function handleResolveMarket(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts)
+    throw new Error("Missing config.contracts for platform actions");
+  const body = parseResolveMarketPayload(payload.input);
+  const questionId = toHex32(body.questionId);
+  if (questionId.length !== 66)
+    throw new Error("questionId must be 32-byte hex (0x + 64 chars)");
+  const payouts = body.payouts.map((p) => BigInt(p));
+  if (payouts.length === 0)
+    throw new Error("payouts array is required");
+  const oracle = toAddress2(body.oracle);
+  if (oracle.length !== 42)
+    throw new Error("oracle must be a valid 20-byte address");
+  const txHash = submitResolveMarket(runtime2, contracts, { questionId, payouts, oracle });
+  runtime2.log("Resolve market submitted.");
+  return { status: "ok", result: "resolveMarket", txHash: txHash ?? "" };
+}
+function handleStake(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts)
+    throw new Error("Missing config.contracts for platform actions");
+  const body = parseStakePayload(payload.input);
+  const questionId = toHex32(body.questionId);
+  if (questionId.length !== 66)
+    throw new Error("questionId must be 32-byte hex");
+  const parentCollectionId = toHex32(body.parentCollectionId);
+  const partition = body.partition.map((p) => BigInt(p));
+  const token = toAddress2(body.token);
+  const amount = BigInt(body.amount);
+  if (amount <= 0n)
+    throw new Error("amount must be positive");
+  const owner = toAddress2(body.owner);
+  if (owner.length !== 42)
+    throw new Error("owner must be a valid 20-byte address");
+  const txHash = submitStake(runtime2, contracts, {
+    questionId,
+    parentCollectionId,
+    partition,
+    token,
+    amount,
+    owner
+  });
+  runtime2.log("Stake submitted.");
+  return { status: "ok", result: "stake", txHash: txHash ?? "" };
+}
+function handleRedeem(runtime2, payload) {
+  const config2 = runtime2.config;
+  const contracts = config2.contracts;
+  if (!contracts)
+    throw new Error("Missing config.contracts for platform actions");
+  const body = parseRedeemPayload(payload.input);
+  const parentCollectionId = toHex32(body.parentCollectionId);
+  const conditionId = toHex32(body.conditionId);
+  const indexSets = body.indexSets.map((i2) => BigInt(i2));
+  const token = toAddress2(body.token);
+  const owner = toAddress2(body.owner);
+  if (owner.length !== 42)
+    throw new Error("owner must be a valid 20-byte address");
+  const deadline = BigInt(body.deadline);
+  const nonce = BigInt(body.nonce);
+  const signature = body.signature.startsWith("0x") ? body.signature : `0x${body.signature}`;
+  if (!signature || signature.length < 10)
+    throw new Error("signature is required (EIP-712 Redeem from owner)");
+  const txHash = submitRedeem(runtime2, contracts, {
+    parentCollectionId,
+    conditionId,
+    indexSets,
+    token,
+    owner,
+    deadline,
+    nonce,
+    signature
+  });
+  runtime2.log("Redeem submitted.");
+  return { status: "ok", result: "redeem", txHash: txHash ?? "" };
+}
+async function handlePlatformCron(runtime2) {
+  const { handleSettlementCron: handleSettlementCron2 } = await Promise.resolve().then(() => (init_settlementCron(), exports_settlementCron));
+  return handleSettlementCron2(runtime2);
 }
 init_confidentialHttp();
 var DEFAULT_AGENT_MARKETS_PATH = "/api/internal/agent-markets";
@@ -32573,6 +31639,7 @@ var onHTTPTrigger = async (runtime2, payload) => {
       return {};
     }
   })();
+  const client = new ClientCapability2;
   verifyApiKey(runtime2, body);
   const action = body.action;
   if (action === "quote" || action === "order") {
@@ -32583,7 +31650,7 @@ var onHTTPTrigger = async (runtime2, payload) => {
     return { ...await handleLmsrPricing(runtime2, payload) };
   }
   if (action === "createAgentKey") {
-    return { ...handleCreateAgentKey(runtime2, payload) };
+    return { ...await handleCreateAgentKey(runtime2, client, payload) };
   }
   if (action === "createMarket") {
     return await handleCreateMarket(runtime2, payload);

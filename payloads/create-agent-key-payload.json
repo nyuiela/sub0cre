@@ -1,5 +1,6 @@
 {
   "action": "createAgentKey",
   "apiKey": "your-api-key-if-configured",
-  "agentId": "my-agent-1"
+  "agentId": "abab134b-6c11-405f-80bf-4d771aa8dc8b",
+  "funderNonce": 3
 }

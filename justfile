@@ -109,7 +109,7 @@ login:
     cre login
 
 
-docker:
+docker *args:
   docker run --rm --name sub0cre-gateway -p 8080:8080 \
   --add-host=host.docker.internal:host-gateway \
   -e CRE_TARGET=docker-settings \

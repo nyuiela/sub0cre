@@ -6,7 +6,7 @@
  */
 
 import type { Runtime } from "@chainlink/cre-sdk";
-import { encodeFunctionData, type Hex } from "viem";
+import { encodeFunctionData, maxUint256, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { WorkflowConfig } from "../types/config";
 import type {
@@ -248,4 +248,97 @@ export async function handleApproveConditionalToken(
       ? "Fetch nonce: cast nonce <signerAddress> --rpc-url <RPC_URL>. Broadcast: cast rpc eth_sendRawTransaction <signedTx> --rpc-url <RPC_URL>"
       : "Returned signed tx for client to broadcast when ready.",
   };
+}
+
+export interface SignApproveErc20Params {
+  spender: string;
+  token?: string;
+  amount?: bigint;
+  nonce?: number;
+}
+
+/**
+ * Sign ERC20 approve with an explicit private key (e.g. new agent key in createAgentKey).
+ * Returns signed tx hex for backend to broadcast.
+ */
+export async function signApproveErc20WithKey(
+  runtime: Runtime<WorkflowConfig>,
+  privateKeyHex: Hex,
+  params: SignApproveErc20Params
+): Promise<{ signedTx: string }> {
+  const config = runtime.config;
+  const contracts = config?.contracts;
+  if (!contracts) {
+    throw new Error("Missing config.contracts for signApproveErc20WithKey");
+  }
+  const tokenAddress = params.token?.trim()
+    ? toAddress(params.token)
+    : (contracts.contracts.usdc as `0x${string}`);
+  const spender = toAddress(params.spender);
+  const amount = params.amount ?? maxUint256;
+  const nonce = params.nonce ?? DEFAULT_NONCE;
+  const data = encodeFunctionData({
+    abi: ERC20_APPROVE_ABI,
+    functionName: "approve",
+    args: [spender, amount],
+  });
+  const account = privateKeyToAccount(privateKeyHex.startsWith("0x") ? privateKeyHex : (`0x${privateKeyHex}` as Hex));
+  const signedTx = await account.signTransaction({
+    type: "eip1559",
+    to: tokenAddress,
+    data,
+    value: 0n,
+    gas: DEFAULT_GAS_LIMIT,
+    nonce,
+    chainId: contracts.chainId,
+    maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
+    maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS,
+  });
+  return { signedTx };
+}
+
+export interface SignApproveConditionalTokenParams {
+  operator: string;
+  conditionalTokens?: string;
+  approved?: boolean;
+  nonce?: number;
+}
+
+/**
+ * Sign conditional token setApprovalForAll with an explicit private key (e.g. new agent key).
+ * Returns signed tx hex for backend to broadcast.
+ */
+export async function signApproveConditionalTokenWithKey(
+  runtime: Runtime<WorkflowConfig>,
+  privateKeyHex: Hex,
+  params: SignApproveConditionalTokenParams
+): Promise<{ signedTx: string }> {
+  const config = runtime.config;
+  const contracts = config?.contracts;
+  if (!contracts) {
+    throw new Error("Missing config.contracts for signApproveConditionalTokenWithKey");
+  }
+  const ctAddress = params.conditionalTokens?.trim()
+    ? toAddress(params.conditionalTokens)
+    : (contracts.contracts.conditionalTokens as `0x${string}`);
+  const operator = toAddress(params.operator);
+  const nonce = params.nonce ?? DEFAULT_NONCE;
+  const data = encodeFunctionData({
+    abi: CTF_ABI,
+    functionName: "setApprovalForAll",
+    args: [operator, params.approved !== false],
+  });
+  const account = privateKeyToAccount(privateKeyHex.startsWith("0x") ? privateKeyHex : (`0x${privateKeyHex}` as Hex));
+  const signedTx = await account.signTransaction({
+    type: "eip1559",
+    to: ctAddress,
+    data,
+    value: 0n,
+    gas: DEFAULT_GAS_LIMIT,
+    nonce,
+    chainId: contracts.chainId,
+    maxFeePerGas: DEFAULT_MAX_FEE_PER_GAS,
+    maxPriorityFeePerGas: DEFAULT_MAX_PRIORITY_FEE_PER_GAS,
+  });
+  return { signedTx };
 }
