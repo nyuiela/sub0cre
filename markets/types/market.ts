@@ -23,10 +23,12 @@ export type QuestionId = `0x${string}`;
 
 export type ConditionId = `0x${string}`;
 
-/** Params for Sub0.create(Market). Owner, conditionId, createdAt are set onchain. */
+/** Params for Sub0.create(Market). conditionId, createdAt are set onchain; owner must match backend creator for questionId. */
 export interface CreateMarketParams {
   question: string;
   oracle: `0x${string}`;
+  /** Creator address; contract uses this as actualCreator for questionId and GAME_CREATOR_ROLE. */
+  owner: `0x${string}`;
   duration: number | bigint;
   outcomeSlotCount: number;
   oracleType: OracleType; // 1=PLATFORM, 2=ARBITRATOR, 3=CUSTOM (not 0=NONE)

@@ -188,6 +188,7 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
   const createMarketTxHash = submitCreateMarket(runtime, contracts, {
     question: body.question.trim(),
     oracle,
+    owner: creator,
     duration,
     outcomeSlotCount: body.outcomeSlotCount,
     oracleType: body.oracleType,

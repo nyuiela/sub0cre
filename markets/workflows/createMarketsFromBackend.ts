@@ -19,8 +19,17 @@ const MAX_MARKETS_PER_RUN = 4;
 /** When backend sends markets in the request body we use one batch callback; cap per run to avoid execution timeout. */
 const MAX_MARKETS_PER_RUN_BATCH = 50;
 
-/** Delay between each createMarket tx to avoid replacement-transaction / nonce conflicts. */
-const INTER_CREATE_DELAY_MS = 5_000;
+/**
+ * Delay before each createMarket (except the first) to reduce nonce/gas clashes.
+ * Nonce is not controlled by us: CRE SDK's writeReport uses the signer (CRE_ETH_PRIVATE_KEY) and
+ * fetches nonce from RPC internally. We cannot inject Viem createNonceManager or manual nonce here
+ * because the tx is built and sent inside the CRE capability, not in our code. So we only:
+ * - Space sends (INTER_CREATE_DELAY_MS) so the previous tx has time to be broadcast/mined.
+ * - Optionally wait after a successful send (POST_CREATE_WAIT_MS) so the next send sees updated nonce.
+ */
+const INTER_CREATE_DELAY_MS = 8_000;
+/** After a successful createMarket, wait this long before the next so the tx can be mined and nonce increments on chain. */
+const POST_CREATE_WAIT_MS = 15_000;
 
 /** Blocking delay; CRE workflow runtime may not have setTimeout. */
 function delayMs(ms: number): void {
@@ -95,7 +104,7 @@ export async function handleCreateMarketsFromBackend(
   const backendApiKey = useNoAuthCrePaths ? "" : (payload?.apiKey?.trim() ?? "");
 
   let data: BackendMarketPayload[] = [];
-  const useBatchCallback = Array.isArray(payload?.markets) && payload.markets.length > 0;
+  const useBatchCallback = Array.isArray(payload?.markets) && (payload?.markets?.length ?? 0) > 0;
 
   if (useBatchCallback) {
     data = payload!.markets!.slice(0, MAX_MARKETS_PER_RUN_BATCH);
@@ -133,6 +142,7 @@ export async function handleCreateMarketsFromBackend(
   }
   runtime.log(`Creating ${toCreate.length} markets on-chain.`);
   const batchResults: Record<string, unknown>[] = [];
+  const failedMarkets: { question: string; reason: string; index?: number }[] = [];
   let errors = 0;
 
   for (let i = 0; i < toCreate.length; i++) {
@@ -143,6 +153,11 @@ export async function handleCreateMarketsFromBackend(
     const item = toCreate[i];
     if (!item?.question?.trim()) {
       errors++;
+      failedMarkets.push({
+        question: (item?.question as string)?.slice(0, 80) ?? "",
+        reason: "question empty or missing",
+        index: i,
+      });
       continue;
     }
     try {
@@ -152,12 +167,26 @@ export async function handleCreateMarketsFromBackend(
       const createMarketTxHash = result.createMarketTxHash ?? "";
       if (!questionId) {
         errors++;
+        failedMarkets.push({
+          question: String(item.question).slice(0, 80),
+          reason: "no questionId in result",
+          index: i,
+        });
         continue;
       }
       batchResults.push(toCallbackItem(item, questionId, createMarketTxHash));
+      if (i < toCreate.length - 1) {
+        runtime.log(`Waiting ${POST_CREATE_WAIT_MS}ms for tx to be mined before next create.`);
+        delayMs(POST_CREATE_WAIT_MS);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      runtime.log(`Create market failed for "${item.question?.slice(0, 40)}...": ${msg}`);
+      runtime.log(`Create market failed for "${String(item.question).slice(0, 40)}...": ${msg}`);
+      failedMarkets.push({
+        question: String(item.question).slice(0, 80),
+        reason: msg,
+        index: i,
+      });
       errors++;
     }
   }
@@ -196,6 +225,9 @@ export async function handleCreateMarketsFromBackend(
     questionId: (r as { questionId?: string }).questionId ?? "",
     createMarketTxHash: (r as { createMarketTxHash?: string }).createMarketTxHash ?? "",
   }));
+  if (failedMarkets.length > 0) {
+    runtime.log(`Create market failures (${failedMarkets.length}): ${JSON.stringify(failedMarkets)}`);
+  }
   return {
     status: "ok",
     result: "createMarketsFromBackend",
@@ -203,5 +235,6 @@ export async function handleCreateMarketsFromBackend(
     errors: String(errors),
     total: String(data.length),
     markets: marketResults,
+    failedMarkets,
   };
 }

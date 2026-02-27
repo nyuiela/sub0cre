@@ -182,7 +182,7 @@ export function encodeCreateMarket(params: CreateMarketParams): `0x${string}` {
     question: params.question,
     conditionId: ZERO_BYTES32,
     oracle: params.oracle,
-    owner: "0xf0830060f836B8d54bF02049E5905F619487989e" as `0x${string}`,
+    owner: params.owner,
     createdAt: 0n,
     duration: BigInt(params.duration),
     outcomeSlotCount: BigInt(params.outcomeSlotCount),
