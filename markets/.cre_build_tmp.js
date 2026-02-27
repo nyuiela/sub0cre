@@ -27958,6 +27958,22 @@ function signLMSRQuote(params, config, privateKeyHex) {
     signature
   };
 }
+function encodePredictionVaultReportExecuteTrade(p) {
+  const encoded = encodeAbiParameters(EXECUTE_TRADE_PARAMS, [
+    p.questionId,
+    p.outcomeIndex,
+    p.buy,
+    p.quantity,
+    p.tradeCostUsdc,
+    p.maxCostUsdc,
+    p.nonce,
+    p.deadline,
+    p.user,
+    p.donSignature,
+    p.userSignature
+  ]);
+  return concat([`0x${PREDICTION_VAULT_CRE_ACTION.EXECUTE_TRADE.toString(16).padStart(2, "0")}`, encoded]);
+}
 function encodePredictionVaultReportSeedLiquidity(questionId, amountUsdc) {
   const encoded = encodeAbiParameters(SEED_LIQUIDITY_PARAMS, [questionId, amountUsdc]);
   return concat([`0x${PREDICTION_VAULT_CRE_ACTION.SEED_LIQUIDITY.toString(16).padStart(2, "0")}`, encoded]);
@@ -27995,6 +28011,23 @@ function writePredictionVaultReport(runtime2, config, hexPayload, label) {
 function submitSeedMarketLiquidity(runtime2, config, questionId, amountUsdc) {
   const hexPayload = encodePredictionVaultReportSeedLiquidity(questionId, amountUsdc);
   return writePredictionVaultReport(runtime2, config, hexPayload, "Seed liquidity");
+}
+function submitExecuteTrade(runtime2, config, quote, maxCostUsdc, user, donSignature, userSignature) {
+  const payload = {
+    questionId: quote.questionId,
+    outcomeIndex: quote.outcomeIndex,
+    buy: quote.buy,
+    quantity: quote.quantity,
+    tradeCostUsdc: quote.tradeCostUsdc,
+    maxCostUsdc,
+    nonce: quote.nonce,
+    deadline: quote.deadline,
+    user,
+    donSignature,
+    userSignature
+  };
+  const hexPayload = encodePredictionVaultReportExecuteTrade(payload);
+  return writePredictionVaultReport(runtime2, config, hexPayload, "Execute trade");
 }
 init_dist();
 init__esm();
@@ -30831,6 +30864,7 @@ function privateKeyToAccount(privateKey, options = {}) {
     source: "privateKey"
   };
 }
+init_publicKeyToAddress();
 init__esm();
 function randomPrivateKeyBytes(entropy) {
   const out = new Uint8Array(32);
@@ -31627,6 +31661,150 @@ async function handleCreateMarketsFromBackend(runtime2, payload) {
   };
 }
 init_runSettlement();
+init__esm();
+var DON_SIGNER_ID2 = "BACKEND_SIGNER_PRIVATE_KEY";
+var LMSR_QUOTE_TYPES = {
+  LMSRQuote: [
+    { name: "questionId", type: "bytes32" },
+    { name: "outcomeIndex", type: "uint256" },
+    { name: "buy", type: "bool" },
+    { name: "quantity", type: "uint256" },
+    { name: "tradeCostUsdc", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" }
+  ]
+};
+function parseExecuteConfidentialTradePayload(input) {
+  const text = new TextDecoder().decode(input);
+  const raw = JSON.parse(text);
+  return {
+    agentId: String(raw.agentId ?? ""),
+    marketId: String(raw.marketId ?? raw.questionId ?? ""),
+    outcomeIndex: Number(raw.outcomeIndex ?? 0),
+    buy: Boolean(raw.buy),
+    quantity: String(raw.quantity ?? "0"),
+    tradeCostUsdc: String(raw.tradeCostUsdc ?? "0"),
+    nonce: String(raw.nonce ?? "0"),
+    deadline: String(raw.deadline ?? "0")
+  };
+}
+async function handleExecuteConfidentialTrade(runtime2, payload) {
+  const config2 = runtime2.config?.contracts;
+  if (!config2) {
+    runtime2.log("executeConfidentialTrade requires config.contracts");
+    throw new Error("Missing config.contracts");
+  }
+  const body = parseExecuteConfidentialTradePayload(payload.input);
+  if (!body.agentId)
+    throw new Error("Missing body.agentId");
+  const questionId = ensureQuestionIdBytes32(body.marketId);
+  const market = await getMarket({ runtime: runtime2, config: config2 }, questionId, { useLatestBlock: true });
+  if (market.outcomeSlotCount === 0) {
+    throw new Error("Market not found or invalid");
+  }
+  if (body.outcomeIndex >= market.outcomeSlotCount) {
+    throw new Error("Outcome index out of range");
+  }
+  const nonce = BigInt(body.nonce);
+  if (getNonceUsed(runtime2, config2, questionId, nonce)) {
+    throw new Error("Nonce already used");
+  }
+  if (body.buy) {
+    const balance = await getVaultBalanceForOutcome({ runtime: runtime2, config: config2 }, market.conditionId, body.outcomeIndex);
+    if (balance < BigInt(body.quantity)) {
+      throw new Error("Insufficient vault balance for this outcome");
+    }
+  }
+  const secret = runtime2.getSecret({ id: body.agentId }).result();
+  const privateKeyRaw = secret.value ?? "";
+  if (!privateKeyRaw) {
+    throw new Error("Agent key secret not found; ensure cre secrets create or .env for this agentId");
+  }
+  const privateKey = privateKeyRaw.startsWith("0x") ? privateKeyRaw : `0x${privateKeyRaw}`;
+  const domain = {
+    name: config2.eip712.domainName,
+    version: config2.eip712.domainVersion,
+    chainId: config2.chainId,
+    verifyingContract: config2.contracts.predictionVault
+  };
+  const message2 = {
+    questionId,
+    outcomeIndex: BigInt(body.outcomeIndex),
+    buy: body.buy,
+    quantity: BigInt(body.quantity),
+    tradeCostUsdc: BigInt(body.tradeCostUsdc),
+    nonce,
+    deadline: BigInt(body.deadline)
+  };
+  const userSignature = await signTypedData({
+    domain,
+    types: LMSR_QUOTE_TYPES,
+    primaryType: "LMSRQuote",
+    message: message2,
+    privateKey
+  });
+  const quote = {
+    questionId,
+    outcomeIndex: BigInt(body.outcomeIndex),
+    buy: body.buy,
+    quantity: BigInt(body.quantity),
+    tradeCostUsdc: BigInt(body.tradeCostUsdc),
+    nonce,
+    deadline: BigInt(body.deadline)
+  };
+  const donSignerSecret = runtime2.getSecret({ id: DON_SIGNER_ID2 }).result();
+  const donSignerKey = donSignerSecret.value ?? "";
+  if (!donSignerKey) {
+    throw new Error("DON signer secret not configured (BACKEND_SIGNER_PRIVATE_KEY)");
+  }
+  const donSigned = signLMSRQuote({
+    questionId,
+    outcomeIndex: body.outcomeIndex,
+    buy: body.buy,
+    quantity: BigInt(body.quantity),
+    tradeCostUsdc: BigInt(body.tradeCostUsdc),
+    nonce,
+    deadline: BigInt(body.deadline)
+  }, config2, donSignerKey);
+  const donSignature = donSigned.signature;
+  const pubKey = secp256k12.getPublicKey(hexToBytes2(privateKey), false);
+  const user = getAddress(publicKeyToAddress(bytesToHex2(pubKey)));
+  const maxCostUsdc = BigInt(body.tradeCostUsdc);
+  const txHash = submitExecuteTrade(runtime2, config2, quote, maxCostUsdc, user, donSignature, userSignature);
+  runtime2.log("Confidential trade submitted successfully.");
+  return { txHash };
+}
+var VAULT_API_KEY = "BACKEND_API_VAR";
+function bigintReplacer(_key, value2) {
+  if (typeof value2 === "bigint")
+    return value2.toString();
+  return value2;
+}
+function postCreResultToBackend(runtime2, client, config2, path, result) {
+  const base = config2?.backendUrl ?? runtime2.config?.backendUrl;
+  if (!base?.trim()) {
+    runtime2.log("postCreResultToBackend: backendUrl not set; skipping POST.");
+    return;
+  }
+  const url = `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  const bodyString = JSON.stringify(typeof result === "object" && result !== null ? result : { result }, bigintReplacer);
+  try {
+    client.sendRequest(runtime2, {
+      request: {
+        url,
+        method: "POST",
+        multiHeaders: {
+          Authorization: { values: ["Basic {{.apiKey}}"] }
+        },
+        bodyString
+      },
+      vaultDonSecrets: [{ key: VAULT_API_KEY }]
+    }).result();
+    runtime2.log(`Posted result to ${path}`);
+  } catch (err) {
+    runtime2.log(`postCreResultToBackend failed for ${path}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
 var onCronTrigger = async (runtime2) => {
   return handlePlatformCron(runtime2);
 };
@@ -31640,14 +31818,30 @@ var onHTTPTrigger = async (runtime2, payload) => {
     }
   })();
   const client = new ClientCapability2;
+  const config2 = runtime2.config;
   verifyApiKey(runtime2, body);
   const action = body.action;
   if (action === "quote" || action === "order") {
     const signed = await handleQuoteSigning(runtime2, payload);
+    postCreResultToBackend(runtime2, client, config2, "/api/cre/quote", signed);
+    return signed;
+  }
+  if (action === "buy") {
+    const buyPayload = { input: new TextEncoder().encode(JSON.stringify({ ...body, buy: true })) };
+    const signed = await handleQuoteSigning(runtime2, buyPayload);
+    postCreResultToBackend(runtime2, client, config2, "/api/cre/buy", signed);
+    return signed;
+  }
+  if (action === "sell") {
+    const sellPayload = { input: new TextEncoder().encode(JSON.stringify({ ...body, buy: false })) };
+    const signed = await handleQuoteSigning(runtime2, sellPayload);
+    postCreResultToBackend(runtime2, client, config2, "/api/cre/sell", signed);
     return signed;
   }
   if (action === "lmsrPricing") {
-    return { ...await handleLmsrPricing(runtime2, payload) };
+    const result = await handleLmsrPricing(runtime2, payload);
+    postCreResultToBackend(runtime2, client, config2, "/api/cre/lmsr-pricing", result);
+    return { ...result };
   }
   if (action === "createAgentKey") {
     return { ...await handleCreateAgentKey(runtime2, client, payload) };
@@ -31665,10 +31859,19 @@ var onHTTPTrigger = async (runtime2, payload) => {
     return handleResolveMarket(runtime2, payload);
   }
   if (action === "stake") {
-    return handleStake(runtime2, payload);
+    const result = handleStake(runtime2, payload);
+    postCreResultToBackend(runtime2, client, config2, "/api/cre/stake", result);
+    return result;
   }
   if (action === "redeem") {
-    return handleRedeem(runtime2, payload);
+    const result = handleRedeem(runtime2, payload);
+    postCreResultToBackend(runtime2, client, config2, "/api/cre/redeem", result);
+    return result;
+  }
+  if (action === "executeConfidentialTrade" || action === "execute-confidential-trade") {
+    const result = await handleExecuteConfidentialTrade(runtime2, payload);
+    postCreResultToBackend(runtime2, client, config2, "/api/cre/execute-confidential-trade", result);
+    return { ...result };
   }
   if (action === "approveErc20") {
     return await handleApproveErc20(runtime2, payload);
@@ -31687,7 +31890,7 @@ var onHTTPTrigger = async (runtime2, payload) => {
   if (action === "runSettlement") {
     return await handleRunSettlement(runtime2, payload);
   }
-  runtime2.log("HTTP action must be one of: quote, order, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement.");
+  runtime2.log("HTTP action must be one of: quote, order, buy, sell, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement, executeConfidentialTrade.");
   throw new Error("Missing or invalid body.action");
 };
 var initWorkflow = (config2, _secretsProvider) => {

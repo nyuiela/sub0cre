@@ -5,6 +5,10 @@
 # Secrets: Infisical injects env from your project path (default /sub0cre). Users only need the
 # Infisical secret token (no CLI login). Pass -e INFISICAL_TOKEN=<secret>. Optional: INFISICAL_PROJECT_ID,
 # INFISICAL_ENV=prod, INFISICAL_PATH (default /sub0cre).
+#
+# Versions: Bun = latest 1.x from oven/bun:1 (rebuild to get newer 1.x). CRE = latest from
+# https://cre.chain.link/install.sh (fetches GitHub releases/latest at build time). To pin CRE, run
+# the install script with a version: curl -sSL https://cre.chain.link/install.sh | bash -s -- v1.2.3
 
 FROM oven/bun:1
 
@@ -17,7 +21,7 @@ RUN curl -1sLf "https://artifacts-cli.infisical.com/setup.deb.sh" | bash \
   && rm -rf /var/lib/apt/lists/*
 ENV INFISICAL_DISABLE_UPDATE_CHECK=true
 
-# Install CRE CLI to /opt/cre so PATH is predictable
+# Install CRE CLI to /opt/cre so PATH is predictable (latest release at build time; pass version to install.sh to pin)
 ENV CRE_INSTALL=/opt/cre
 ENV PATH="/opt/cre/bin:${PATH}"
 RUN curl -sSL https://cre.chain.link/install.sh | bash

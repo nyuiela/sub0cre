@@ -1,3 +1,4 @@
+
 /**
  * Execute confidential trade handler: fetch agent key from secrets, sign and submit executeTrade.
  * Used by standalone executeConfidentialTrade workflow. Not registered in main workflow because
@@ -5,8 +6,8 @@
  */
 
 import type { Runtime } from "@chainlink/cre-sdk";
-import { signTypedData } from "viem/accounts";
-import { getAddress, publicKeyToAddress, hexToBytes, type Hex } from "viem";
+import { signTypedData, publicKeyToAddress } from "viem/accounts";
+import { getAddress, hexToBytes, bytesToHex, type Hex } from "viem";
 import { secp256k1 } from "@noble/curves/secp256k1";
 import type { ChainContractConfig } from "../types/contracts";
 import type { ConfidentialTradePayload, ExecuteConfidentialTradeResponse } from "../types/confidential";
@@ -146,7 +147,7 @@ export async function handleExecuteConfidentialTrade(
   const donSignature = donSigned.signature as Hex;
 
   const pubKey = secp256k1.getPublicKey(hexToBytes(privateKey), false);
-  const user = getAddress(publicKeyToAddress(pubKey));
+  const user = getAddress(publicKeyToAddress(bytesToHex(pubKey) as Hex));
 
   const maxCostUsdc = BigInt(body.tradeCostUsdc);
   const txHash = submitExecuteTrade(runtime, config, quote, maxCostUsdc, user, donSignature, userSignature);

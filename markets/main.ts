@@ -12,9 +12,10 @@
  * - createMarketsFromBackend: fetch agent markets from backend, create on-chain, POST onchain-created.
  * - runSettlement: body { marketId, questionId }; deliberation + writeReport + POST resolved.
  *
- * executeConfidentialTrade remains standalone (async signing); use executeConfidentialTrade.ts.
+ * When config.backendUrl is set, quote, order, buy, sell, lmsrPricing, stake, redeem, and
+ * executeConfidentialTrade POST their result to backend /api/cre/<action> (e.g. /api/cre/quote).
  *
- * Triggers: Cron (schedule), HTTP (action: quote | order | lmsrPricing | createAgentKey | createMarket | getMarket | seed | resolveMarket | stake | redeem | approveErc20 | approveConditionalToken | createMarketsFromBackend | runSettlement).
+ * Triggers: Cron (schedule), HTTP (action: quote | order | buy | sell | lmsrPricing | createAgentKey | createMarket | getMarket | seed | resolveMarket | stake | redeem | approveErc20 | approveConditionalToken | createMarketsFromBackend | runSettlement | executeConfidentialTrade).
  */
 
 import { CronCapability, HTTPCapability, handler, Runner, ConfidentialHTTPClient, type Runtime } from "@chainlink/cre-sdk";
@@ -36,6 +37,8 @@ import {
 import { handleApproveErc20, handleApproveConditionalToken } from "./workflows/approveWorkflows";
 import { handleCreateMarketsFromBackend } from "./workflows/createMarketsFromBackend";
 import { handleRunSettlement } from "./workflows/runSettlement";
+import { handleExecuteConfidentialTrade } from "./workflows/executeConfidentialTrade";
+import { postCreResultToBackend } from "./lib/creBackendPost";
 
 const onCronTrigger = async (runtime: Runtime<WorkflowConfig>): Promise<string> => {
   return handlePlatformCron(runtime);
@@ -56,18 +59,32 @@ const onHTTPTrigger = async (
     }
   })();
   const client = new ConfidentialHTTPClient();
+  const config = runtime.config;
 
   verifyApiKey(runtime, body);
 
   const action = body.action as string | undefined;
   if (action === "quote" || action === "order") {
     const signed = (await handleQuoteSigning(runtime, payload)) as unknown as Record<string, string>;
+    postCreResultToBackend(runtime, client, config, "/api/cre/quote", signed);
     return signed;
-    // await handleQuoteSigning(runtime, payload);
-    // return {};
+  }
+  if (action === "buy") {
+    const buyPayload = { input: new TextEncoder().encode(JSON.stringify({ ...body, buy: true })) };
+    const signed = (await handleQuoteSigning(runtime, buyPayload)) as unknown as Record<string, string>;
+    postCreResultToBackend(runtime, client, config, "/api/cre/buy", signed);
+    return signed;
+  }
+  if (action === "sell") {
+    const sellPayload = { input: new TextEncoder().encode(JSON.stringify({ ...body, buy: false })) };
+    const signed = (await handleQuoteSigning(runtime, sellPayload)) as unknown as Record<string, string>;
+    postCreResultToBackend(runtime, client, config, "/api/cre/sell", signed);
+    return signed;
   }
   if (action === "lmsrPricing") {
-    return { ...(await handleLmsrPricing(runtime, payload)) };
+    const result = await handleLmsrPricing(runtime, payload);
+    postCreResultToBackend(runtime, client, config, "/api/cre/lmsr-pricing", result);
+    return { ...result };
   }
   if (action === "createAgentKey") {
     return { ...(await handleCreateAgentKey(runtime, client, payload)) };
@@ -85,10 +102,19 @@ const onHTTPTrigger = async (
     return handleResolveMarket(runtime, payload);
   }
   if (action === "stake") {
-    return handleStake(runtime, payload);
+    const result = handleStake(runtime, payload);
+    postCreResultToBackend(runtime, client, config, "/api/cre/stake", result);
+    return result;
   }
   if (action === "redeem") {
-    return handleRedeem(runtime, payload);
+    const result = handleRedeem(runtime, payload);
+    postCreResultToBackend(runtime, client, config, "/api/cre/redeem", result);
+    return result;
+  }
+  if (action === "executeConfidentialTrade" || action === "execute-confidential-trade") {
+    const result = await handleExecuteConfidentialTrade(runtime, payload);
+    postCreResultToBackend(runtime, client, config, "/api/cre/execute-confidential-trade", result);
+    return { ...result };
   }
   if (action === "approveErc20") {
     return (await handleApproveErc20(runtime, payload)) as unknown as HttpResult;
@@ -109,7 +135,7 @@ const onHTTPTrigger = async (
   }
 
   runtime.log(
-    "HTTP action must be one of: quote, order, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement."
+    "HTTP action must be one of: quote, order, buy, sell, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement, executeConfidentialTrade."
   );
   throw new Error("Missing or invalid body.action");
 };

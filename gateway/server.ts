@@ -107,11 +107,21 @@ async function runSimulate(
   ];
   if (broadcast) args.push("--broadcast");
 
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? "/root";
+  const useVolumeAuth = process.env.CRE_USE_VOLUME_AUTH === "true" || process.env.CRE_USE_VOLUME_AUTH === "1";
+  const creEnv: Record<string, string> = { ...process.env, CRE_TARGET, HOME: home } as Record<string, string>;
+  if (useVolumeAuth && creEnv.CRE_API_KEY) {
+    delete creEnv.CRE_API_KEY;
+    log("CRE_USE_VOLUME_AUTH=true: unset CRE_API_KEY so CLI uses volume-mounted ~/.cre from 'cre login'.", { home });
+  } else if (process.env.CRE_API_KEY) {
+    log("CRE_API_KEY is set; CLI will use it (not ~/.cre). If you see 'invalid token', set CRE_USE_VOLUME_AUTH=true or remove CRE_API_KEY from Infisical.", { home });
+  }
+
   const proc = Bun.spawn(["cre", ...args], {
     cwd: process.cwd(),
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...process.env, CRE_TARGET },
+    env: creEnv,
   });
 
   const [stdout, stderr] = await Promise.all([
