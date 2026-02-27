@@ -1,0 +1,16 @@
+{
+  "action": "sell",
+  "questionId": "0x3e523bdeaeef92d3e289282b4994e74877c25793fb92ac3fbfe796d47c643394",
+  "conditionId": "0xf0d07e88beb74182e10db5b68fd7da34ca1c940197b442ef32349959c97eeb4a",
+  "outcomeIndex": 0,
+  "buy": false,
+  "trades": [
+    {
+      "userSignature": "0x...",
+      "quantity": "500000000000000000",
+      "tradeCostUsdc": "250000",
+      "nonce": "1",
+      "deadline": "9999999999"
+    }
+  ]
+}

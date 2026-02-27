@@ -6,11 +6,21 @@ All requests to CRE are HTTP POST to the CRE workflow trigger. The body must be 
 
 ---
 
+## Concepts: signatures and execution
+
+- **Buy / sell (PredictionVault)**  
+  Execution requires a signature from either the **user** or the **agent**. Send **userSignature** (EIP-712 LMSRQuote signed by the user) in the payload for quote/order/buy/sell; CRE recovers the user address, adds the platform (DON) signature, and submits the transaction via **writeReport** to execute the trade on the PredictionVault. For the **agent** path, use action **executeConfidentialTrade** with **agentId**; CRE signs with the agent key and DON, then submits via writeReport. Without userSignature (and without using executeConfidentialTrade), CRE only returns a DON-signed quote and does not execute.
+
+- **Stake and redeem (Sub0 contract)**  
+  Conceptually **stake = buy**, **redeem = sell**. Both call the Sub0 contract (stake and redeem functions). **Redeem** already requires the owner's EIP-712 signature in the payload; CRE forwards it in the report. **Stake** currently encodes questionId, parentCollectionId, partition, token, amount, owner (no signature in the report); when the contract supports an owner signature, the payload can be extended.
+
+---
+
 ## 1. Payloads to send to CRE (request body)
 
 ### 1.1 quote / order
 
-Sign an LMSR quote for PredictionVault.executeTrade (EIP-712). Same payload for both `action: "quote"` and `action: "order"`.
+Sign an LMSR quote for PredictionVault.executeTrade (EIP-712). When **userSignature** is provided, CRE adds the DON signature and submits the trade via writeReport (returns txHash). Otherwise CRE returns only the DON-signed quote.
 
 | Field         | Type    | Required | Description |
 |---------------|---------|----------|-------------|
@@ -23,10 +33,15 @@ Sign an LMSR quote for PredictionVault.executeTrade (EIP-712). Same payload for 
 | tradeCostUsdc | string  | yes      | Trade cost in USDC units (decimal string) |
 | nonce         | string  | yes      | User nonce for this market |
 | deadline      | string  | yes      | EIP-712 deadline (unix timestamp string) |
+| userSignature | string  | no       | EIP-712 LMSRQuote signature (0x-prefixed hex). When set, CRE executes trade via writeReport and returns txHash. |
+| trades        | array   | no       | **Batch (order book fill):** array of `{ userSignature, quantity, tradeCostUsdc, nonce, deadline }`. Shared questionId, conditionId, outcomeIndex, buy. One writeReport per item; response `{ txHashes, errors? }`. |
+
+**Batch trades (order book fill)**  
+When **trades** is a non-empty array, CRE runs in batch mode. Each element must have `userSignature`, `quantity`, `tradeCostUsdc`, `nonce`, `deadline`. CRE recovers user per item, DON-signs each quote, and submits one writeReport (executeTrade) per trade. Response: `{ txHashes: string[], errors?: string[] }`. Failed items are pushed to `errors`; successful submits are in `txHashes`.
 
 ### 1.2 buy / sell
 
-Same as quote/order; CRE forces `buy: true` for `action: "buy"` and `buy: false` for `action: "sell"`. Send the same fields as quote; do not rely on body.buy for buy/sell (action overrides).
+Same as quote/order; CRE forces `buy: true` for `action: "buy"` and `buy: false` for `action: "sell"`. Include **userSignature** (single) or **trades** (batch) to execute via writeReport; otherwise CRE returns the DON-signed quote only. For agent-signed execution use **executeConfidentialTrade** with agentId.
 
 | Field         | Type    | Required | Description |
 |---------------|---------|----------|-------------|
@@ -38,6 +53,8 @@ Same as quote/order; CRE forces `buy: true` for `action: "buy"` and `buy: false`
 | tradeCostUsdc | string  | yes      | As in quote |
 | nonce         | string  | yes      | As in quote |
 | deadline      | string  | yes      | As in quote |
+| userSignature | string  | no       | As in quote; when set, CRE executes trade via writeReport. |
+| trades        | array   | no       | Batch: same as in 1.1 (array of items with userSignature, quantity, tradeCostUsdc, nonce, deadline). |
 
 ### 1.3 lmsrPricing
 
@@ -64,7 +81,7 @@ Generate an agent wallet in the enclave; CRE optionally encrypts the key and sig
 
 ### 1.5 stake
 
-Submit a stake via Sub0 CRE (0x02). Forwarder stakes on behalf of owner.
+Submit a stake via Sub0 CRE (0x02). Forwarder stakes on behalf of owner. Conceptually **stake = buy** (adding position). Report encoding: questionId, parentCollectionId, partition, token, amount, owner (no signature in current encoding; contract may be extended for owner signature).
 
 | Field              | Type           | Required | Description |
 |--------------------|----------------|----------|-------------|
@@ -74,11 +91,11 @@ Submit a stake via Sub0 CRE (0x02). Forwarder stakes on behalf of owner.
 | partition          | string[]       | yes      | Partition (array of outcome indices) |
 | token              | string         | yes      | Token address (e.g. USDC) |
 | amount             | string         | yes      | Amount (decimal string) |
-| owner               | string         | yes      | Owner address (0x...) |
+| owner              | string         | yes      | Owner address (0x...) |
 
 ### 1.6 redeem
 
-Submit a redeem via Sub0 CRE (0x03). Owner must supply EIP-712 signature.
+Submit a redeem via Sub0 CRE (0x03). Owner must supply EIP-712 signature. Conceptually **redeem = sell** (withdrawing position). Report includes owner, deadline, nonce, and signature.
 
 | Field              | Type   | Required | Description |
 |--------------------|--------|----------|-------------|
@@ -212,7 +229,9 @@ Responses are the HTTP response body from the CRE workflow (JSON). BigInt values
 
 ### 2.1 quote / order / buy / sell
 
-Signed EIP-712 quote (same shape for quote, order, buy, sell):
+- **When trades[] was sent (batch):** CRE returns `{ "txHashes": ["0x...", "0x..."], "errors": ["trade[1]: ..."] }` (errors optional; one txHash per successful submit).
+- **When userSignature was sent (single):** CRE executes the trade via writeReport and returns `{ "txHash": "0x..." }`.
+- **When neither trades nor userSignature was sent:** CRE returns the DON-signed quote only (same shape as below). Backend or relayer must submit executeTrade with both user and DON signatures.
 
 ```json
 {

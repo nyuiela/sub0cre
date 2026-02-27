@@ -166,6 +166,80 @@ PredictionVault routes on the first byte of `report` to either execute a trade o
 
 ---
 
+## 4.1 Contract decode reference (Solidity)
+
+**PredictionVault** (buy/sell use prefix `0x00` and call `executeTrade`):
+
+```solidity
+uint8 private constant CRE_ACTION_EXECUTE_TRADE = 0x00;
+uint8 private constant CRE_ACTION_SEED_LIQUIDITY = 0x01;
+
+if (action == CRE_ACTION_EXECUTE_TRADE) {
+    (
+        bytes32 questionId,
+        uint256 outcomeIndex,
+        bool buy,
+        uint256 quantity,
+        uint256 tradeCostUsdc,
+        uint256 maxCostUsdc,
+        uint256 nonce,
+        uint256 deadline,
+        address user,
+        bytes memory donSignature,
+        bytes memory userSignature
+    ) = abi.decode(payload, (bytes32, uint256, bool, uint256, uint256, uint256, uint256, uint256, address, bytes, bytes));
+    this.executeTrade(
+        questionId, outcomeIndex, buy, quantity, tradeCostUsdc, maxCostUsdc,
+        nonce, deadline, user, donSignature, userSignature
+    );
+    return;
+}
+```
+
+**Sub0** (stake = 0x02, redeem = 0x03):
+
+```solidity
+uint8 private constant CRE_ACTION_CREATE = 0x00;
+uint8 private constant CRE_ACTION_RESOLVE = 0x01;
+uint8 private constant CRE_ACTION_STAKE = 0x02;
+uint8 private constant CRE_ACTION_REDEEM = 0x03;
+
+if (action == CRE_ACTION_STAKE) {
+    (
+        bytes32 questionId,
+        bytes32 parentCollectionId,
+        uint256[] memory partition,
+        address token,
+        uint256 amount,
+        address _owner
+    ) = abi.decode(payload, (bytes32, bytes32, uint256[], address, uint256, address));
+    _stakeInternal(questionId, parentCollectionId, partition, token, amount, _owner);
+    return;
+}
+if (action == CRE_ACTION_REDEEM) {
+    (
+        bytes32 parentCollectionId,
+        bytes32 conditionId,
+        uint256[] memory indexSets,
+        address token,
+        address _owner,
+        uint256 deadline,
+        uint256 nonce,
+        bytes memory signature
+    ) = abi.decode(payload, (bytes32, bytes32, uint256[], address, address, uint256, uint256, bytes));
+    // ... deadline check, recover signer from signature, nonce check, then:
+    _redeemInternal(parentCollectionId, conditionId, indexSets, token, _owner);
+    return;
+}
+```
+
+Workflow mapping: **buy/sell** → PredictionVault CRE 0x00 (executeTrade). **stake** → Sub0 CRE 0x02. **redeem** → Sub0 CRE 0x03.
+
+**Batch trades (order book fill)**  
+For multiple signatures/users/quantities, the workflow sends **one report per trade**: same prefix 0x00 and same decode shape per report. Each report is a separate transaction (one writeReport call per fill). The HTTP payload carries a `trades` array; CRE loops and submits one executeTrade report per item.
+
+---
+
 ## 5. Workflow Integration Notes
 
 1. **Forwarder:** The CRE forwarder contract is the only address allowed to call `onReport`. Set Sub0’s forwarder at init or via `setForwarderAddress`; set PredictionVault’s at construction or via `setCreForwarder` (if exposed).
