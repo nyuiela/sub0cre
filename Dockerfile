@@ -12,7 +12,7 @@
 
 FROM oven/bun:1
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bash \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bash cron jq \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Infisical CLI (token-based auth only; no login required)
@@ -33,7 +33,7 @@ COPY project.yaml contracts.json secrets.yaml .infisical.json ./
 COPY payloads ./payloads
 COPY markets ./markets
 COPY gateway ./gateway
-RUN chmod +x /app/gateway/entrypoint.sh
+RUN chmod +x /app/gateway/entrypoint.sh /app/gateway/cron-trigger.sh
 
 # Install workflow deps and precompile WASM so first request is fast
 RUN bun install --cwd ./markets

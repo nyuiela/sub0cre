@@ -190,6 +190,12 @@ To mimic a deployed CRE HTTP endpoint locally, run the workflow behind an HTTP s
 
 6. **Broadcast:** The Docker image sets `CRE_GATEWAY_BROADCAST=true` by default so every request runs with `--broadcast` (real onchain txs and tx hashes). To dry-run without writing to chain, pass `-e CRE_GATEWAY_BROADCAST=false`. You can also send `"broadcast": true` in the JSON body when not using the Docker default.
 
+7. **Deployed vs this Docker (simulate):** Triggering a **deployed** workflow on Chainlink's CRE platform uses the gateway URL (e.g. `https://01.gateway.zone-a.cre.chain.link`), JWT auth, and a **workflow ID** (64-char hex from deployment). This Docker image does **not** use that: it runs the workflow **locally** via `cre workflow simulate`. You do **not** need the Chainlink gateway URL or workflow ID. Trigger by POSTing to this container (or use in-container cron below). Workflow ID is only required when calling Chainlink's production gateway for a workflow you deployed there.
+
+8. **In-container cron:** To run `createMarketsFromBackend` on a schedule inside the container (no need for the backend to call the gateway), set `CRE_CRON_SCHEDULE` to a cron expression (e.g. `*/10 * * * *` for every 10 minutes). The entrypoint installs a crontab that POSTs to the local gateway. Example: `-e CRE_CRON_SCHEDULE="*/10 * * * *"`. The gateway must be running in the same container (it is); the cron job calls `http://127.0.0.1:${PORT}/` with `{"action":"createMarketsFromBackend","broadcast":true}`.
+
+9. **Mounted CRE config:** To use a custom workflow config (e.g. different `backendUrl`, `contracts`, or `schedule`), mount a JSON file and set `CRE_CONFIG_FILE` to its path. The entrypoint copies it to `markets/config.docker.json` before starting. Example: `-v /host/my-cre.json:/config/cre.json -e CRE_CONFIG_FILE=/config/cre.json`. The file must match the shape of `markets/config.docker.json` (see `markets/types/config.ts`).
+
 After code or config changes, rebuild the image, then stop and run again: `docker stop sub0cre-gateway` (if it is running), then the same `docker run ...` command. Do not use `docker start sub0cre-gateway` after a rebuild — that starts the old container; you must run a new container from the new image.
 
 ---
@@ -205,7 +211,9 @@ onchain-cal/
 ├── contracts.json          # Contract addresses per target
 ├── README.md
 ├── gateway/               # HTTP server that runs simulate per request (Docker)
-│   └── server.ts
+│   ├── server.ts
+│   ├── entrypoint.sh      # Infisical, CRE_CONFIG_FILE, CRE_CRON_SCHEDULE
+│   └── cron-trigger.sh    # In-container cron: POST createMarketsFromBackend to local gateway
 ├── payloads/              # HTTP payloads for simulation
 │   ├── create-market-payload.json
 │   ├── seed-payload.json
