@@ -176,9 +176,11 @@ To mimic a deployed CRE HTTP endpoint locally, run the workflow behind an HTTP s
 
    **Option B – Infisical:** To load secrets from Infisical instead, set `-e INFISICAL_TOKEN=<token>` and do **not** pass `--env-file`. Ensure your Infisical path has secrets with **exact** names: `BACKEND_API_KEY`, `BACKEND_SIGNER_PRIVATE_KEY`, `HTTP_API_KEY`, `CRE_ETH_PRIVATE_KEY`, and optionally `CRE_API_KEY`. If names differ (e.g. only `CRE_ETH_PRIVATE_KEY` is set), the gateway will log "missing" for the others; use Option A or fix names in Infisical.
 
+   **Infisical + volume auth:** If you use Infisical and also mount `-v "$HOME/.cre:/root/.cre"` (from `cre login` on the host), Infisical may inject `CRE_API_KEY`. The CRE CLI uses that env var first and ignores `~/.cre`, which can cause "invalid token" or "authentication required" if that key is wrong or expired. To force the CLI to use the mounted `~/.cre` instead, pass `-e CRE_USE_VOLUME_AUTH=true`. The gateway will then omit `CRE_API_KEY` from the child process so the CLI uses `/root/.cre` from the volume.
+
    Use both: `-e CRE_TARGET=docker-settings` and `--add-host=host.docker.internal:host-gateway` (required on Linux) so the workflow reaches the host backend. The container name is `sub0cre-gateway`; stop with `docker stop sub0cre-gateway`.
 
-   **Troubleshooting:** If the workflow fails with `Get "http://host.docker.internal:4000/...": dial tcp: lookup host.docker.internal ... no such host`, the container cannot resolve the host. Add `--add-host=host.docker.internal:host-gateway` to your `docker run` (required on Linux).
+   **Troubleshooting:** If the workflow fails with `Get "http://host.docker.internal:4000/...": dial tcp: lookup host.docker.internal ... no such host`, the container cannot resolve the host. Add `--add-host=host.docker.internal:host-gateway` to your `docker run` (required on Linux). If you see "You are not logged in" or "invalid token" with Infisical and a volume mount, add `-e CRE_USE_VOLUME_AUTH=true` so the CLI uses your `cre login` credentials from the mount instead of Infisical's `CRE_API_KEY`.
 
    The gateway logs every request (path, action) and streams full `cre workflow simulate` stdout/stderr so workflow `runtime.log()` and errors appear in `docker logs`.
 

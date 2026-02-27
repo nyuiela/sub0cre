@@ -200,21 +200,21 @@ export async function handleCreateMarket(runtime: Runtime<WorkflowConfig>, paylo
   }
 
   let seedTxHash = "";
-  const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
-  if (amountUsdc > 0n) {
-    try {
-      seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
-    } catch (err) {
-      runtime.log(
-        `Seed market liquidity failed: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-    if (seedTxHash) {
-      runtime.log(`Seed market liquidity submitted for new market. Transaction: ${seedTxHash}`);
-    } else {
-      runtime.log("Seed market liquidity submitted (no tx hash; use --broadcast for real onchain write).");
-    }
-  }
+  // const amountUsdc = body.amountUsdc != null ? BigInt(body.amountUsdc) : 0n;
+  // if (amountUsdc > 0n) {
+  //   try {
+  //     seedTxHash = submitSeedMarketLiquidity(runtime, contracts, questionId, amountUsdc);
+  //   } catch (err) {
+  //     runtime.log(
+  //       `Seed market liquidity failed: ${err instanceof Error ? err.message : String(err)}`
+  //     );
+  //   }
+  //   if (seedTxHash) {
+  //     runtime.log(`Seed market liquidity submitted for new market. Transaction: ${seedTxHash}`);
+  //   } else {
+  //     runtime.log("Seed market liquidity submitted (no tx hash; use --broadcast for real onchain write).");
+  //   }
+  // }
 
   const ctx = { runtime, config: contracts };
   let market: Awaited<ReturnType<typeof getMarket>> | undefined;
