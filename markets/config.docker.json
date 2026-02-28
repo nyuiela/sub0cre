@@ -1,5 +1,5 @@
 {
-  "schedule": "*/30 * * * * *",
+  "schedule": "*/30 */5 * * * *",
   "backendUrl": "http://host.docker.internal:4000",
   "backendApiKeySecretId": "BACKEND_API_KEY",
   "backendUsePlainAuth": true,
