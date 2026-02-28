@@ -1,5 +1,5 @@
 {
-  "schedule": "*/30 * * * * *",
+  "schedule": "*/30 */5 * * * *",
   "contracts": {
     "chainId": 11155111,
     "chainSelectorName": "ethereum-testnet-sepolia",
