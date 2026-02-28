@@ -9,7 +9,7 @@ All requests to CRE are HTTP POST to the CRE workflow trigger. The body must be 
 ## Concepts: signatures and execution
 
 - **Buy / sell (PredictionVault)**  
-  Execution requires a signature from either the **user** or the **agent**. Send **userSignature** (EIP-712 LMSRQuote signed by the user) in the payload for quote/order/buy/sell; CRE recovers the user address, adds the platform (DON) signature, and submits the transaction via **writeReport** to execute the trade on the PredictionVault. For the **agent** path, use action **executeConfidentialTrade** with **agentId**; CRE signs with the agent key and DON, then submits via writeReport. Without userSignature (and without using executeConfidentialTrade), CRE only returns a DON-signed quote and does not execute.
+  Execution requires a signature from either the **user** or the **agent**. The **user** signs EIP-712 **UserTrade** (marketId, outcomeIndex, buy, quantity, **maxCostUsdc**, nonce, deadline). The **DON** signs EIP-712 **DONQuote** (marketId, outcomeIndex, buy, quantity, **tradeCostUsdc**, **user**, nonce, deadline). Send **userSignature** (UserTrade) in the payload; CRE recovers the user address, signs DONQuote, and submits via **writeReport**. Optional **maxCostUsdc** in payload (defaults to tradeCostUsdc); must be >= tradeCostUsdc. For the **agent** path, use action **executeConfidentialTrade** with **agentId**. Without userSignature, CRE returns a DON-signed quote only (DONQuote with user=0) and does not execute.
 
 - **Stake and redeem (Sub0 contract)**  
   Conceptually **stake = buy**, **redeem = sell**. Both call the Sub0 contract (stake and redeem functions). **Redeem** already requires the owner's EIP-712 signature in the payload; CRE forwards it in the report. **Stake** currently encodes questionId, parentCollectionId, partition, token, amount, owner (no signature in the report); when the contract supports an owner signature, the payload can be extended.
@@ -31,10 +31,11 @@ Sign an LMSR quote for PredictionVault.executeTrade (EIP-712). When **userSignat
 | buy           | boolean | yes      | true = buy, false = sell |
 | quantity      | string  | yes      | Share quantity (decimal string) |
 | tradeCostUsdc | string  | yes      | Trade cost in USDC units (decimal string) |
+| maxCostUsdc   | string  | no       | User-signed max cost (UserTrade); must be >= tradeCostUsdc. Defaults to tradeCostUsdc if omitted. |
 | nonce         | string  | yes      | User nonce for this market |
 | deadline      | string  | yes      | EIP-712 deadline (unix timestamp string) |
-| userSignature | string  | no       | EIP-712 LMSRQuote signature (0x-prefixed hex). When set, CRE executes trade via writeReport and returns txHash. |
-| trades        | array   | no       | **Batch (order book fill):** array of `{ userSignature, quantity, tradeCostUsdc, nonce, deadline }`. Shared questionId, conditionId, outcomeIndex, buy. One writeReport per item; response `{ txHashes, errors? }`. |
+| userSignature | string  | no       | EIP-712 **UserTrade** signature (0x-prefixed hex). When set, CRE recovers user, signs DONQuote, and executes via writeReport (returns txHash). |
+| trades        | array   | no       | **Batch (order book fill):** array of `{ userSignature, quantity, tradeCostUsdc, maxCostUsdc?, nonce, deadline }`. Shared questionId, conditionId, outcomeIndex, buy. One writeReport per item; response `{ txHashes, errors? }`. |
 
 **Batch trades (order book fill)**  
 When **trades** is a non-empty array, CRE runs in batch mode. Each element must have `userSignature`, `quantity`, `tradeCostUsdc`, `nonce`, `deadline`. CRE recovers user per item, DON-signs each quote, and submits one writeReport (executeTrade) per trade. Response: `{ txHashes: string[], errors?: string[] }`. Failed items are pushed to `errors`; successful submits are in `txHashes`.

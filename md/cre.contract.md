@@ -129,6 +129,12 @@ PredictionVault routes on the first byte of `report` to either execute a trade o
 - **donSignature:** bytes (EIP-712 DONQuote signature from donSigner).
 - **userSignature:** bytes (EIP-712 UserTrade signature from user).
 
+**EIP-712 type hashes (must match contract)**  
+Consistent values across both signatures: questionId (marketId), outcomeIndex, buy, quantity, nonce, deadline. User signs **maxCostUsdc**; DON signs **tradeCostUsdc** and **user** (recovered from user sig). Contract enforces tradeCostUsdc <= maxCostUsdc (slippage).
+
+- **User (UserTrade):** `USER_TRADE_TYPEHASH = keccak256("UserTrade(bytes32 marketId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 maxCostUsdc,uint256 nonce,uint256 deadline)")`. User signs this; CRE recovers `user` from the signature.
+- **DON (DONQuote):** `DON_QUOTE_TYPEHASH = keccak256("DONQuote(bytes32 marketId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,address user,uint256 nonce,uint256 deadline)")`. DON signs after user is known; report includes both signatures.
+
 **0x01 Seed liquidity**
 
 - **Payload:** `abi.encode(questionId, amountUsdc)`

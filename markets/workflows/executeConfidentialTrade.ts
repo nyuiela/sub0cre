@@ -66,9 +66,9 @@ export async function handleExecuteConfidentialTrade(
   const questionId = ensureQuestionIdBytes32(body.marketId);
 
   const market = await getMarket({ runtime, config }, questionId, { useLatestBlock: true });
-  if (market.outcomeSlotCount === 0) {
-    throw new Error("Market not found or invalid");
-  }
+  // if (market.outcomeSlotCount === 0) {
+  //   throw new Error("Market not found or invalid");
+  // }
   if (body.outcomeIndex >= market.outcomeSlotCount) {
     throw new Error("Outcome index out of range");
   }

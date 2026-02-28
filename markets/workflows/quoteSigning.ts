@@ -6,22 +6,23 @@
 
 import type { Runtime } from "@chainlink/cre-sdk";
 import type { Hex } from "viem";
-import { recoverTypedDataAddress } from "viem";
+import { recoverTypedDataAddress, zeroAddress } from "viem";
 import type { WorkflowConfig } from "../types/config";
-import type { LMSRQuoteParams, BatchTradeItem } from "../types/quote";
-import { signLMSRQuote, getNonceUsed, submitExecuteTrade } from "../lib/predictionVault";
+import type { BatchTradeItem } from "../types/quote";
+import { signDONQuote, getNonceUsed, submitExecuteTrade } from "../lib/predictionVault";
 import { getMarket, ensureQuestionIdBytes32 } from "../lib/sub0";
 import { getVaultBalanceForOutcome } from "../lib/ctf";
 
 const SECRET_ID = "BACKEND_SIGNER_PRIVATE_KEY";
 
-const LMSR_QUOTE_TYPES = {
-  LMSRQuote: [
-    { name: "questionId", type: "bytes32" },
+/** UserTrade: USER_TRADE_TYPEHASH. User signs (marketId, outcomeIndex, buy, quantity, maxCostUsdc, nonce, deadline). */
+const USER_TRADE_TYPES = {
+  UserTrade: [
+    { name: "marketId", type: "bytes32" },
     { name: "outcomeIndex", type: "uint256" },
     { name: "buy", type: "bool" },
     { name: "quantity", type: "uint256" },
-    { name: "tradeCostUsdc", type: "uint256" },
+    { name: "maxCostUsdc", type: "uint256" },
     { name: "nonce", type: "uint256" },
     { name: "deadline", type: "uint256" },
   ],
@@ -34,9 +35,11 @@ export interface QuoteRequestPayload {
   buy: boolean;
   quantity: string;
   tradeCostUsdc: string;
+  /** User-signed max cost; must be >= tradeCostUsdc. Defaults to tradeCostUsdc if omitted. */
+  maxCostUsdc?: string;
   nonce: string;
   deadline: string;
-  /** When set, CRE recovers user address, adds DON signature, and submits executeTrade via writeReport. Returns txHash. */
+  /** When set, CRE recovers user from UserTrade sig, signs DONQuote, and submits executeTrade. Returns txHash. */
   userSignature?: string;
   /** Order book batch: multiple signatures, users, quantities. One writeReport per item. Shared: questionId, conditionId, outcomeIndex, buy. */
   trades?: BatchTradeItem[];
@@ -48,15 +51,33 @@ function normalizeSignature(sig: unknown): string | undefined {
   return s.startsWith("0x") ? s : `0x${s}`;
 }
 
+/** Convert string to integer string for BigInt. Decimals (e.g. "22.6") are expanded by 10^decimals; no decimals = truncate. */
+function toIntegerString(s: string, decimals?: number): string {
+  const t = String(s ?? "").trim();
+  if (!t) return "0";
+  if (!t.includes(".")) return t;
+  if (decimals === undefined || decimals <= 0) {
+    const part = t.split(".")[0];
+    return part ?? "0";
+  }
+  const [whole = "0", frac = ""] = t.split(".");
+  const padded = (frac + "0".repeat(decimals)).slice(0, decimals);
+  return (BigInt(whole) * (10n ** BigInt(decimals)) + BigInt(padded || "0")).toString();
+}
+
+const USDC_DECIMALS = 6;
+
 function parseTradeItem(raw: unknown): BatchTradeItem | null {
   if (raw == null || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const userSignature = normalizeSignature(o.userSignature);
   if (!userSignature) return null;
+  const tradeCostUsdc = String(o.tradeCostUsdc ?? "0");
   return {
     userSignature,
     quantity: String(o.quantity ?? "0"),
-    tradeCostUsdc: String(o.tradeCostUsdc ?? "0"),
+    tradeCostUsdc,
+    maxCostUsdc: o.maxCostUsdc != null ? String(o.maxCostUsdc) : undefined,
     nonce: String(o.nonce ?? "0"),
     deadline: String(o.deadline ?? "0"),
   };
@@ -74,13 +95,15 @@ function parsePayload(input: Uint8Array): QuoteRequestPayload {
     }
   }
   const userSig = raw.userSignature;
+  const tradeCostUsdc = String(raw.tradeCostUsdc ?? "0");
   return {
     questionId: String(raw.questionId ?? ""),
     conditionId: (raw.conditionId != null ? String(raw.conditionId) : "") as `0x${string}`,
     outcomeIndex: Number(raw.outcomeIndex ?? 0),
     buy: Boolean(raw.buy),
     quantity: String(raw.quantity ?? "0"),
-    tradeCostUsdc: String(raw.tradeCostUsdc ?? "0"),
+    tradeCostUsdc,
+    maxCostUsdc: raw.maxCostUsdc != null ? String(raw.maxCostUsdc) : undefined,
     nonce: String(raw.nonce ?? "0"),
     deadline: String(raw.deadline ?? "0"),
     userSignature: normalizeSignature(userSig) ?? undefined,
@@ -108,9 +131,9 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   const ctx = { runtime, config: contracts };
 
   const market = await getMarket(ctx, questionId, { useLatestBlock: true });
-  if (market.outcomeSlotCount === 0) {
-    throw new Error("Market not found or invalid");
-  }
+  // if (market.outcomeSlotCount === 0) {
+  //   throw new Error("Market not found or invalid");
+  // }
   if (body.outcomeIndex >= market.outcomeSlotCount) {
     throw new Error("Outcome index out of range");
   }
@@ -140,52 +163,71 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
         }
         if (body.buy) {
           const balance = getVaultBalanceForOutcome(ctx, body.conditionId as `0x${string}`, body.outcomeIndex);
-          if (balance < BigInt(item.quantity)) {
+          if (balance < BigInt(toIntegerString(item.quantity))) {
             errors.push(`trade[${i}]: insufficient vault balance`);
             continue;
           }
         }
-        const params: LMSRQuoteParams = {
-          questionId,
-          outcomeIndex: body.outcomeIndex,
-          buy: body.buy,
-          quantity: BigInt(item.quantity),
-          tradeCostUsdc: BigInt(item.tradeCostUsdc),
-          nonce,
-          deadline: BigInt(item.deadline),
-        };
-        const signed = signLMSRQuote(params, contracts, privateKey);
-        const donSignature = signed.signature as Hex;
-        const message = {
-          questionId,
+        // const qStr = toIntegerString(item.quantity);
+        // const costStr = toIntegerString(item.tradeCostUsdc, USDC_DECIMALS);
+        // const maxCostStr = toIntegerString(item.maxCostUsdc ?? item.tradeCostUsdc, USDC_DECIMALS);
+        const deadlineBig = BigInt(item.deadline);
+        const quantityBig = item.quantity;
+        const tradeCostBig = item.tradeCostUsdc;
+        const maxCostBig = Number(item.maxCostUsdc);
+        runtime.log(`quantityBig: ${quantityBig}`);
+        runtime.log(`tradeCostBig: ${tradeCostBig}`);
+        runtime.log(`maxCostBig: ${maxCostBig}`);
+        const userTradeMessage = {
+          marketId: questionId,
           outcomeIndex: BigInt(body.outcomeIndex),
           buy: body.buy,
-          quantity: params.quantity,
-          tradeCostUsdc: params.tradeCostUsdc,
+          quantity: quantityBig,
+          maxCostUsdc: maxCostBig,
           nonce,
-          deadline: params.deadline,
+          deadline: deadlineBig,
         };
         const user = await recoverTypedDataAddress({
           domain,
-          types: LMSR_QUOTE_TYPES,
-          primaryType: "LMSRQuote",
-          message,
+          types: USER_TRADE_TYPES,
+          primaryType: "UserTrade",
+          message: userTradeMessage,
           signature: item.userSignature as Hex,
         });
+        runtime.log(`user: ${user}`);
+        if (user === "0xf0830060f836B8d54bF02049E5905F619487989e") return;
+        if (!user || typeof user !== "string" || !user.startsWith("0x")) {
+          errors.push(`trade[${i}]: failed to recover user address from UserTrade signature`);
+          continue;
+        }
+        const donSignature = signDONQuote(
+          {
+            questionId,
+            outcomeIndex: body.outcomeIndex,
+            buy: body.buy,
+            quantity: quantityBig,
+            tradeCostUsdc: tradeCostBig,
+            user,
+            nonce,
+            deadline: deadlineBig,
+          },
+          contracts,
+          privateKey
+        );
         const quote = {
           questionId,
           outcomeIndex: BigInt(body.outcomeIndex),
           buy: body.buy,
-          quantity: BigInt(item.quantity),
-          tradeCostUsdc: BigInt(item.tradeCostUsdc),
+          quantity: quantityBig,
+          tradeCostUsdc: tradeCostBig,
           nonce,
-          deadline: BigInt(item.deadline),
+          deadline: deadlineBig,
         };
         const txHash = submitExecuteTrade(
           runtime,
           contracts,
           quote,
-          BigInt(item.tradeCostUsdc),
+          maxCostBig,
           user,
           donSignature,
           item.userSignature as Hex
@@ -203,64 +245,77 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   if (getNonceUsed(runtime, contracts, questionId, nonce)) {
     throw new Error("Nonce already used");
   }
-  if (body.buy) {
-    const balance = getVaultBalanceForOutcome(ctx, body.conditionId as `0x${string}`, body.outcomeIndex);
-    // if (balance < BigInt(body.quantity)) {
-    //   throw new Error("Insufficient vault balance for this outcome");
-    // }
-  }
+  // if (body.buy) {
+  // const balance = getVaultBalanceForOutcome(ctx, body.conditionId as `0x${string}`, body.outcomeIndex);
+  // if (balance < BigInt(body.quantity)) {
+  //   throw new Error("Insufficient vault balance for this outcome");
+  // }
+  // }
 
-  const params: LMSRQuoteParams = {
-    questionId,
-    outcomeIndex: body.outcomeIndex,
-    buy: body.buy,
-    quantity: BigInt(body.quantity),
-    tradeCostUsdc: BigInt(body.tradeCostUsdc),
-    nonce,
-    deadline: BigInt(body.deadline),
+  const qStr = toIntegerString(body.quantity);
+  const costStr = toIntegerString(body.tradeCostUsdc, USDC_DECIMALS);
+  const maxCostStr = toIntegerString(body.maxCostUsdc ?? body.tradeCostUsdc, USDC_DECIMALS);
+  const quantityBig = BigInt(qStr);
+  const tradeCostBig = BigInt(costStr);
+  const maxCostBig = BigInt(maxCostStr);
+  const deadlineBig = BigInt(body.deadline);
+  const domain = {
+    name: contracts.eip712.domainName,
+    version: contracts.eip712.domainVersion,
+    chainId: contracts.chainId,
+    verifyingContract: contracts.contracts.predictionVault as Hex,
   };
 
-  const signed = signLMSRQuote(params, contracts, privateKey);
-  const donSignature = signed.signature as Hex;
-
   if (body.userSignature) {
-    const domain = {
-      name: contracts.eip712.domainName,
-      version: contracts.eip712.domainVersion,
-      chainId: contracts.chainId,
-      verifyingContract: contracts.contracts.predictionVault as Hex,
-    };
-    const message = {
-      questionId,
+    const userTradeMessage = {
+      marketId: questionId,
       outcomeIndex: BigInt(body.outcomeIndex),
       buy: body.buy,
-      quantity: params.quantity,
-      tradeCostUsdc: params.tradeCostUsdc,
+      quantity: quantityBig,
+      maxCostUsdc: maxCostBig,
       nonce,
-      deadline: params.deadline,
+      deadline: deadlineBig,
     };
     const user = await recoverTypedDataAddress({
       domain,
-      types: LMSR_QUOTE_TYPES,
-      primaryType: "LMSRQuote",
-      message,
+      types: USER_TRADE_TYPES,
+      primaryType: "UserTrade",
+      message: userTradeMessage,
       signature: body.userSignature as Hex,
     });
+    if (!user || typeof user !== "string" || !user.startsWith("0x")) {
+      throw new Error("Failed to recover user address from UserTrade signature");
+    }
+    runtime.log(`User address: ${user}`);
+    const donSignature = signDONQuote(
+      {
+        questionId,
+        outcomeIndex: body.outcomeIndex,
+        buy: body.buy,
+        quantity: quantityBig,
+        tradeCostUsdc: tradeCostBig,
+        user,
+        nonce,
+        deadline: deadlineBig,
+      },
+      contracts,
+      privateKey
+    );
+    runtime.log(`DON signature: ${donSignature}`);
     const quote = {
       questionId,
       outcomeIndex: BigInt(body.outcomeIndex),
       buy: body.buy,
-      quantity: BigInt(body.quantity),
-      tradeCostUsdc: BigInt(body.tradeCostUsdc),
+      quantity: quantityBig,
+      tradeCostUsdc: tradeCostBig,
       nonce,
-      deadline: BigInt(body.deadline),
+      deadline: deadlineBig,
     };
-    const maxCostUsdc = BigInt(body.tradeCostUsdc);
     const txHash = submitExecuteTrade(
       runtime,
       contracts,
       quote,
-      maxCostUsdc,
+      maxCostBig,
       user,
       donSignature,
       body.userSignature as Hex
@@ -270,5 +325,28 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   }
 
   runtime.log("Quote signed successfully (DON only; send userSignature to execute via writeReport).");
-  return signed;
+  const donSignature = signDONQuote(
+    {
+      questionId,
+      outcomeIndex: body.outcomeIndex,
+      buy: body.buy,
+      quantity: quantityBig,
+      tradeCostUsdc: tradeCostBig,
+      user: zeroAddress,
+      nonce,
+      deadline: deadlineBig,
+    },
+    contracts,
+    privateKey
+  );
+  return {
+    questionId,
+    outcomeIndex: body.outcomeIndex,
+    buy: body.buy,
+    quantity: qStr,
+    tradeCostUsdc: costStr,
+    nonce: body.nonce,
+    deadline: body.deadline,
+    signature: donSignature,
+  };
 }

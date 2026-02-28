@@ -23,7 +23,7 @@ import {
 import type { Runtime } from "@chainlink/cre-sdk";
 import { signTypedDataSync } from "./signTypedDataSync";
 import type { ChainContractConfig } from "../types/contracts";
-import type { LMSRQuoteParams, SignedQuoteResult } from "../types/quote";
+import type { DONQuoteParams, LMSRQuoteParams, SignedQuoteResult } from "../types/quote";
 import type { PredictionVaultExecuteTradePayload } from "../types/cre";
 import { PREDICTION_VAULT_CRE_ACTION } from "../types/cre";
 import { PREDICTION_VAULT_ABI } from "./abis";
@@ -144,6 +144,54 @@ export function signLMSRQuote(
     deadline: params.deadline.toString(),
     signature,
   };
+}
+
+/** EIP-712 DONQuote: DON_QUOTE_TYPEHASH = keccak256("DONQuote(bytes32 marketId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,address user,uint256 nonce,uint256 deadline)") */
+const DON_QUOTE_TYPES = {
+  DONQuote: [
+    { name: "marketId", type: "bytes32" },
+    { name: "outcomeIndex", type: "uint256" },
+    { name: "buy", type: "bool" },
+    { name: "quantity", type: "uint256" },
+    { name: "tradeCostUsdc", type: "uint256" },
+    { name: "user", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+};
+
+/**
+ * Sign EIP-712 DONQuote for executeTrade (platform/DON). Contract verifies DON with DON_QUOTE_TYPEHASH.
+ */
+export function signDONQuote(
+  params: DONQuoteParams,
+  config: ChainContractConfig,
+  privateKeyHex: string
+): Hex {
+  const domain = {
+    name: config.eip712.domainName,
+    version: config.eip712.domainVersion,
+    chainId: config.chainId,
+    verifyingContract: config.contracts.predictionVault as Address,
+  };
+  const message = {
+    marketId: params.questionId,
+    outcomeIndex: BigInt(params.outcomeIndex),
+    buy: params.buy,
+    quantity: params.quantity,
+    tradeCostUsdc: params.tradeCostUsdc,
+    user: params.user,
+    nonce: params.nonce,
+    deadline: params.deadline,
+  };
+  const key = privateKeyHex.startsWith("0x") ? (privateKeyHex as Hex) : (`0x${privateKeyHex}` as Hex);
+  return signTypedDataSync({
+    domain,
+    types: DON_QUOTE_TYPES,
+    primaryType: "DONQuote",
+    message,
+    privateKey: key,
+  }) as Hex;
 }
 
 /**
@@ -287,12 +335,12 @@ export function submitExecuteTrade(
     questionId: `0x${string}`;
     outcomeIndex: bigint;
     buy: boolean;
-    quantity: bigint;
-    tradeCostUsdc: bigint;
+    quantity: bigint | string | number;
+    tradeCostUsdc: bigint | string | number;
     nonce: bigint;
     deadline: bigint;
   },
-  maxCostUsdc: bigint,
+  maxCostUsdc: bigint | string | number,
   user: `0x${string}`,
   donSignature: `0x${string}`,
   userSignature: `0x${string}`
@@ -301,9 +349,9 @@ export function submitExecuteTrade(
     questionId: quote.questionId,
     outcomeIndex: quote.outcomeIndex,
     buy: quote.buy,
-    quantity: quote.quantity,
-    tradeCostUsdc: quote.tradeCostUsdc,
-    maxCostUsdc,
+    quantity: quote.quantity as bigint,
+    tradeCostUsdc: quote.tradeCostUsdc as bigint,
+    maxCostUsdc: maxCostUsdc as bigint,
     nonce: quote.nonce,
     deadline: quote.deadline,
     user,

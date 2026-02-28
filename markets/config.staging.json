@@ -14,7 +14,7 @@
       "hub": "0x1f8eCAB9EDD176AD32B523013F8192335b96A6c8"
     },
     "eip712": {
-      "domainName": "Sub0PredictionVault",
+      "domainName": "PredictionVault",
       "domainVersion": "1",
       "quoteTypeName": "LMSRQuote(bytes32 questionId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,uint256 nonce,uint256 deadline)"
     },
