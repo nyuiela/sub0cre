@@ -26,6 +26,7 @@ const LMSR_QUOTE_TYPES = {
     { name: "tradeCostUsdc", type: "uint256" },
     { name: "nonce", type: "uint256" },
     { name: "deadline", type: "uint256" },
+    { name: "user", type: "address" },
   ],
 };
 
@@ -124,6 +125,7 @@ export async function handleExecuteConfidentialTrade(
     tradeCostUsdc: BigInt(body.tradeCostUsdc),
     nonce,
     deadline: BigInt(body.deadline),
+    user: userSignature,
   };
 
   const donSignerSecret = runtime.getSecret({ id: DON_SIGNER_ID }).result();
@@ -140,6 +142,7 @@ export async function handleExecuteConfidentialTrade(
       tradeCostUsdc: BigInt(body.tradeCostUsdc),
       nonce,
       deadline: BigInt(body.deadline),
+      user: userSignature,
     },
     config,
     donSignerKey

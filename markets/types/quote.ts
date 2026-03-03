@@ -7,7 +7,7 @@
 export interface LMSRQuoteParams {
   questionId: `0x${string}`;
   outcomeIndex: number;
-  user: `0x${string}`;
+  user?: `0x${string}`;
   buy: boolean;
   quantity: bigint;
   tradeCostUsdc: bigint;
