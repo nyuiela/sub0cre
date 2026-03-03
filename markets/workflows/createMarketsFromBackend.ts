@@ -27,9 +27,9 @@ const MAX_MARKETS_PER_RUN_BATCH = 50;
  * - Space sends (INTER_CREATE_DELAY_MS) so the previous tx has time to be broadcast/mined.
  * - Optionally wait after a successful send (POST_CREATE_WAIT_MS) so the next send sees updated nonce.
  */
-const INTER_CREATE_DELAY_MS = 8_000;
+const INTER_CREATE_DELAY_MS = 12_000;
 /** After a successful createMarket, wait this long before the next so the tx can be mined and nonce increments on chain. */
-const POST_CREATE_WAIT_MS = 15_000;
+const POST_CREATE_WAIT_MS = 20_000;
 
 /** Blocking delay; CRE workflow runtime may not have setTimeout. */
 function delayMs(ms: number): void {

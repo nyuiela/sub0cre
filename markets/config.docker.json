@@ -25,6 +25,7 @@
       "usdcDecimals": 6,
       "outcomeTokenDecimals": 18,
       "parentCollectionId": "0x0000000000000000000000000000000000000000000000000000000000000000"
-    }
+    },
+    "gasLimit": "1500000"
   }
 }
