@@ -195,7 +195,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
           signature: item.userSignature as Hex,
         });
         runtime.log(`user: ${user}`);
-        if (user === "0xf0830060f836B8d54bF02049E5905F619487989e") return;
+
         if (!user || typeof user !== "string" || !user.startsWith("0x")) {
           errors.push(`trade[${i}]: failed to recover user address from UserTrade signature`);
           continue;
