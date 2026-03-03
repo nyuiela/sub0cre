@@ -12,9 +12,9 @@ install:
 
 # Build workflow to WASM so CRE CLI can run simulate (avoids "no such file or directory" for .cre_build_tmp.wasm).
 # Run from sub0cre. Tries cre-compile; if .cre_build_tmp.wasm is missing, copies main.wasm so simulate can run.
-# build-workflow:
-#     cd markets && bun x cre-compile main.ts .cre_build_tmp.wasm || true
-#     cd markets && test -f .cre_build_tmp.wasm || cp -f main.wasm .cre_build_tmp.wasm
+#build-workflow:
+#    cd markets && bun x cre-compile main.ts .cre_build_tmp.wasm || true
+#    cd markets && test -f .cre_build_tmp.wasm || cp -f main.wasm .cre_build_tmp.wasm
 
 # Run the interactive workflow simulation (build-workflow recommended first if simulate fails)
 sim:
@@ -115,7 +115,7 @@ docker *args:
   --add-host=host.docker.internal:host-gateway \
   -e CRE_TARGET=docker-settings \
   -e CRE_USE_VOLUME_AUTH=true \
-  -e INFISICAL_TOKEN="st.7d11119f-45f6-4ec6-bd97-170b52ce5aee.da6f5dbd8fcdcdd3997e72ac36aee4fe.3f743af3cbd3f5e11b7dadaa097b808c" \
+  -e INFISICAL_TOKEN="" \
   -v "$(pwd)/markets/config.docker.json:/config/cre.json" \
   -e CRE_CONFIG_FILE=/config/cre.json \
   -v "$HOME/.cre:/root/.cre" \

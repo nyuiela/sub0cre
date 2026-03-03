@@ -18,7 +18,7 @@ import { sendConfidentialBackendRequest } from "../lib/confidentialHttp";
 
 const SETTLEMENT_RUN_PATH = "/api/internal/settlement/run";
 const SETTLEMENT_RESOLVED_PATH = "/api/internal/settlement/resolved";
-const DEFAULT_WRITE_GAS_LIMIT = "400000";
+const DEFAULT_WRITE_GAS_LIMIT = "1500000";
 const RECEIVER_EXECUTION_REVERTED = 1;
 
 const SETTLEMENT_REPORT_PARAMS = parseAbiParameters("bytes32, uint256[]");

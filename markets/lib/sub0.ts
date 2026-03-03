@@ -246,7 +246,7 @@ export function computeQuestionId(
   return keccak256(packed);
 }
 
-const DEFAULT_GAS_LIMIT = "500000";
+const DEFAULT_GAS_LIMIT = "1500000";
 
 function blockExplorerTxUrl(chainSelectorName: string, txHash: string): string {
   if (chainSelectorName === "ethereum-testnet-sepolia-base-1") {
