@@ -1,12 +1,8 @@
 {
-  "action": "quote",
+  "action": "lmsrPricing",
   "apiKey": "your-api-key-if-configured",
-  "questionId": "0x3e523bdeaeef92d3e289282b4994e74877c25793fb92ac3fbfe796d47c643394",
-  "conditionId": "0xf0d07e88beb74182e10db5b68fd7da34ca1c940197b442ef32349959c97eeb4a",
-  "outcomeIndex": 0,
-  "buy": true,
-  "quantity": "1000000000000000000",
-  "tradeCostUsdc": "500000",
-  "nonce": "1",
-  "deadline": "9999999999"
+  "marketId": "0x18680f5c93c53690715ced2d0cb22bef40076309b26dba8dd362e89c2c0c76f1",
+  "outcomeIndex": 1,
+  "quantity": "3000000",
+  "bParameter": "1000000"
 }

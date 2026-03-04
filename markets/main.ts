@@ -64,7 +64,7 @@ const onHTTPTrigger = async (
   verifyApiKey(runtime, body);
 
   const action = body.action as string | undefined;
-  if (action === "quote" || action === "order") {
+  if (action === "order") {
     const signed = (await handleQuoteSigning(runtime, payload)) as unknown as Record<string, string>;
     postCreResultToBackend(runtime, client, config, "/api/cre/quote", signed);
     return signed;
@@ -81,7 +81,7 @@ const onHTTPTrigger = async (
     postCreResultToBackend(runtime, client, config, "/api/cre/sell", signed);
     return signed;
   }
-  if (action === "lmsrPricing") {
+  if (action === "quote" || action === "lmsrPricing") {
     const result = await handleLmsrPricing(runtime, payload);
     postCreResultToBackend(runtime, client, config, "/api/cre/lmsr-pricing", result);
     return { ...result };

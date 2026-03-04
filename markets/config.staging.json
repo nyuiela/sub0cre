@@ -20,7 +20,7 @@
     },
     "conventions": {
       "usdcDecimals": 6,
-      "outcomeTokenDecimals": 18,
+      "outcomeTokenDecimals": 6,
       "parentCollectionId": "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
   }

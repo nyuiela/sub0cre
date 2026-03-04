@@ -100,7 +100,7 @@ export async function handleLmsrPricing(
   const quantityDec = new Decimal(body.quantity);
   const costOutcomeWei = costToBuy(q, body.outcomeIndex, quantityDec, bParam);
 
-  const outcomeDecimals = config.conventions?.outcomeTokenDecimals ?? 18;
+  const outcomeDecimals = config.conventions?.outcomeTokenDecimals ?? 6;
   const usdcDecimals = config.conventions?.usdcDecimals ?? 6;
   const tradeCostUsdcBigInt = costToUsdcUnits(costOutcomeWei, outcomeDecimals, usdcDecimals);
 
@@ -139,6 +139,7 @@ export async function handleLmsrPricing(
 
   runtime.log("LMSR quote signed successfully.");
   return {
+    marketId: body.marketId,
     tradeCostUsdc: signed.tradeCostUsdc,
     donSignature: signed.signature,
     deadline: signed.deadline,

@@ -1,8 +1,8 @@
 {
   "action": "lmsrPricing",
   "apiKey": "your-api-key-if-configured",
-  "marketId": "0x5343b17725dd2396a9298b543ea86b7b33282d09a165e4759f01c262056835d9",
-  "outcomeIndex": 0,
-  "quantity": "1000000000000000000",
-  "bParameter": "1000000000000000000"
+  "marketId": "0x18680f5c93c53690715ced2d0cb22bef40076309b26dba8dd362e89c2c0c76f1",
+  "outcomeIndex": 1,
+  "quantity": "3000000",
+  "bParameter": "1000000"
 }

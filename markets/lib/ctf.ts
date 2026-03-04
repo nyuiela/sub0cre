@@ -28,9 +28,7 @@ export function getCollectionId(
     ctx.config.contracts.conditionalTokens as `0x${string}`,
     data
   );
-  ctx.runtime.log(`getCollectionId: reply: ${reply.data}`);
   const raw = decodeCallResult<[`0x${string}`]>(CTF_ABI, "getCollectionId", reply.data) as unknown as `0x${string}`;
-  ctx.runtime.log(`getCollectionId: raw: ${raw}`);
   return raw;
 }
 
@@ -70,9 +68,9 @@ export function balanceOf(ctx: EvmContext, account: `0x${string}`, positionId: b
     ctx.config.contracts.conditionalTokens as `0x${string}`,
     data
   );
-  ctx.runtime.log(`balanceOf: reply: ${reply.data}`);
+  // ctx.runtime.log(`balanceOf: reply: ${reply.data}`);
   const raw = decodeCallResult<[bigint]>(CTF_ABI, "balanceOf", reply.data) as unknown as bigint;
-  ctx.runtime.log(`balanceOf: raw: ${raw}`);
+  ctx.runtime.log(`balanceOf: ${raw}`);
   return raw;
 }
 
@@ -82,7 +80,7 @@ export function getVaultBalanceForOutcome(
   outcomeIndex: number
 ): bigint {
   const collectionId = getCollectionId(ctx, conditionId, outcomeIndex);
-  ctx.runtime.log(`getVaultBalanceForOutcome: collectionId: ${collectionId}`);
+  // ctx.runtime.log(`getVaultBalanceForOutcome: collectionId: ${collectionId}`);
   const positionId = getPositionId(ctx, collectionId);
   return balanceOf(ctx, ctx.config.contracts.predictionVault as `0x${string}`, positionId);
 }
