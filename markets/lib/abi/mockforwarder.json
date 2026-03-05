@@ -1,0 +1,232 @@
+[
+  {
+    "type": "constructor",
+    "name": "",
+    "stateMutability": "",
+    "constant": false,
+    "id": "bdc9460b-b71d-44c1-bc7e-cb1cc7c252ae"
+  },
+  {
+    "type": "function",
+    "name": "route",
+    "stateMutability": "nonpayable",
+    "constant": false,
+    "inputs": [
+      { "type": "bytes32", "name": "transmissionId", "simpleType": "bytes" },
+      { "type": "address", "name": "transmitter", "simpleType": "address" },
+      { "type": "address", "name": "receiver", "simpleType": "address" },
+      { "type": "bytes", "name": "metadata", "simpleType": "bytes" },
+      { "type": "bytes", "name": "validatedReport", "simpleType": "bytes" }
+    ],
+    "outputs": [{ "type": "bool", "name": "", "simpleType": "bool" }],
+    "id": "0x233fd52d"
+  },
+  {
+    "type": "function",
+    "name": "removeForwarder",
+    "stateMutability": "nonpayable",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "forwarder", "simpleType": "address" }
+    ],
+    "id": "0x4d93172d"
+  },
+  {
+    "type": "function",
+    "name": "acceptOwnership",
+    "stateMutability": "nonpayable",
+    "constant": false,
+    "id": "0x79ba5097"
+  },
+  {
+    "type": "function",
+    "name": "isForwarder",
+    "stateMutability": "view",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "forwarder", "simpleType": "address" }
+    ],
+    "outputs": [{ "type": "bool", "name": "", "simpleType": "bool" }],
+    "id": "0xabcef554"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "stateMutability": "nonpayable",
+    "constant": false,
+    "inputs": [{ "type": "address", "name": "to", "simpleType": "address" }],
+    "id": "0xf2fde38b"
+  },
+  {
+    "type": "function",
+    "name": "addForwarder",
+    "stateMutability": "nonpayable",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "forwarder", "simpleType": "address" }
+    ],
+    "id": "0x5c41d2fe"
+  },
+  {
+    "type": "function",
+    "name": "getTransmissionInfo",
+    "stateMutability": "view",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "receiver", "simpleType": "address" },
+      {
+        "type": "bytes32",
+        "name": "workflowExecutionId",
+        "simpleType": "bytes"
+      },
+      { "type": "bytes2", "name": "reportId", "simpleType": "bytes" }
+    ],
+    "outputs": [
+      {
+        "type": "tuple",
+        "name": "",
+        "simpleType": "tuple",
+        "components": [
+          {
+            "type": "bytes32",
+            "name": "transmissionId",
+            "simpleType": "bytes"
+          },
+          { "type": "uint8", "name": "state", "simpleType": "uint" },
+          { "type": "address", "name": "transmitter", "simpleType": "address" },
+          { "type": "bool", "name": "invalidReceiver", "simpleType": "bool" },
+          { "type": "bool", "name": "success", "simpleType": "bool" },
+          { "type": "uint80", "name": "gasLimit", "simpleType": "uint" }
+        ]
+      }
+    ],
+    "id": "0x272cbd93"
+  },
+  {
+    "type": "function",
+    "name": "getTransmitter",
+    "stateMutability": "view",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "receiver", "simpleType": "address" },
+      {
+        "type": "bytes32",
+        "name": "workflowExecutionId",
+        "simpleType": "bytes"
+      },
+      { "type": "bytes2", "name": "reportId", "simpleType": "bytes" }
+    ],
+    "outputs": [{ "type": "address", "name": "", "simpleType": "address" }],
+    "id": "0x8864b864"
+  },
+  {
+    "type": "function",
+    "name": "typeAndVersion",
+    "stateMutability": "view",
+    "constant": false,
+    "outputs": [{ "type": "string", "name": "", "simpleType": "string" }],
+    "id": "0x181f5a77"
+  },
+  {
+    "type": "function",
+    "name": "getTransmissionId",
+    "stateMutability": "pure",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "receiver", "simpleType": "address" },
+      {
+        "type": "bytes32",
+        "name": "workflowExecutionId",
+        "simpleType": "bytes"
+      },
+      { "type": "bytes2", "name": "reportId", "simpleType": "bytes" }
+    ],
+    "outputs": [{ "type": "bytes32", "name": "", "simpleType": "bytes" }],
+    "id": "0x354bdd66"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "stateMutability": "view",
+    "constant": false,
+    "outputs": [{ "type": "address", "name": "", "simpleType": "address" }],
+    "id": "0x8da5cb5b"
+  },
+  {
+    "type": "function",
+    "name": "report",
+    "stateMutability": "nonpayable",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "receiver", "simpleType": "address" },
+      { "type": "bytes", "name": "rawReport", "simpleType": "bytes" },
+      { "type": "bytes", "name": "reportContext", "simpleType": "bytes" },
+      {
+        "type": "bytes[]",
+        "name": "signatures",
+        "simpleType": "slice",
+        "nestedType": { "type": "bytes" }
+      }
+    ],
+    "id": "0x11289565"
+  },
+  {
+    "type": "event",
+    "name": "ForwarderAdded",
+    "stateMutability": "",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "forwarder", "simpleType": "address" }
+    ],
+    "id": "0x0ea0ce2c048ff45a4a95f2947879de3fb94abec2f152190400cab2d1272a68e7"
+  },
+  {
+    "type": "event",
+    "name": "ForwarderRemoved",
+    "stateMutability": "",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "forwarder", "simpleType": "address" }
+    ],
+    "id": "0xb96d15bf9258c7b8df062753a6a262864611fc7b060a5ee2e57e79b85f898d38"
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferRequested",
+    "stateMutability": "",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "from", "simpleType": "address" },
+      { "type": "address", "name": "to", "simpleType": "address" }
+    ],
+    "id": "0xed8889f560326eb138920d842192f0eb3dd22b4f139c87a2c57538e05bae1278"
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "stateMutability": "",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "from", "simpleType": "address" },
+      { "type": "address", "name": "to", "simpleType": "address" }
+    ],
+    "id": "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0"
+  },
+  {
+    "type": "event",
+    "name": "ReportProcessed",
+    "stateMutability": "",
+    "constant": false,
+    "inputs": [
+      { "type": "address", "name": "receiver", "simpleType": "address" },
+      {
+        "type": "bytes32",
+        "name": "workflowExecutionId",
+        "simpleType": "bytes"
+      },
+      { "type": "bytes2", "name": "reportId", "simpleType": "bytes" },
+      { "type": "bool", "name": "result", "simpleType": "bool" }
+    ],
+    "id": "0x3617b009e9785c42daebadb6d3fb553243a4bf586d07ea72d65d80013ce116b5"
+  }
+]
