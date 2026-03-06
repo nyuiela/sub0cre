@@ -2,10 +2,23 @@
 # Optional Infisical: if INFISICAL_TOKEN is set, inject env from Infisical. Otherwise run with env from docker (--env-file or -e).
 # Optional: CRE_CONFIG_FILE (path to JSON) copied to markets/config.docker.json so workflow uses it.
 # Optional: CRE_CRON_SCHEDULE (cron expr, e.g. "*/10 * * * *") runs createMarketsFromBackend at schedule inside the container.
+# Optional: CRE_CREDENTIALS_PATH (path to zip of ~/.cre from 'cre login') - extract to /root/.cre for CLI auth (e.g. Render Secret Files).
 # CRE CLI: try to update to latest so container doesn't warn about newer version (non-fatal).
 set -e
 BASE="/app"
 cd "$BASE"
+
+CRE_HOME="${HOME:-/root}"
+if [ -n "${CRE_CREDENTIALS_PATH:-}" ] && [ -f "$CRE_CREDENTIALS_PATH" ]; then
+  echo "[gateway] Extracting CRE credentials from $CRE_CREDENTIALS_PATH to $CRE_HOME/.cre"
+  mkdir -p "$CRE_HOME"
+  if unzip -o -q "$CRE_CREDENTIALS_PATH" -d "$CRE_HOME" 2>/dev/null; then
+    echo "[gateway] CRE credentials extracted; CLI will use ~/.cre (unset CRE_API_KEY so it is not overridden)"
+    unset CRE_API_KEY
+  else
+    echo "[gateway] Warning: failed to unzip CRE credentials from $CRE_CREDENTIALS_PATH" >&2
+  fi
+fi
 
 if command -v cre >/dev/null 2>&1; then
   echo "[gateway] Checking CRE CLI version and updating if available..."
