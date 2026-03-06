@@ -42,7 +42,7 @@ RUN chmod +x /app/gateway/entrypoint.sh /app/gateway/cron-trigger.sh
 RUN mkdir -p /config && cp /app/markets/config.docker.json /config/cre.json
 ENV CRE_CONFIG_FILE=/config/cre.json
 ENV CRE_USE_VOLUME_AUTH=true
-ENV CRE_CREDENTIALS_PATH=.cre
+ENV CRE_CREDENTIALS_PATH=/.cre
 
 # Install workflow deps and precompile WASM so first request is fast
 RUN bun install --cwd ./markets
