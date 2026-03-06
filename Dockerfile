@@ -12,7 +12,7 @@
 
 FROM oven/bun:1
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bash cron jq \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bash cron jq unzip \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Infisical CLI (token-based auth only; no login required)
