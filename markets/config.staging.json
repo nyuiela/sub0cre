@@ -1,5 +1,5 @@
 {
-  "schedule": "*/30 */5 * * * *",
+  "schedule": "*/0 */10 * * * *",
   "backendUrl": "http://sub0server.vercel.app",
   "backendApiKeySecretId": "BACKEND_API_KEY",
   "contracts": {

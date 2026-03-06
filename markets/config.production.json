@@ -1,5 +1,10 @@
 {
-  "schedule": "*/30 */5 * * * *",
+  "schedule": "*/0 */10 * * * *",
+  "backendUrl": "https://sub0server.vercel.app",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": true,
+  "backendAgentMarketsPath": "/api/cre/agent-markets",
+  "backendOnchainCreatedPath": "/api/cre/markets/onchain-created",
   "contracts": {
     "chainId": 11155111,
     "chainSelectorName": "ethereum-testnet-sepolia",
