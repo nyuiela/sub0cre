@@ -21,8 +21,11 @@ if [ -n "${CRE_CREDENTIALS_PATH:-}" ] && [ -f "$CRE_CREDENTIALS_PATH" ]; then
 fi
 
 if command -v cre >/dev/null 2>&1; then
-  echo "[gateway] Checking CRE CLI version and updating if available..."
-  cre update 2>/dev/null || true
+  if cre whoami >/dev/null 2>&1; then
+    echo "[gateway] CRE auth verified (cre whoami succeeded)"
+  else
+    echo "[gateway] CRE auth not verified. Set CRE_API_KEY or CRE_CREDENTIALS_PATH for workflow auth." >&2
+  fi
 fi
 
 # Load CRE workflow config from a mounted file (e.g. -v /host/cre.json:/config/cre.json -e CRE_CONFIG_FILE=/config/cre.json)
