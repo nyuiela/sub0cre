@@ -1,22 +1,35 @@
 #!/usr/bin/env bash
-# Optional Infisical: if INFISICAL_TOKEN is set, inject env from Infisical. Otherwise run with env from docker (--env-file or -e).
-# Optional: CRE_CONFIG_FILE (path to JSON) copied to markets/config.docker.json so workflow uses it.
-# Optional: CRE_CRON_SCHEDULE (cron expr, e.g. "*/10 * * * *") runs createMarketsFromBackend at schedule inside the container.
-# Optional: CRE_CREDENTIALS_PATH (path to zip of ~/.cre from 'cre login') - extract to /root/.cre for CLI auth (e.g. Render Secret Files).
-# CRE CLI: try to update to latest so container doesn't warn about newer version (non-fatal).
+
 set -e
 BASE="/app"
 cd "$BASE"
 
+# CRE credentials: copy zip to /tmp (avoids Render /etc/secrets read-permission issues),
+# then extract to /app/.cre. Set HOME=/app so CRE finds ~/.cre.
 CRE_HOME="${HOME:-/root}"
 if [ -n "${CRE_CREDENTIALS_PATH:-}" ] && [ -f "$CRE_CREDENTIALS_PATH" ]; then
-  echo "[gateway] Extracting CRE credentials from $CRE_CREDENTIALS_PATH to $CRE_HOME/.cre"
-  mkdir -p "$CRE_HOME"
-  if unzip -o -q "$CRE_CREDENTIALS_PATH" -d "$CRE_HOME" 2>/dev/null; then
-    echo "[gateway] CRE credentials extracted; CLI will use ~/.cre (unset CRE_API_KEY so it is not overridden)"
-    unset CRE_API_KEY
+  echo "[gateway] Extracting CRE credentials from $CRE_CREDENTIALS_PATH to /app/.cre"
+  CRE_TMP="/tmp/cre-credentials.zip"
+  if cp "$CRE_CREDENTIALS_PATH" "$CRE_TMP" 2>/dev/null; then
+    mkdir -p /app/.cre
+    if unzip -o -q "$CRE_TMP" -d /app 2>/dev/null; then
+      if [ -f /app/.cre/cre.yaml ]; then
+        echo "[gateway] CRE credentials extracted; CLI will use ~/.cre (HOME=/app)"
+        export HOME=/app
+        unset CRE_API_KEY
+      elif [ -f /app/cre.yaml ]; then
+        mv /app/cre.yaml /app/.cre/ 2>/dev/null && export HOME=/app && unset CRE_API_KEY
+        echo "[gateway] CRE credentials extracted; CLI will use ~/.cre (HOME=/app)"
+      else
+        echo "[gateway] Warning: zip missing cre.yaml. Create with: cd ~ && zip -r cre.zip .cre" >&2
+      fi
+    else
+      UNZIP_ERR=$(unzip -o -q "$CRE_TMP" -d /app 2>&1) || true
+      echo "[gateway] Warning: unzip failed: ${UNZIP_ERR:-unknown}" >&2
+    fi
+    rm -f "$CRE_TMP"
   else
-    echo "[gateway] Warning: failed to unzip CRE credentials from $CRE_CREDENTIALS_PATH" >&2
+    echo "[gateway] Warning: could not copy $CRE_CREDENTIALS_PATH (permission denied; ensure user in group 1000)" >&2
   fi
 fi
 

@@ -15,6 +15,9 @@ FROM oven/bun:1
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bash cron jq unzip \
   && rm -rf /var/lib/apt/lists/*
 
+# Render secret files at /etc/secrets require app user in group 1000; add root to group 1000
+RUN usermod -a -G 1000 root 2>/dev/null || true
+
 # Install Infisical CLI (token-based auth only; no login required)
 RUN curl -1sLf "https://artifacts-cli.infisical.com/setup.deb.sh" | bash \
   && apt-get update && apt-get install -y --no-install-recommends infisical \
