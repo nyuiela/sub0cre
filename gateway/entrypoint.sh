@@ -18,6 +18,11 @@ if [ -n "${CRE_CONFIG_FILE:-}" ] && [ -f "$CRE_CONFIG_FILE" ]; then
   cp "$CRE_CONFIG_FILE" "$BASE/markets/config.docker.json"
 fi
 
+if [ -n "${BACKEND_URL:-}" ] && [ -f "$BASE/markets/config.docker.json" ] && command -v jq >/dev/null 2>&1; then
+  echo "[gateway] Setting config.backendUrl from BACKEND_URL env"
+  jq --arg u "${BACKEND_URL}" '.backendUrl = $u' "$BASE/markets/config.docker.json" > "$BASE/markets/config.docker.json.tmp" && mv "$BASE/markets/config.docker.json.tmp" "$BASE/markets/config.docker.json"
+fi
+
 # In-container cron: use CRE_CRON_SCHEDULE if set, else derive 5-field cron from config's schedule (6-field -> 5-field).
 # Config schedule is 6-field (sec min hour day month dow); host cron is 5-field (min hour day month dow).
 CRON_SCHEDULE=""
