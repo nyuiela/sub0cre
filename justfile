@@ -120,3 +120,8 @@ docker *args:
   -e CRE_CONFIG_FILE=/config/cre.json \
   -v "$HOME/.cre:/root/.cre" \
   sub0cre-gateway
+
+# Create cre-credentials.zip from ~/.cre for Google Cloud Run. Upload to Secret Manager and mount as file;
+# set CRE_CREDENTIALS_PATH to the mount path (e.g. /secrets/cre-credentials.zip).
+docker-cre-zip:
+  (cd $HOME && zip -r cre-credentials.zip .cre) && mv $HOME/cre-credentials.zip . && echo "Created cre-credentials.zip - upload to Secret Manager and set CRE_CREDENTIALS_PATH in Cloud Run"
