@@ -38,6 +38,15 @@ COPY markets ./markets
 COPY gateway ./gateway
 RUN chmod +x /app/gateway/entrypoint.sh /app/gateway/cron-trigger.sh
 
+# Default CRE config and auth mode (same as justfile docker run).
+# Cloud Run: .cre cannot be a volume. Use CRE_CREDENTIALS_PATH: zip ~/.cre (e.g. zip -r cre.zip .cre from $HOME),
+# store the zip in Secret Manager, mount it as a file in Cloud Run, set CRE_CREDENTIALS_PATH to that path;
+# entrypoint will unzip it to /root/.cre for CLI auth.
+RUN mkdir -p /config && cp /app/markets/config.docker.json /config/cre.json
+ENV CRE_CONFIG_FILE=/config/cre.json
+ENV CRE_USE_VOLUME_AUTH=true
+ENV CRE_CREDENTIALS_PATH=/home/cre.zip
+
 # Install workflow deps and precompile WASM so first request is fast
 RUN bun install --cwd ./markets
 RUN cd markets && bun x cre-compile main.ts .cre_build_tmp.wasm || true
