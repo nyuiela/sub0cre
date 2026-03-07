@@ -65,6 +65,10 @@ fi
 if [ -n "${BACKEND_URL:-}" ] && [ -f "$BASE/markets/config.docker.json" ] && command -v jq >/dev/null 2>&1; then
   echo "[gateway] Setting config.backendUrl from BACKEND_URL env"
   jq --arg u "${BACKEND_URL}" '.backendUrl = $u' "$BASE/markets/config.docker.json" > "$BASE/markets/config.docker.json.tmp" && mv "$BASE/markets/config.docker.json.tmp" "$BASE/markets/config.docker.json"
+else
+  if [ -z "${BACKEND_URL:-}" ]; then
+    echo "[gateway] BACKEND_URL not set; workflow will use built-in backendUrl (may get 404 if backend is not at that host). Set BACKEND_URL to your sub0server public URL." >&2
+  fi
 fi
 
 # In-container cron: use CRE_CRON_SCHEDULE if set, else derive 5-field from config, else default */8 (every 8 min).
