@@ -28875,6 +28875,7 @@ async function handleQuoteSigning(runtime2, payload) {
   if (!privateKey) {
     throw new Error("Backend signer secret not configured");
   }
+  const users = [];
   if (body.trades != null && body.trades.length > 0) {
     const txHashes = [];
     const errors2 = [];
@@ -28922,6 +28923,7 @@ async function handleQuoteSigning(runtime2, payload) {
           message: userTradeMessage,
           signature: item.userSignature
         });
+        users.push(user);
         runtime2.log(`user: ${user}`);
         if (!user || typeof user !== "string" || !user.startsWith("0x")) {
           errors2.push(`trade[${i2}]: failed to recover user address from UserTrade signature`);
@@ -28953,7 +28955,7 @@ async function handleQuoteSigning(runtime2, payload) {
       }
     }
     runtime2.log(`Batch execute: ${txHashes.length} submitted, ${errors2.length} errors.`);
-    return { txHashes, ...errors2.length > 0 ? { errors: errors2 } : {} };
+    return { questionId, users, outcomeIndex: body.outcomeIndex, buy: body.buy, quantity: body.quantity, tradeCostUsdc: body.tradeCostUsdc, nonce: body.nonce, deadline: body.deadline, txHashes, ...errors2.length > 0 ? { errors: errors2 } : {} };
   }
   const nonce = BigInt(body.nonce);
   if (getNonceUsed(runtime2, contracts, questionId, nonce)) {
@@ -28992,6 +28994,7 @@ async function handleQuoteSigning(runtime2, payload) {
     if (!user || typeof user !== "string" || !user.startsWith("0x")) {
       throw new Error("Failed to recover user address from UserTrade signature");
     }
+    users.push(user);
     runtime2.log(`User address: ${user}`);
     const donSignature2 = signDONQuote({
       questionId,
@@ -29015,7 +29018,7 @@ async function handleQuoteSigning(runtime2, payload) {
     };
     const txHash = submitExecuteTrade(runtime2, contracts, quote, maxCostBig, user, donSignature2, body.userSignature);
     runtime2.log("Execute trade submitted via writeReport (user + DON signatures).");
-    return { txHash };
+    return { questionId, users, outcomeIndex: body.outcomeIndex, buy: body.buy, quantity: body.quantity, tradeCostUsdc: body.tradeCostUsdc, nonce: body.nonce, deadline: body.deadline, txHash };
   }
   runtime2.log("Quote signed successfully (DON only; send userSignature to execute via writeReport).");
   const donSignature = signDONQuote({
@@ -29030,6 +29033,7 @@ async function handleQuoteSigning(runtime2, payload) {
   }, contracts, privateKey);
   return {
     questionId,
+    users,
     outcomeIndex: body.outcomeIndex,
     buy: body.buy,
     quantity: qStr,
@@ -31474,6 +31478,7 @@ async function handleLmsrPricing(runtime2, payload) {
   }, config2, privateKey);
   runtime2.log("LMSR quote signed successfully.");
   return {
+    marketId: body.marketId,
     tradeCostUsdc: signed.tradeCostUsdc,
     donSignature: signed.signature,
     deadline: signed.deadline,

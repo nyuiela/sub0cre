@@ -131,9 +131,6 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   const ctx = { runtime, config: contracts };
 
   const market = await getMarket(ctx, questionId, { useLatestBlock: true });
-  // if (market.outcomeSlotCount === 0) {
-  //   throw new Error("Market not found or invalid");
-  // }
   if (body.outcomeIndex >= market.outcomeSlotCount) {
     throw new Error("Outcome index out of range");
   }
