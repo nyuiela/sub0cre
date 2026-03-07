@@ -143,6 +143,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   if (!privateKey) {
     throw new Error("Backend signer secret not configured");
   }
+  const users: string[] = [];
 
   if (body.trades != null && body.trades.length > 0) {
     const txHashes: string[] = [];
@@ -194,6 +195,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
           message: userTradeMessage,
           signature: item.userSignature as Hex,
         });
+        users.push(user);
         runtime.log(`user: ${user}`);
 
         if (!user || typeof user !== "string" || !user.startsWith("0x")) {
@@ -238,7 +240,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
       }
     }
     runtime.log(`Batch execute: ${txHashes.length} submitted, ${errors.length} errors.`);
-    return { txHashes, ...(errors.length > 0 ? { errors } : {}) };
+    return { questionId, users, outcomeIndex: body.outcomeIndex, buy: body.buy, quantity: body.quantity, tradeCostUsdc: body.tradeCostUsdc, nonce: body.nonce, deadline: body.deadline, txHashes, ...(errors.length > 0 ? { errors } : {}) };
   }
 
   const nonce = BigInt(body.nonce);
@@ -265,7 +267,6 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
     chainId: contracts.chainId,
     verifyingContract: contracts.contracts.predictionVault as Hex,
   };
-
   if (body.userSignature) {
     const userTradeMessage = {
       marketId: questionId,
@@ -286,6 +287,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
     if (!user || typeof user !== "string" || !user.startsWith("0x")) {
       throw new Error("Failed to recover user address from UserTrade signature");
     }
+    users.push(user);
     runtime.log(`User address: ${user}`);
     const donSignature = signDONQuote(
       {
@@ -321,7 +323,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
       body.userSignature as Hex
     );
     runtime.log("Execute trade submitted via writeReport (user + DON signatures).");
-    return { txHash };
+    return { questionId, users, outcomeIndex: body.outcomeIndex, buy: body.buy, quantity: body.quantity, tradeCostUsdc: body.tradeCostUsdc, nonce: body.nonce, deadline: body.deadline, txHash };
   }
 
   runtime.log("Quote signed successfully (DON only; send userSignature to execute via writeReport).");
@@ -341,6 +343,7 @@ export async function handleQuoteSigning(runtime: Runtime<WorkflowConfig>, paylo
   );
   return {
     questionId,
+    users,
     outcomeIndex: body.outcomeIndex,
     buy: body.buy,
     quantity: qStr,
