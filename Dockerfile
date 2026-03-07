@@ -10,7 +10,7 @@
 # https://cre.chain.link/install.sh (fetches GitHub releases/latest at build time). To pin CRE, run
 # the install script with a version: curl -sSL https://cre.chain.link/install.sh | bash -s -- v1.2.3
 
-FROM oven/bun:1
+FROM oven/bun:1 AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates bash cron jq unzip \
   && rm -rf /var/lib/apt/lists/*
@@ -38,14 +38,10 @@ COPY markets ./markets
 COPY gateway ./gateway
 RUN chmod +x /app/gateway/entrypoint.sh /app/gateway/cron-trigger.sh
 
-# Default CRE config and auth mode (same as justfile docker run).
-# Cloud Run: .cre cannot be a volume. Use CRE_CREDENTIALS_PATH: zip ~/.cre (e.g. zip -r cre.zip .cre from $HOME),
-# store the zip in Secret Manager, mount it as a file in Cloud Run, set CRE_CREDENTIALS_PATH to that path;
-# entrypoint will unzip it to /root/.cre for CLI auth.
+# Default CRE config. CRE_CREDENTIALS_PATH and CRE_USE_VOLUME_AUTH defaults set in entrypoint (avoids Docker ENV secret warnings).
+# Cloud Run: mount cre.zip and set CRE_CREDENTIALS_PATH to its path; entrypoint unzips to /app/.cre.
 RUN mkdir -p /config && cp /app/markets/config.docker.json /config/cre.json
 ENV CRE_CONFIG_FILE=/config/cre.json
-ENV CRE_USE_VOLUME_AUTH=true
-ENV CRE_CREDENTIALS_PATH=/home/cre.zip
 
 # Install workflow deps and precompile WASM so first request is fast
 RUN bun install --cwd ./markets
@@ -62,3 +58,16 @@ EXPOSE 8080
 # Required: -e INFISICAL_TOKEN=<secret>. Optional: -e INFISICAL_PROJECT_ID=, -e INFISICAL_ENV=, -e INFISICAL_PATH=
 ENTRYPOINT ["/app/gateway/entrypoint.sh"]
 CMD ["bun", "run", "gateway/server.ts"]
+
+# Bake CRE credentials into image: cre.zip must be in this directory (sub0cre/).
+# Zip may have top-level "cre" (no dot) or ".cre"; CRE CLI requires ~/.cre (with dot).
+# We always end up with /root/.cre/cre.yaml so the CLI finds it.
+FROM base AS with-cre
+COPY cre.zip /tmp/cre.zip
+RUN unzip -o /tmp/cre.zip -d /root && \
+  if [ -d /root/cre ]; then rm -rf /root/.cre 2>/dev/null; mv /root/cre /root/.cre; fi && \
+  rm -f /tmp/cre.zip && \
+  test -f /root/.cre/cre.yaml || (echo "ERROR: /root/.cre/cre.yaml missing; zip must contain .cre/cre.yaml or cre/cre.yaml" && exit 1)
+
+# Default build: always use image with baked-in /root/.cre (requires cre.zip in build context).
+FROM with-cre
