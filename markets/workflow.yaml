@@ -40,3 +40,118 @@ production-settings:
     workflow-path: "./main.ts"
     config-path: "./config.production.json"
     secrets-path: "../secrets.yaml"
+
+# ==========================================================================
+# CRE-Native workflow targets: market discovery, agent analysis, settlement consensus
+# These targets simulate individual CRE-native actions for testing without running all cron steps.
+
+# sim-discovery: simulate market discovery cron (HTTP action trigger)
+sim-discovery:
+  user-workflow:
+    workflow-name: "sub0cre-market-discovery"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-analysis: simulate agent analysis batch (HTTP action trigger)
+sim-analysis:
+  user-workflow:
+    workflow-name: "sub0cre-agent-analysis"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-settlement-consensus: simulate two-LLM settlement consensus (HTTP action trigger)
+sim-settlement-consensus:
+  user-workflow:
+    workflow-name: "sub0cre-settlement-consensus"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-agent-evolution: simulate private TEE strategy evolution for a single agent
+sim-agent-evolution:
+  user-workflow:
+    workflow-name: "sub0cre-agent-evolution"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-confidential-debate: simulate TEE-sealed multi-agent debate arena
+sim-confidential-debate:
+  user-workflow:
+    workflow-name: "sub0cre-confidential-debate"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-dynamic-market: simulate autonomous LLM-driven market generation from macro data
+sim-dynamic-market:
+  user-workflow:
+    workflow-name: "sub0cre-dynamic-market-gen"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-data-streams: simulate live price/macro data fetch + backend cache update
+sim-data-streams:
+  user-workflow:
+    workflow-name: "sub0cre-data-streams"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-ace-guard: simulate EVM_LOG triggered on-chain ACE compliance check
+sim-ace-guard:
+  user-workflow:
+    workflow-name: "sub0cre-ace-guard"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-webhook-bridge: simulate forwarding an on-chain event to frontend/backend
+sim-webhook-bridge:
+  user-workflow:
+    workflow-name: "sub0cre-webhook-bridge"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-x402-pay: simulate x402 USDC micropayment per workflow execution
+sim-x402-pay:
+  user-workflow:
+    workflow-name: "sub0cre-x402-pay"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# sim-live-registry-sync: simulate LiveRegistrySync feeding DynamicMarketGenerator
+sim-live-registry-sync:
+  user-workflow:
+    workflow-name: "sub0cre-live-registry-sync"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+# ==========================================================================
+# Celo Sepolia testnet target (chain ID 11142220)
+# Deploy contracts first with: just deploy-celo (from sub0contract)
+# Then fill contract addresses in config.celo.json before deploying.
+celo-settings:
+  user-workflow:
+    workflow-name: "sub0cre-celo"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.celo.json"
+    secrets-path: "../secrets.yaml"

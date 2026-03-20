@@ -39,8 +39,31 @@ import { handleCreateMarketsFromBackend } from "./workflows/createMarketsFromBac
 import { handleRunSettlement } from "./workflows/runSettlement";
 import { handleExecuteConfidentialTrade } from "./workflows/executeConfidentialTrade";
 import { postCreResultToBackend } from "./lib/creBackendPost";
+import { handleMarketDiscoveryCron, handleMarketDiscoveryHttp } from "./workflows/marketDiscovery";
+import { handleAgentAnalysisCron, handleAgentAnalysisHttp } from "./workflows/agentAnalysis";
+import {
+  handleSettlementConsensusCron,
+  handleSettlementConsensusHttp,
+} from "./workflows/settlementConsensus";
+import { handleCrossChainSyncHttp } from "./workflows/crossChainSync";
+import { handleComplianceGuardHttp } from "./workflows/complianceGuard";
+import { handleAgentEvolutionCron, handleAgentEvolutionHttp } from "./workflows/agentEvolution";
+import { handleConfidentialDebateHttp } from "./workflows/confidentialDebate";
+import { handleDynamicMarketGeneratorCron, handleDynamicMarketGeneratorHttp } from "./workflows/dynamicMarketGenerator";
+import { handleDataStreamsCron, handleDataStreamsHttp } from "./workflows/dataStreamsRegistry";
+import { handleAceComplianceGuardHttp, handleAceComplianceGuardEvmLog } from "./workflows/aceComplianceGuard";
+import { handleWebhookBridgeHttp, handleWebhookBridgeEvmLog } from "./workflows/webhookBridge";
+import { handleX402PayHttp } from "./workflows/x402PaymentWrapper";
+import { handleLiveRegistrySyncCron, handleLiveRegistrySyncHttp } from "./workflows/liveRegistrySync";
 
 const onCronTrigger = async (runtime: Runtime<WorkflowConfig>): Promise<string> => {
+  await handleMarketDiscoveryCron(runtime);
+  await handleAgentAnalysisCron(runtime);
+  await handleSettlementConsensusCron(runtime);
+  handleAgentEvolutionCron(runtime);
+  handleDynamicMarketGeneratorCron(runtime);
+  handleDataStreamsCron(runtime);
+  await handleLiveRegistrySyncCron(runtime);
   return handlePlatformCron(runtime);
 };
 
@@ -133,9 +156,54 @@ const onHTTPTrigger = async (
   if (action === "runSettlement") {
     return (await handleRunSettlement(runtime, payload)) as unknown as HttpResult;
   }
+  if (action === "marketDiscovery") {
+    return (await handleMarketDiscoveryHttp(runtime, payload)) as unknown as HttpResult;
+  }
+  if (action === "agentAnalysis" || action === "agentAnalysisBatch") {
+    return (await handleAgentAnalysisHttp(runtime, body)) as unknown as HttpResult;
+  }
+  if (action === "settlementConsensus") {
+    return (await handleSettlementConsensusHttp(runtime, body)) as unknown as HttpResult;
+  }
+  if (action === "crossChainSync") {
+    return (await handleCrossChainSyncHttp(runtime, body)) as unknown as HttpResult;
+  }
+  if (action === "checkCompliance") {
+    return handleComplianceGuardHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "agentEvolution") {
+    return handleAgentEvolutionHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "startDebate") {
+    return handleConfidentialDebateHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "generateMarket") {
+    return handleDynamicMarketGeneratorHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "dataStreamsRefresh") {
+    return handleDataStreamsHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "aceCheck") {
+    return handleAceComplianceGuardHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "aceCheckEvmLog") {
+    return handleAceComplianceGuardEvmLog(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "webhookForward") {
+    return handleWebhookBridgeHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "webhookEvmLog") {
+    return handleWebhookBridgeEvmLog(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "x402Pay") {
+    return handleX402PayHttp(runtime, body) as unknown as HttpResult;
+  }
+  if (action === "liveRegistrySync") {
+    return handleLiveRegistrySyncHttp(runtime, body) as unknown as HttpResult;
+  }
 
   runtime.log(
-    "HTTP action must be one of: quote, order, buy, sell, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement, executeConfidentialTrade."
+    "HTTP action must be one of: quote, order, buy, sell, lmsrPricing, createAgentKey, createMarket, getMarket, seed, resolveMarket, stake, redeem, approveErc20, approveConditionalToken, createMarketsFromBackend, runSettlement, executeConfidentialTrade, marketDiscovery, agentAnalysis, agentAnalysisBatch, settlementConsensus, crossChainSync, checkCompliance, agentEvolution, startDebate, generateMarket, dataStreamsRefresh, aceCheck, webhookForward, x402Pay, liveRegistrySync."
   );
   throw new Error("Missing or invalid body.action");
 };

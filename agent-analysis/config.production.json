@@ -1,0 +1,9 @@
+{
+  "schedule": "0 */15 * * * *",
+  "backendUrl": "https://api.sub0.example.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": false,
+  "geminiModel": "gemini-2.0-flash",
+  "maxAgentsPerRun": 50,
+  "maxMarketsPerAgent": 10
+}

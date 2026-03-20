@@ -1,0 +1,9 @@
+{
+  "schedule": "0 */15 * * * *",
+  "backendUrl": "http://host.docker.internal:4000",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": true,
+  "geminiModel": "gemini-2.0-flash",
+  "maxAgentsPerRun": 20,
+  "maxMarketsPerAgent": 5
+}

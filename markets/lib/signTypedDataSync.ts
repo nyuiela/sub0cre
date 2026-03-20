@@ -9,7 +9,7 @@ import { secp256k1 } from "@noble/curves/secp256k1";
 import type { Hex } from "viem";
 
 export interface SignTypedDataParams {
-  domain: { name?: string; version?: string; chainId?: number; verifyingContract?: string };
+  domain: { name?: string; version?: string; chainId?: number; verifyingContract?: `0x${string}` };
   types: Record<string, Array<{ name: string; type: string }>>;
   primaryType: string;
   message: Record<string, unknown>;

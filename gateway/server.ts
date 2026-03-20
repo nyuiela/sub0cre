@@ -233,4 +233,16 @@ if (CRE_TARGET === "staging-settings") {
 if (CRE_TARGET === "docker-settings") {
   console.log("[gateway] On Linux, if backend URL fails (e.g. 'lookup host.docker.internal: no such host'), run docker with: --add-host=host.docker.internal:host-gateway");
 }
-console.log("[gateway] CLI auth: run 'cre login' on the host, then run this container with -v \"$HOME/.cre:/root/.cre\" (or set CRE_API_KEY if you have one).");
+{
+  const whoami = Bun.spawnSync(["cre", "whoami"], {
+    env: process.env as Record<string, string>,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  if (whoami.exitCode === 0) {
+    const identity = new TextDecoder().decode(whoami.stdout).trim();
+    console.log(`[gateway] CRE auth active — ${identity || "authenticated"}`);
+  } else {
+    console.log("[gateway] CRE auth not verified. Run 'cre login' on host and mount -v \"$HOME/.cre:/root/.cre\", or use 'just docker-login' to authenticate from inside Docker.");
+  }
+}

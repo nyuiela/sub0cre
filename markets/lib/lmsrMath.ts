@@ -56,5 +56,5 @@ export function costToUsdcUnits(
   const divisor = new Decimal(10).pow(outcomeTokenDecimals);
   const multiplier = new Decimal(10).pow(usdcDecimals);
   const usdc = costOutcomeWei.times(multiplier).div(divisor);
-  return BigInt(usdc.round(0, Decimal.ROUND_CEIL).toString());
+  return BigInt(usdc.toDecimalPlaces(0, Decimal.ROUND_CEIL).toString());
 }

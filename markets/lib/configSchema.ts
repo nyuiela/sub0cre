@@ -32,6 +32,13 @@ export const workflowConfigSchema = z.object({
   backendUsePlainAuth: z.boolean().optional(),
   backendAgentMarketsPath: z.string().optional(),
   backendOnchainCreatedPath: z.string().optional(),
+  complianceEnabled: z.boolean().optional(),
+  x402Enabled: z.boolean().optional(),
+  dataStreamsEnabled: z.boolean().optional(),
+  aceComplianceMode: z.boolean().optional(),
+  deepEvolution: z.boolean().optional(),
+  frontendWebhookEnabled: z.boolean().optional(),
+  frontendWebhookUrl: z.string().optional(),
   contracts: contractsSchema,
 });
 

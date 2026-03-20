@@ -1,10 +1,17 @@
 {
   "schedule": "*/0 */10 * * * *",
-  "backendUrl": "https://sub0server.vercel.app",
+  "backendUrl": "https://sub0server.onrender.com",
   "backendApiKeySecretId": "BACKEND_API_KEY",
   "backendUsePlainAuth": true,
   "backendAgentMarketsPath": "/api/cre/agent-markets",
   "backendOnchainCreatedPath": "/api/cre/markets/onchain-created",
+  "complianceEnabled": true,
+  "x402Enabled": true,
+  "dataStreamsEnabled": true,
+  "aceComplianceMode": true,
+  "deepEvolution": true,
+  "frontendWebhookEnabled": true,
+  "frontendWebhookUrl": "https://sub0-markets.vercel.app/api/cre-webhook",
   "contracts": {
     "chainId": 11155111,
     "chainSelectorName": "ethereum-testnet-sepolia",
@@ -23,7 +30,7 @@
     },
     "conventions": {
       "usdcDecimals": 6,
-      "outcomeTokenDecimals": 18,
+      "outcomeTokenDecimals": 6,
       "parentCollectionId": "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
   }

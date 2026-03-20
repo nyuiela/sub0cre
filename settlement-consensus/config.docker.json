@@ -1,0 +1,15 @@
+{
+  "schedule": "0 0 * * * *",
+  "backendUrl": "http://host.docker.internal:4000",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": true,
+  "contracts": {
+    "chainId": 11155111,
+    "chainSelectorName": "ethereum-testnet-sepolia",
+    "gasLimit": "1500000",
+    "contracts": {
+      "agentSettlementReceiver": "REPLACE_WITH_SETTLEMENT_RECEIVER_ADDRESS",
+      "predictionVault": "0xFC4DEF105b3288E41f0aE8818bDD48d58F950772"
+    }
+  }
+}

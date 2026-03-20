@@ -1,0 +1,8 @@
+{
+  "schedule": "0 0 * * * *",
+  "backendUrl": "http://host.docker.internal:4000",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": true,
+  "blockedCountries": ["KP", "IR", "SY", "CU"],
+  "minWalletAgeDays": 0
+}

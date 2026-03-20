@@ -1,0 +1,34 @@
+{
+  "schedule": "*/0 */10 * * * *",
+  "backendUrl": "https://sub0server.onrender.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "complianceEnabled": true,
+  "x402Enabled": false,
+  "dataStreamsEnabled": true,
+  "aceComplianceMode": true,
+  "deepEvolution": true,
+  "frontendWebhookEnabled": true,
+  "frontendWebhookUrl": "https://sub0-markets.vercel.app/api/cre-webhook",
+  "contracts": {
+    "chainId": 11142220,
+    "chainSelectorName": "celo-testnet-sepolia",
+    "contracts": {
+      "sub0": "0xce1A7A7Fac2FC23bf4bC644C6d347b22BEbAF77e",
+      "predictionVault": "0xcf9f7B946779D7F960D4aB2C6764003EA43A7915",
+      "conditionalTokens": "0xF5F7D334B1Dc75C644816BEA608B0af31f6450dc",
+      "vault": "0xfb0be8721F277746D853CC95e9b66F074C756756",
+      "usdc": "0x9C504c9E4fBc92a780aA35f2441821962581c646",
+      "hub": "0x99A24893033B99fA29eF575F2236351ba31863c8"
+    },
+    "eip712": {
+      "domainName": "Sub0PredictionVault",
+      "domainVersion": "1",
+      "quoteTypeName": "LMSRQuote(bytes32 questionId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,uint256 nonce,uint256 deadline)"
+    },
+    "conventions": {
+      "usdcDecimals": 6,
+      "outcomeTokenDecimals": 6,
+      "parentCollectionId": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  }
+}

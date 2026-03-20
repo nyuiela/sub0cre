@@ -1,0 +1,26 @@
+# CRE WORKFLOW SETTINGS — compliance-guard
+# ACE compliance check: wallet verification, geo guard, sanctions policy enforcement.
+
+staging-settings:
+  user-workflow:
+    workflow-name: "sub0cre-compliance-guard"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
+
+docker-settings:
+  user-workflow:
+    workflow-name: "sub0cre-compliance-guard"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+production-settings:
+  user-workflow:
+    workflow-name: "sub0cre-compliance-guard"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"
+    secrets-path: "../secrets.yaml"

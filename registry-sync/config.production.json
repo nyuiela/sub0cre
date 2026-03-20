@@ -1,0 +1,13 @@
+{
+  "schedule": "0 */3 * * * *",
+  "backendUrl": "https://api.sub0.example.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": false,
+  "contracts": {
+    "chainId": 84532,
+    "chainSelectorName": "base-testnet-sepolia",
+    "contracts": {
+      "predictionVault": "REPLACE_WITH_PRODUCTION_ADDRESS"
+    }
+  }
+}

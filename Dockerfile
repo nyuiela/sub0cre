@@ -24,10 +24,10 @@ RUN curl -1sLf "https://artifacts-cli.infisical.com/setup.deb.sh" | bash \
   && rm -rf /var/lib/apt/lists/*
 ENV INFISICAL_DISABLE_UPDATE_CHECK=true
 
-# Install CRE CLI to /opt/cre (pinned to v1.3.0 to avoid runtime update warning and cross-device link failures)
+# Install CRE CLI to /opt/cre (pinned to v1.6.0 — update this version when a new release is available)
 ENV CRE_INSTALL=/opt/cre
 ENV PATH="/opt/cre/bin:${PATH}"
-RUN curl -sSL https://cre.chain.link/install.sh | bash -s -- v1.3.0
+RUN curl -sSL https://cre.chain.link/install.sh | bash -s -- v1.6.0
 
 WORKDIR /app
 

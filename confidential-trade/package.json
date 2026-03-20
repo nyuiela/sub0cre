@@ -1,0 +1,23 @@
+{
+  "name": "sub0cre-confidential-trade",
+  "version": "1.0.0",
+  "main": "dist/main.js",
+  "private": true,
+  "scripts": {
+    "postinstall": "bun x cre-setup",
+    "cre-compile": "npx cre-compile"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@chainlink/cre-sdk": "^1.0.9",
+    "zod": "^3.23.0",
+    "@noble/curves": "^1.9.0",
+    "@noble/ciphers": "^1.0.0",
+    "scrypt-js": "^3.0.1",
+    "decimal.js": "^10.4.3",
+    "viem": "^2.34.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21"
+  }
+}

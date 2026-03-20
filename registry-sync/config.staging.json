@@ -1,0 +1,13 @@
+{
+  "schedule": "0 */3 * * * *",
+  "backendUrl": "https://api.sub0.example.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": false,
+  "contracts": {
+    "chainId": 11155111,
+    "chainSelectorName": "ethereum-testnet-sepolia",
+    "contracts": {
+      "predictionVault": "0xFC4DEF105b3288E41f0aE8818bDD48d58F950772"
+    }
+  }
+}

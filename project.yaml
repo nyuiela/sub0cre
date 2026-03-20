@@ -40,3 +40,27 @@ production-settings:
   rpcs:
     - chain-name: ethereum-testnet-sepolia
       url: https://ethereum-sepolia-rpc.publicnode.com
+
+# ==========================================================================
+# Celo Sepolia target (Chain ID: 11142220)
+#
+# Prerequisites before this target works end-to-end:
+#   1. Deploy MockKeystoneForwarder to Celo Sepolia:
+#        cd forwarder-contract && just deploy-celo
+#   2. Fill in the deployed forwarder address below (forwarder: "0x...")
+#   3. Fill in the Celo Sepolia CCIP chain selector below (chain-selector: ???).
+#      Check: https://github.com/smartcontractkit/chain-selectors
+#      or run: cre account access  (shows experimental chains if Celo is supported)
+#      If no official selector exists yet, use the chain ID (11142220) as a placeholder.
+#
+# In workflow TypeScript, reference Celo EVM actions as:
+#   evm:ChainSelector:<chain-selector>@1.0.0
+#
+docker-celo-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+  experimental-chains:
+    - chain-selector: 11142220
+      rpc-url: https://forno.celo-sepolia.celo-testnet.org
+      forwarder: "0x0000000000000000000000000000000000000000"

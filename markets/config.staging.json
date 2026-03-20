@@ -1,7 +1,14 @@
 {
   "schedule": "*/0 */10 * * * *",
-  "backendUrl": "http://sub0server.vercel.app",
+  "backendUrl": "https://sub0server.onrender.com",
   "backendApiKeySecretId": "BACKEND_API_KEY",
+  "complianceEnabled": true,
+  "x402Enabled": true,
+  "dataStreamsEnabled": true,
+  "aceComplianceMode": true,
+  "deepEvolution": true,
+  "frontendWebhookEnabled": true,
+  "frontendWebhookUrl": "https://sub0-markets.vercel.app/api/cre-webhook",
   "contracts": {
     "chainId": 11155111,
     "chainSelectorName": "ethereum-testnet-sepolia",
@@ -14,7 +21,7 @@
       "hub": "0x1f8eCAB9EDD176AD32B523013F8192335b96A6c8"
     },
     "eip712": {
-      "domainName": "PredictionVault",
+      "domainName": "Sub0PredictionVault",
       "domainVersion": "1",
       "quoteTypeName": "LMSRQuote(bytes32 questionId,uint256 outcomeIndex,bool buy,uint256 quantity,uint256 tradeCostUsdc,uint256 nonce,uint256 deadline)"
     },

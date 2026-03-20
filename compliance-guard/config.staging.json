@@ -1,0 +1,8 @@
+{
+  "schedule": "0 0 * * * *",
+  "backendUrl": "https://api.sub0.example.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": false,
+  "blockedCountries": ["KP", "IR", "SY", "CU"],
+  "minWalletAgeDays": 0
+}

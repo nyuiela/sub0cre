@@ -1,0 +1,14 @@
+{
+  "schedule": "0 */10 * * * *",
+  "backendUrl": "https://api.sub0.example.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": false,
+  "destinationChains": ["arbitrum-testnet-sepolia", "polygon-testnet-amoy"],
+  "sourceContracts": {
+    "chainId": 11155111,
+    "chainSelectorName": "ethereum-testnet-sepolia",
+    "contracts": {
+      "predictionVault": "0xFC4DEF105b3288E41f0aE8818bDD48d58F950772"
+    }
+  }
+}

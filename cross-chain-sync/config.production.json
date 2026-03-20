@@ -1,0 +1,14 @@
+{
+  "schedule": "0 */10 * * * *",
+  "backendUrl": "https://api.sub0.example.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": false,
+  "destinationChains": ["arbitrum-mainnet", "polygon-mainnet"],
+  "sourceContracts": {
+    "chainId": 8453,
+    "chainSelectorName": "base-mainnet",
+    "contracts": {
+      "predictionVault": "REPLACE_WITH_PRODUCTION_ADDRESS"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+# CRE WORKFLOW SETTINGS — cross-chain-sync
+# CCIP: broadcast market metadata to Arbitrum Sepolia / Polygon Amoy on MarketCreated events.
+
+staging-settings:
+  user-workflow:
+    workflow-name: "sub0cre-cross-chain-sync"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
+
+docker-settings:
+  user-workflow:
+    workflow-name: "sub0cre-cross-chain-sync"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.docker.json"
+    secrets-path: "../secrets.yaml"
+
+production-settings:
+  user-workflow:
+    workflow-name: "sub0cre-cross-chain-sync"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"
+    secrets-path: "../secrets.yaml"

@@ -1,0 +1,17 @@
+{
+  "schedule": "0 */5 * * * *",
+  "backendUrl": "https://api.sub0.example.com",
+  "backendApiKeySecretId": "BACKEND_API_KEY",
+  "backendUsePlainAuth": false,
+  "geminiModel": "gemini-2.0-flash",
+  "maxMarketsPerRun": 10,
+  "contracts": {
+    "chainId": 11155111,
+    "chainSelectorName": "ethereum-testnet-sepolia",
+    "gasLimit": "1500000",
+    "contracts": {
+      "predictionVault": "0xFC4DEF105b3288E41f0aE8818bDD48d58F950772",
+      "sub0": "0xF5CdCaf95BB27FB43919d1c664a2618c773330dd"
+    }
+  }
+}
