@@ -23,6 +23,7 @@ import { sendConfidentialBackendRequest } from "../lib/confidentialHttp";
 
 const AGENT_POSITION_PATH = "/api/internal/cre/agent-position";
 const DEBATE_RESULT_PATH = "/api/internal/cre/debate-result";
+const REGISTRY_RECORD_PATH = "/api/internal/cre/registry-record";
 const MAX_ROUNDS = 5;
 const CONSENSUS_THRESHOLD = 0.05;
 const JUDGE_VOTE_THRESHOLD = 0.6; // >60% judge votes needed to accept final odds
@@ -139,14 +140,35 @@ function postDebateResult(
 ): void {
   const backendUrl = runtime.config.backendUrl?.trim() ?? "";
   if (!backendUrl) return;
-  const url = `${backendUrl.replace(/\/$/, "")}${DEBATE_RESULT_PATH}`;
-  // onchainRecord: true tells backend to relay proof to Sub0CRERegistry.recordDebateProof
+  const base = backendUrl.replace(/\/$/, "");
+
+  // Step 1: post debate result to Sub0CRERegistry via backend relay (existing path)
+  const url = `${base}${DEBATE_RESULT_PATH}`;
   const payload = { ...outcome, onchainRecord: true };
   const body = new TextEncoder().encode(JSON.stringify(payload));
   const res = sendConfidentialBackendRequest(runtime, { url, method: "POST", body });
   runtime.log(
     `[confidential-debate] result posted marketId=${outcome.marketId} consensus=${outcome.consensus} finalOdds=${outcome.finalOdds} judgeScore=${outcome.judgeScore ?? "n/a"} status=${res.statusCode}`
   );
+
+  // Step 2: publish debate proof to ERC-8004 ValidationRegistry for both agents (proofType=1: debate)
+  // Publish once per agent participant so each agent's reputation reflects the debate
+  for (const agentId of [outcome.agentIdA, outcome.agentIdB]) {
+    try {
+      const registryUrl = `${base}${REGISTRY_RECORD_PATH}`;
+      const registryPayload = {
+        event: "erc8004:validation:publish",
+        agentId,
+        proofHash: outcome.proofHash,
+        proofType: 1,
+      };
+      const registryBody = new TextEncoder().encode(JSON.stringify(registryPayload));
+      const registryRes = sendConfidentialBackendRequest(runtime, { url: registryUrl, method: "POST", body: registryBody });
+      runtime.log(`[confidential-debate] ERC-8004 validation publish agentId=${agentId} status=${registryRes.statusCode}`);
+    } catch (err) {
+      runtime.log(`[confidential-debate] ERC-8004 validation publish failed for agentId=${agentId} (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 }
 
 export function handleConfidentialDebateHttp(

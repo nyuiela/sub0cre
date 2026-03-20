@@ -26,6 +26,7 @@ import { sendConfidentialBackendRequest } from "../lib/confidentialHttp";
 
 const TRACKS_PATH = "/api/internal/cre/agent-tracks";
 const EVOLUTION_PROOF_PATH = "/api/internal/cre/evolution-proof";
+const REGISTRY_RECORD_PATH = "/api/internal/cre/registry-record";
 const MAX_AGENTS_PER_RUN = 10;
 
 interface AgentTrackRecord {
@@ -121,14 +122,32 @@ function postEvolutionProof(
 ): void {
   const backendUrl = runtime.config.backendUrl?.trim() ?? "";
   if (!backendUrl) return;
-  const url = `${backendUrl.replace(/\/$/, "")}${EVOLUTION_PROOF_PATH}`;
-  // onchainRecord: true tells backend to also relay the proof to Sub0CRERegistry contract
+  const base = backendUrl.replace(/\/$/, "");
+
+  // Step 1: post to Sub0CRERegistry via backend relay (existing path)
+  const url = `${base}${EVOLUTION_PROOF_PATH}`;
   const payload = { ...result, onchainRecord: true };
   const body = new TextEncoder().encode(JSON.stringify(payload));
   const res = sendConfidentialBackendRequest(runtime, { url, method: "POST", body });
   runtime.log(
     `[agent-evolution] proof posted agentId=${result.agentId} improved=${result.improved} deep=${result.deepEvolution ?? false} iterations=${result.backtestIterations ?? 0} status=${res.statusCode}`
   );
+
+  // Step 2: request backend to publish to ERC-8004 ValidationRegistry (proofType=0: evolution)
+  try {
+    const registryUrl = `${base}${REGISTRY_RECORD_PATH}`;
+    const registryPayload = {
+      event: "erc8004:validation:publish",
+      agentId: result.agentId,
+      proofHash: result.proofHash,
+      proofType: 0,
+    };
+    const registryBody = new TextEncoder().encode(JSON.stringify(registryPayload));
+    const registryRes = sendConfidentialBackendRequest(runtime, { url: registryUrl, method: "POST", body: registryBody });
+    runtime.log(`[agent-evolution] ERC-8004 validation publish agentId=${result.agentId} status=${registryRes.statusCode}`);
+  } catch (err) {
+    runtime.log(`[agent-evolution] ERC-8004 validation publish failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function evolveAgent(

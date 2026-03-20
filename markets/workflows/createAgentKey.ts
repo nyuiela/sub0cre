@@ -217,13 +217,37 @@ export async function handleCreateAgentKey(
       multiHeaders: {
         Authorization: { values: ["Basic {{.apiKey}}"] },
       },
-      // body: { value: new TextEncoder().encode(JSON.stringify(postBody)), case: "bodyBytes" },
       bodyString: JSON.stringify(postBody),
     },
     vaultDonSecrets: [{ key: "BACKEND_API_VAR" }],
   }).result();
 
   runtime.log(`Agent key generated for agentId=${body.agentId}, address=${address}`);
+
+  // Notify backend to mint ERC-8004 IdentityRegistry NFT for the new agent wallet.
+  // This is fire-and-forget; a failure here never blocks key creation.
+  const backendUrl = (config?.backendUrl ?? (runtime.config as { backendUrl: string }).backendUrl)
+    .replace(/\/$/, "");
+  try {
+    client.sendRequest(runtime, {
+      request: {
+        url: `${backendUrl}/api/internal/cre/registry-record`,
+        method: "POST",
+        multiHeaders: {
+          Authorization: { values: ["Basic {{.apiKey}}"] },
+        },
+        bodyString: JSON.stringify({
+          event: "erc8004:identity:mint",
+          agentId: body.agentId,
+          walletAddress: address,
+        }),
+      },
+      vaultDonSecrets: [{ key: "BACKEND_API_VAR" }],
+    }).result();
+    runtime.log(`[createAgentKey] ERC-8004 identity mint requested for agentId=${body.agentId}`);
+  } catch (mintErr) {
+    runtime.log(`[createAgentKey] ERC-8004 identity mint request failed (non-fatal): ${mintErr instanceof Error ? mintErr.message : String(mintErr)}`);
+  }
 
   const response: CreateAgentKeyResponse = { address, encryptedKeyBlob };
   if (signedEthTransfer != null) response.signedEthTransfer = signedEthTransfer;
